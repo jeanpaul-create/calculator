@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { calculatePrice, calculateRoi, estimateAnnualYield, sumInstalledKwp } from '@/lib/pricing'
 import PriceSummaryCard from './PriceSummaryCard'
 

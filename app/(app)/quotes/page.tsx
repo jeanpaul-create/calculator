@@ -101,10 +101,8 @@ export default async function QuotesPage() {
 
 function NewQuoteButton() {
   return (
-    <form action="/api/quotes" method="POST">
-      <Link href="/calculator" className="btn-primary">
-        + Neue Offerte
-      </Link>
-    </form>
+    <Link href="/calculator" className="btn-primary">
+      + Neue Offerte
+    </Link>
   )
 }

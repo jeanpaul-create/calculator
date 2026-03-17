@@ -70,7 +70,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
   try {
     const quote = await prisma.quote.findUnique({
       where: { id: params.id },
-      select: { repId: true },
+      select: { repId: true, customerZip: true },
     })
 
     if (!quote) {
@@ -147,51 +147,45 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
     // Resolve canton rate
     let rateRappenPerKwh: number | null = null
-    if (quote) {
-      const fullQuote = await prisma.quote.findUnique({
-        where: { id: params.id },
-        select: { customerZip: true },
+    if (quote.customerZip) {
+      const zipPrefix = quote.customerZip.slice(0, 2)
+      const rate = await prisma.swissRate.findFirst({
+        where: { zipPrefix },
+        select: { rateRappenPerKwh: true },
       })
-      if (fullQuote?.customerZip) {
-        const zipPrefix = fullQuote.customerZip.slice(0, 2)
-        const rate = await prisma.swissRate.findFirst({
-          where: { zipPrefix },
-          select: { rateRappenPerKwh: true },
-        })
-        rateRappenPerKwh = rate?.rateRappenPerKwh ?? null
-      }
+      rateRappenPerKwh = rate?.rateRappenPerKwh ?? null
     }
 
-    // Delete existing scenario for this quote (one scenario per quote in Phase 1)
+    // Atomically replace the scenario (delete old + create new in one transaction)
     // In Phase 2 multi-scenario: create/update by scenario ID
-    await prisma.quoteScenario.deleteMany({ where: { quoteId: params.id } })
-
-    // Create new scenario with snapshotted costs
-    const scenario = await prisma.quoteScenario.create({
-      data: {
-        quoteId: params.id,
-        name: data.name ?? 'Szenario 1',
-        marginBasisPts: data.marginBasisPts,
-        vatPctBasisPts: vatBasisPts,
-        rateRappenPerKwh,
-        items: {
-          create: data.items.map((item) => ({
-            productId: item.productId,
-            quantity: item.quantity,
-            costRappenSnapshot: productCostMap[item.productId],
-          })),
+    const scenario = await prisma.$transaction(async (tx) => {
+      await tx.quoteScenario.deleteMany({ where: { quoteId: params.id } })
+      return tx.quoteScenario.create({
+        data: {
+          quoteId: params.id,
+          name: data.name ?? 'Szenario 1',
+          marginBasisPts: data.marginBasisPts,
+          vatPctBasisPts: vatBasisPts,
+          rateRappenPerKwh,
+          items: {
+            create: data.items.map((item) => ({
+              productId: item.productId,
+              quantity: item.quantity,
+              costRappenSnapshot: productCostMap[item.productId],
+            })),
+          },
+          options: {
+            create: (data.options ?? []).map((opt) => ({
+              optionId: opt.optionId,
+              costRappenSnapshot: optionCostMap[opt.optionId],
+            })),
+          },
         },
-        options: {
-          create: (data.options ?? []).map((opt) => ({
-            optionId: opt.optionId,
-            costRappenSnapshot: optionCostMap[opt.optionId],
-          })),
+        include: {
+          items: true,
+          options: true,
         },
-      },
-      include: {
-        items: true,
-        options: true,
-      },
+      })
     })
 
     // Compute pricing summary for response (using snapshotted values)

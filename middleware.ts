@@ -1,23 +1,15 @@
 import { withAuth } from 'next-auth/middleware'
 import { NextResponse } from 'next/server'
 
+
 export default withAuth(
-  function middleware(req) {
-    const token = req.nextauth.token
-    const { pathname } = req.nextUrl
-
-    // Admin-only routes
-    if (pathname.startsWith('/admin')) {
-      if (token?.role !== 'ADMIN') {
-        return NextResponse.redirect(new URL('/calculator', req.url))
-      }
-    }
-
+  function middleware(_req) {
+    // Auth is verified by the `authorized` callback below.
+    // Role-based access (admin routes) is enforced server-side in each page.
     return NextResponse.next()
   },
   {
     callbacks: {
-      // Allow the middleware to run — actual auth check is above
       authorized: ({ token }) => !!token,
     },
   }
