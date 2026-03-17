@@ -1,0 +1,210 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Auth (NextAuth v4 required tables) ───────────────────────────────────────
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ─── Users ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  REP
+  ADMIN
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String?
+  role          Role      @default(REP)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts Account[]
+  sessions Session[]
+  quotes   Quote[]
+}
+
+// ─── Product Catalog ──────────────────────────────────────────────────────────
+
+enum ProductCategory {
+  PANEL
+  INVERTER
+  BATTERY
+  MOUNTING
+  ACCESSORY
+}
+
+model Product {
+  id          String          @id @default(cuid())
+  name        String
+  description String?
+  category    ProductCategory
+  // Cost in Rappen (CHF cents) — integer, never float
+  costRappen  Int
+  // Watt-peak for panels, VA for inverters, Wh for batteries; null for accessories
+  powerWp     Int?
+  active      Boolean         @default(true)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  quoteItems QuoteItem[]
+}
+
+// ─── Cost Options (scaffolding, cable runs, complexity surcharges, etc.) ──────
+
+model CostOption {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  // Fixed surcharge in Rappen
+  costRappen  Int
+  active      Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  quoteScenarioOptions QuoteScenarioOption[]
+}
+
+// ─── Swiss Rates (ZIP → canton → electricity rate) ────────────────────────────
+
+model SwissRate {
+  id       String @id @default(cuid())
+  canton   String // e.g. "ZH", "BE", "GE"
+  // ZIP prefix (first 2 digits) for fast lookup
+  zipPrefix String
+  // Average electricity rate in Rappen per kWh (integer)
+  rateRappenPerKwh Int
+
+  @@unique([canton, zipPrefix])
+  @@index([zipPrefix])
+}
+
+// ─── Quotes ───────────────────────────────────────────────────────────────────
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+model Quote {
+  id          String      @id @default(cuid())
+  // Human-readable: QUO-2026-0001
+  quoteNumber String      @unique
+  status      QuoteStatus @default(DRAFT)
+  repId       String
+  // Customer info
+  customerName    String?
+  customerEmail   String?
+  customerZip     String?
+  customerCanton  String?
+  // Address for site
+  siteAddress String?
+  notes       String?     @db.Text
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  rep       User            @relation(fields: [repId], references: [id])
+  scenarios QuoteScenario[]
+
+  @@index([repId])
+  @@index([status])
+}
+
+model QuoteScenario {
+  id      String @id @default(cuid())
+  quoteId String
+  name    String @default("Szenario 1")
+  // Margin the rep set (basis points, e.g. 2500 = 25.00%)
+  marginBasisPts Int
+  // VAT snapshotted at save time (basis points, e.g. 810 = 8.10%)
+  vatPctBasisPts Int
+  // Electricity rate used for ROI calc (Rappen/kWh, snapshotted)
+  rateRappenPerKwh Int?
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  quote   Quote       @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  items   QuoteItem[]
+  options QuoteScenarioOption[]
+
+  @@index([quoteId])
+}
+
+model QuoteItem {
+  id         String @id @default(cuid())
+  scenarioId String
+  productId  String
+  quantity   Int    @default(1)
+  // Cost snapshotted at save time (Rappen) — protects history if catalog changes
+  costRappenSnapshot Int
+
+  scenario QuoteScenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  product  Product       @relation(fields: [productId], references: [id])
+}
+
+model QuoteScenarioOption {
+  id         String @id @default(cuid())
+  scenarioId String
+  optionId   String
+  // Cost snapshotted at save time (Rappen)
+  costRappenSnapshot Int
+
+  scenario QuoteScenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  option   CostOption    @relation(fields: [optionId], references: [id])
+}
+
+// ─── App Settings (admin-managed singletons) ──────────────────────────────────
+
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}

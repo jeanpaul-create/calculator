@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="de" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Solar Rechner — Design System Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800;900&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --red-50: #fff1f1; --red-100: #ffe1e1; --red-200: #ffc7c7; --red-400: #f15558;
+    --red-500: #d92127; --red-600: #b81d22; --red-700: #96181c; --red-900: #5a0e11;
+    --gray-50: #fafaf9; --gray-100: #f5f5f4; --gray-200: #e7e5e4; --gray-300: #d6d3d1;
+    --gray-400: #a8a29e; --gray-500: #78716c; --gray-600: #57534e; --gray-700: #44403c;
+    --gray-800: #292524; --gray-900: #1c1917; --white: #ffffff;
+    --green-50: #f0fdf4; --green-600: #16a34a; --green-700: #15803d;
+    --amber-50: #fffbeb; --amber-600: #d97706;
+    --blue-50: #eff6ff; --blue-600: #2563eb; --blue-700: #1d4ed8;
+    --font-sans: 'Geist', system-ui, -apple-system, sans-serif;
+    --font-mono: 'Geist Mono', ui-monospace, 'Cascadia Code', monospace;
+    --r-sm: 4px; --r-md: 6px; --r-lg: 8px; --r-xl: 12px; --r-full: 9999px;
+    --shadow-sm: 0 1px 2px 0 rgba(0,0,0,.05);
+    --shadow-md: 0 2px 8px 0 rgba(0,0,0,.08), 0 0 0 1px var(--gray-200);
+    --bg-app: var(--gray-50); --bg-card: var(--white); --bg-sidebar: var(--gray-900);
+    --text-primary: var(--gray-800); --text-secondary: var(--gray-600);
+    --text-tertiary: var(--gray-400); --border-default: var(--gray-200);
+    --border-strong: var(--gray-300);
+  }
+  [data-theme="dark"] {
+    --bg-app: #111110; --bg-card: #1c1917; --bg-sidebar: #0c0a09;
+    --text-primary: #f5f5f4; --text-secondary: #a8a29e; --text-tertiary: #78716c;
+    --border-default: #292524; --border-strong: #44403c;
+    --gray-100: #1c1917; --gray-200: #292524; --gray-300: #44403c; --white: #1c1917;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { font-family: var(--font-sans); font-size: 16px; line-height: 1.6; color: var(--text-primary); background: var(--bg-app); transition: background 200ms, color 200ms; }
+
+  /* NAV */
+  .nav { position: sticky; top: 0; z-index: 100; background: var(--bg-card); border-bottom: 1px solid var(--border-default); padding: 0 32px; display: flex; align-items: center; justify-content: space-between; height: 52px; }
+  .nav-brand { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; color: var(--text-primary); }
+  .nav-logo { width: 26px; height: 26px; background: var(--red-500); border-radius: 5px; display: grid; place-items: center; color: #fff; font-size: 11px; font-weight: 800; }
+  .nav-links { display: flex; gap: 24px; list-style: none; }
+  .nav-links a { font-size: 13px; color: var(--text-secondary); text-decoration: none; transition: color 100ms; }
+  .nav-links a:hover { color: var(--text-primary); }
+  .theme-btn { background: var(--bg-app); border: 1px solid var(--border-default); border-radius: var(--r-md); padding: 6px 14px; font-family: var(--font-sans); font-size: 13px; font-weight: 500; color: var(--text-secondary); cursor: pointer; transition: all 100ms; }
+  .theme-btn:hover { border-color: var(--border-strong); color: var(--text-primary); }
+
+  /* SECTIONS */
+  .section { max-width: 1140px; margin: 0 auto; padding: 64px 32px; }
+  .section + .section { border-top: 1px solid var(--border-default); }
+  .eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 8px; }
+  .section-title { font-size: 26px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px; }
+  .section-desc { font-size: 15px; color: var(--text-secondary); max-width: 58ch; margin-bottom: 40px; }
+
+  /* HERO */
+  .hero { max-width: 1140px; margin: 0 auto; padding: 64px 32px 56px; display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; }
+  .hero-eyebrow { font-size: 12px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--red-500); margin-bottom: 16px; }
+  .hero-title { font-size: 48px; font-weight: 800; line-height: 1.05; color: var(--text-primary); text-wrap: balance; margin-bottom: 20px; }
+  .hero-sub { font-size: 17px; color: var(--text-secondary); line-height: 1.6; }
+  .hero-meta { margin-top: 28px; display: flex; flex-direction: column; gap: 8px; }
+  .hero-meta-item { font-family: var(--font-mono); font-size: 12px; color: var(--text-tertiary); display: flex; align-items: center; gap: 8px; }
+  .hero-meta-item::before { content: ''; width: 5px; height: 5px; background: var(--red-500); border-radius: 50%; flex-shrink: 0; }
+  .hero-card { background: var(--bg-card); border: 1px solid var(--border-default); border-left: 4px solid var(--red-500); border-radius: var(--r-xl); padding: 28px; box-shadow: var(--shadow-md); }
+  .hero-price { font-family: var(--font-mono); font-size: 44px; font-weight: 600; color: var(--text-primary); font-variant-numeric: tabular-nums; letter-spacing: -.02em; margin-bottom: 4px; }
+  .hero-price-sub { font-size: 12px; color: var(--text-tertiary); font-family: var(--font-mono); margin-bottom: 20px; }
+  .price-rows { display: flex; flex-direction: column; gap: 7px; }
+  .price-row { display: flex; justify-content: space-between; font-size: 13px; color: var(--text-secondary); }
+  .price-row span:last-child { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text-primary); }
+  .price-divider { height: 1px; background: var(--border-default); margin: 4px 0; }
+  .price-margin { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; }
+  .price-margin-val { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--green-600); }
+
+  /* PALETTE */
+  .palette { display: flex; flex-direction: column; gap: 24px; }
+  .pal-row { display: flex; gap: 8px; align-items: flex-start; }
+  .pal-label { font-size: 12px; font-weight: 600; color: var(--text-tertiary); width: 80px; flex-shrink: 0; padding-top: 10px; }
+  .pal-swatches { display: flex; gap: 8px; flex: 1; }
+  .swatch { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+  .swatch-bg { width: 100%; height: 44px; border-radius: var(--r-md); border: 1px solid rgba(0,0,0,.06); }
+  .swatch-txt { font-family: var(--font-mono); font-size: 10px; color: var(--text-tertiary); text-align: center; line-height: 1.4; }
+
+  /* TYPE */
+  .type-rows { display: flex; flex-direction: column; gap: 0; }
+  .type-row { display: grid; grid-template-columns: 130px 1fr; gap: 24px; align-items: baseline; padding: 20px 0; border-bottom: 1px solid var(--border-default); }
+  .type-row:last-child { border-bottom: none; }
+  .type-meta-token { font-family: var(--font-mono); font-size: 11px; color: var(--red-500); font-weight: 500; }
+  .type-meta-spec { font-family: var(--font-mono); font-size: 10px; color: var(--text-tertiary); line-height: 1.5; margin-top: 3px; }
+
+  /* BUTTONS */
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 20px; border-radius: var(--r-md); font-family: var(--font-sans); font-size: 14px; font-weight: 600; line-height: 1; cursor: pointer; border: 1px solid transparent; transition: background 100ms, border-color 100ms, transform 80ms; text-decoration: none; white-space: nowrap; }
+  .btn:active { transform: scale(.98); }
+  .btn-primary { background: var(--red-500); color: #fff; border-color: var(--red-500); }
+  .btn-primary:hover { background: var(--red-600); border-color: var(--red-600); }
+  .btn-secondary { background: var(--bg-card); color: var(--gray-700); border-color: var(--border-strong); }
+  .btn-secondary:hover { background: var(--gray-100); }
+  .btn-ghost { background: transparent; color: var(--text-secondary); }
+  .btn-ghost:hover { background: var(--gray-100); color: var(--text-primary); }
+  .btn-danger { background: var(--red-600); color: #fff; border-color: var(--red-600); }
+  .btn-danger:hover { background: var(--red-700); }
+  .btn-sm { padding: 7px 14px; font-size: 13px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+
+  /* INPUTS */
+  .input-grid { display: flex; gap: 20px; flex-wrap: wrap; }
+  .field { display: flex; flex-direction: column; gap: 6px; width: 220px; }
+  .label { font-size: 13px; font-weight: 500; color: var(--text-primary); }
+  .helper { font-size: 12px; color: var(--text-tertiary); }
+  .error-text { font-size: 12px; color: var(--red-700); }
+  .input { padding: 10px 12px; border: 1px solid var(--border-strong); border-radius: var(--r-md); font-family: var(--font-sans); font-size: 15px; color: var(--text-primary); background: var(--bg-card); outline: none; transition: border-color 100ms, box-shadow 100ms; width: 100%; }
+  .input::placeholder { color: var(--text-tertiary); }
+  .input:focus { border-color: var(--red-500); box-shadow: 0 0 0 3px var(--red-100); }
+  .input.err { border-color: var(--red-500); background: var(--red-50); }
+  .input:disabled { background: var(--gray-100); opacity: .6; cursor: not-allowed; }
+  .input-mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+  /* BADGES */
+  .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: var(--r-sm); font-size: 12px; font-weight: 500; }
+  .badge::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; opacity: .65; }
+  .badge-draft { background: var(--gray-100); color: var(--gray-600); }
+  .badge-sent { background: var(--blue-50); color: var(--blue-700); }
+  .badge-accepted { background: var(--green-50); color: var(--green-700); }
+  .badge-rejected { background: var(--red-100); color: var(--red-700); }
+  .badge-expired { background: var(--gray-100); color: var(--gray-400); opacity: .65; }
+
+  /* ALERTS */
+  .alert { display: flex; align-items: flex-start; gap: 12px; padding: 12px 16px; border-radius: var(--r-lg); font-size: 14px; border: 1px solid; margin-bottom: 8px; }
+  .alert-icon { font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+  .alert-title { font-weight: 600; margin-bottom: 2px; font-size: 14px; }
+  .alert-desc { opacity: .8; font-size: 13px; }
+  .alert-success { background: var(--green-50); border-color: #bbf7d0; color: var(--green-700); }
+  .alert-warning { background: var(--amber-50); border-color: #fde68a; color: var(--amber-600); }
+  .alert-error { background: var(--red-100); border-color: var(--red-200); color: var(--red-700); }
+  .alert-info { background: var(--blue-50); border-color: #bfdbfe; color: var(--blue-700); }
+
+  /* APP SHELL */
+  .app-shell { display: grid; grid-template-columns: 240px 1fr; border: 1px solid var(--border-default); border-radius: var(--r-xl); overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,.12); min-height: 620px; }
+  .sidebar { background: var(--bg-sidebar); display: flex; flex-direction: column; }
+  .sidebar-head { padding: 18px 20px 22px; border-bottom: 1px solid rgba(255,255,255,.06); display: flex; align-items: center; gap: 10px; }
+  .s-logo { width: 28px; height: 28px; background: var(--red-500); border-radius: 6px; display: grid; place-items: center; flex-shrink: 0; }
+  .s-brand { font-size: 13px; font-weight: 700; color: #fff; }
+  .s-sub { font-size: 10px; color: rgba(255,255,255,.3); }
+  .s-nav { padding: 14px 0; flex: 1; }
+  .s-section { padding: 8px 20px 4px; font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: rgba(255,255,255,.2); }
+  .s-item { display: flex; align-items: center; gap: 10px; padding: 9px 20px; font-size: 13px; font-weight: 500; color: rgba(255,255,255,.4); border-left: 3px solid transparent; cursor: pointer; transition: all 100ms; user-select: none; }
+  .s-item:hover { color: rgba(255,255,255,.7); background: rgba(255,255,255,.03); }
+  .s-item.active { color: #fff; background: rgba(217,33,39,.12); border-left-color: var(--red-500); }
+  .s-footer { padding: 14px 20px; border-top: 1px solid rgba(255,255,255,.06); display: flex; align-items: center; gap: 10px; }
+  .s-avatar { width: 30px; height: 30px; background: var(--red-700); border-radius: var(--r-full); display: grid; place-items: center; font-size: 11px; font-weight: 700; color: #fff; flex-shrink: 0; }
+  .s-name { font-size: 13px; font-weight: 600; color: rgba(255,255,255,.75); }
+  .s-role { font-size: 11px; color: rgba(255,255,255,.3); }
+
+  .main { background: var(--bg-app); display: flex; flex-direction: column; }
+  .main-header { background: var(--bg-card); border-bottom: 1px solid var(--border-default); padding: 13px 24px; display: flex; align-items: center; justify-content: space-between; }
+  .main-title { font-size: 15px; font-weight: 600; color: var(--text-primary); }
+  .main-breadcrumb { font-size: 11px; color: var(--text-tertiary); margin-bottom: 2px; }
+  .main-body { padding: 20px; flex: 1; }
+
+  /* CALCULATOR */
+  .calc-grid { display: grid; grid-template-columns: 1fr 340px; gap: 16px; align-items: start; }
+  .card { background: var(--bg-card); border: 1px solid var(--border-default); border-radius: var(--r-lg); padding: 20px; box-shadow: var(--shadow-sm); }
+  .card-title { font-size: 14px; font-weight: 600; color: var(--text-primary); margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px solid var(--border-default); }
+  .f-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+  .f-label { font-size: 12px; font-weight: 500; color: var(--text-primary); margin-bottom: 5px; display: block; }
+  .f-input { width: 100%; padding: 8px 10px; border: 1px solid var(--border-strong); border-radius: var(--r-md); font-family: var(--font-sans); font-size: 13px; color: var(--text-primary); background: var(--bg-card); outline: none; -webkit-appearance: none; }
+  .f-input:focus { border-color: var(--red-500); box-shadow: 0 0 0 2px var(--red-100); }
+  .f-select { width: 100%; padding: 8px 28px 8px 10px; border: 1px solid var(--border-strong); border-radius: var(--r-md); font-family: var(--font-sans); font-size: 13px; color: var(--text-primary); background: var(--bg-card) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 16 16'%3E%3Cpath stroke='%2378716c' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m4 6 4 4 4-4'/%3E%3C/svg%3E") no-repeat right 8px center / 14px; -webkit-appearance: none; appearance: none; outline: none; cursor: pointer; }
+  .s-section-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--text-tertiary); margin: 14px 0 8px; }
+  .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 14px; }
+  .opt { display: flex; align-items: center; gap: 7px; padding: 8px 10px; border: 1px solid var(--border-default); border-radius: var(--r-md); font-size: 12px; color: var(--text-secondary); cursor: pointer; transition: all 100ms; user-select: none; }
+  .opt:hover { border-color: var(--border-strong); color: var(--text-primary); }
+  .opt.on { border-color: var(--red-500); background: var(--red-50); color: var(--red-700); font-weight: 500; }
+  .check { width: 14px; height: 14px; border: 1.5px solid var(--border-strong); border-radius: 3px; flex-shrink: 0; background: #fff; display: grid; place-items: center; }
+  .opt.on .check { background: var(--red-500); border-color: var(--red-500); }
+  .check-mark { display: none; color: #fff; font-size: 9px; font-weight: 700; }
+  .opt.on .check-mark { display: block; }
+  .calc-footer { display: flex; gap: 8px; padding-top: 16px; border-top: 1px solid var(--border-default); }
+
+  /* PRICE CARD */
+  .price-card { background: var(--bg-card); border: 1px solid var(--border-default); border-left: 4px solid var(--red-500); border-radius: var(--r-lg); padding: 20px; box-shadow: var(--shadow-sm); position: sticky; top: 68px; }
+  .price-label { font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 6px; }
+  .price-total { font-family: var(--font-mono); font-size: 38px; font-weight: 600; color: var(--text-primary); font-variant-numeric: tabular-nums; letter-spacing: -.02em; line-height: 1; margin-bottom: 3px; }
+  .price-sub { font-size: 11px; color: var(--text-tertiary); font-family: var(--font-mono); margin-bottom: 16px; }
+  .p-row { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
+  .p-val { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text-primary); }
+  .p-div { height: 1px; background: var(--border-default); margin: 6px 0; }
+  .p-margin { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; }
+  .p-margin-val { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--green-600); display: flex; align-items: center; gap: 4px; }
+  .p-dot { width: 6px; height: 6px; background: var(--green-600); border-radius: 50%; }
+  .p-valid { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border-default); font-size: 11px; color: var(--text-tertiary); font-family: var(--font-mono); }
+  .p-btn { width: 100%; margin-top: 12px; }
+
+  /* TABLE */
+  .table-wrap { background: var(--bg-card); border: 1px solid var(--border-default); border-radius: var(--r-lg); overflow: hidden; box-shadow: var(--shadow-sm); }
+  .table-head { padding: 14px 18px; border-bottom: 1px solid var(--border-default); display: flex; align-items: center; justify-content: space-between; }
+  .table-title { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+  .table-count { font-family: var(--font-mono); font-size: 11px; color: var(--text-tertiary); background: var(--gray-100); padding: 2px 7px; border-radius: var(--r-full); margin-left: 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { padding: 9px 14px; text-align: left; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--text-tertiary); border-bottom: 1px solid var(--border-default); background: var(--gray-50); white-space: nowrap; }
+  th.r { text-align: right; }
+  td { padding: 11px 14px; color: var(--text-primary); border-bottom: 1px solid var(--border-default); vertical-align: middle; }
+  td.r { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--gray-50); transition: background 80ms; }
+  .q-num { font-family: var(--font-mono); font-size: 11px; color: var(--text-tertiary); }
+  .q-name { font-weight: 500; }
+  .t-actions { display: flex; gap: 5px; justify-content: flex-end; }
+
+  /* FOOTER */
+  footer { max-width: 1140px; margin: 0 auto; padding: 40px 32px; border-top: 1px solid var(--border-default); display: flex; justify-content: space-between; align-items: center; }
+  footer p { font-size: 13px; color: var(--text-tertiary); }
+  footer strong { color: var(--red-500); }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-brand">
+    <div class="nav-logo">SR</div>
+    Solar Rechner — Design Preview
+  </div>
+  <ul class="nav-links">
+    <li><a href="#palette">Farben</a></li>
+    <li><a href="#type">Typografie</a></li>
+    <li><a href="#components">Komponenten</a></li>
+    <li><a href="#app">App-Mockup</a></li>
+    <li><a href="#quotes">Offerten</a></li>
+  </ul>
+  <button class="theme-btn" onclick="toggleTheme()">☾ Dark mode</button>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <div>
+    <div class="hero-eyebrow">Solar Rechner · Design System · v1.0</div>
+    <h1 class="hero-title">Geist + Warm Gray + Rot #d92127</h1>
+    <p class="hero-sub">Das visuelle System für den internen Verkaufsrechner. Bold, präzise, schnell — engineered for Swiss solar sales teams.</p>
+    <div class="hero-meta">
+      <span class="hero-meta-item">Geist — Primärschrift, alle Gewichtungen</span>
+      <span class="hero-meta-item">Geist Mono — Alle CHF-Beträge & Kennzahlen</span>
+      <span class="hero-meta-item">Warme Grautöne — Harmoniert mit Rot-500</span>
+      <span class="hero-meta-item">8px-Basisraster — Konsistenter Rhythmus</span>
+    </div>
+  </div>
+  <div class="hero-card">
+    <div style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text-tertiary);margin-bottom:6px">Gesamtpreis</div>
+    <div class="hero-price">CHF 28'450</div>
+    <div class="hero-price-sub">inkl. 8.1 % MWST</div>
+    <div class="price-rows">
+      <div class="price-row"><span>Materialkosten</span><span>18'200</span></div>
+      <div class="price-row"><span>MWST (8.1 %)</span><span>2'134</span></div>
+      <div class="price-divider"></div>
+      <div class="price-margin"><span>Marge</span><span class="price-margin-val">28.5 %</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- PALETTE -->
+<section class="section" id="palette">
+  <div class="eyebrow">01 · Farben</div>
+  <h2 class="section-title">Farbpalette</h2>
+  <p class="section-desc">Warme Grautöne harmonieren mit Rot-500. Rot ist Akzent — nicht Fläche.</p>
+  <div class="palette">
+    <div class="pal-row">
+      <div class="pal-label">Rot</div>
+      <div class="pal-swatches">
+        <div class="swatch"><div class="swatch-bg" style="background:#fff1f1"></div><div class="swatch-txt">50<br>#fff1f1</div></div>
+        <div class="swatch"><div class="swatch-bg" style="background:#ffe1e1"></div><div class="swatch-txt">100<br>#ffe1e1</div></div>
+        <div class="swatch"><div class="swatch-bg" style="background:#ffc7c7"></div><div class="swatch-txt">200<br>#ffc7c7</div></div>
+        <div class="swatch"><div class="swatch-bg" style="background:#f15558"></div><div class="swatch-txt">400<br>#f15558</div></div>
+        <div class="swatch"><div class="swatch-bg" style="background:#d92127;outline:2px solid #d92127;outline-offset:2px"></div><div class="swatch-txt" style="font-weight:700;color:#d92127">500★<br>#d92127</div></div>
+        <div class="swatch"><div class="swatch-bg" style="background:#b81d22"></div><div class="swatch-txt">600<br>#b81d22</div></div>
+        <div class="swatch"><div class="swatch-bg" style="background:#96181c"></div><div class="swatch-txt">700<br>#96181c</div></div>
+        <div class="swatch"><div class="swatch-bg" style="background:#5a0e11"></div><div class="swatch-txt">900<br>#5a0e11</div></div>
+      </div>
+    </div>
+    <div class="pal-row">
+      <div class="pal-label">Warm Gray</div>
+      <div class="pal-swatches">
+        <div class="swatch"><div class="swatch-bg" style="background:#fafaf9"></div><div class="swatch-txt">50<br>#fafaf9</div></div>
+        <div class="swatch"><div class="swatch-bg" style="background:#f5f5f4"></div><div class="swatch-txt">100<br>#f5f5f4</div></div>
+        <div class="swatch"><div class="swatch-bg" style="background:#e7e5e4"></div><div class="swatch-txt">200<br>#e7e5e4</div></div>
+        <div class="swatch"><div class="swatch-bg" style="background:#a8a29e"></div><div class="swatch-txt">400<br>#a8a29e</div></div>
+        <div class="swatch"><div class="swatch-bg" style="background:#78716c"></div><div class="swatch-txt">500<br>#78716c</div></div>
+        <div class="swatch"><div class="swatch-bg" style="background:#44403c"></div><div class="swatch-txt">700<br>#44403c</div></div>
+        <div class="swatch"><div class="swatch-bg" style="background:#292524"></div><div class="swatch-txt">800<br>#292524</div></div>
+        <div class="swatch"><div class="swatch-bg" style="background:#1c1917"></div><div class="swatch-txt">900<br>#1c1917</div></div>
+      </div>
+    </div>
+    <div class="pal-row">
+      <div class="pal-label">Semantisch</div>
+      <div class="pal-swatches">
+        <div class="swatch"><div class="swatch-bg" style="background:#16a34a"></div><div class="swatch-txt">Erfolg<br>#16a34a</div></div>
+        <div class="swatch"><div class="swatch-bg" style="background:#d97706"></div><div class="swatch-txt">Warnung<br>#d97706</div></div>
+        <div class="swatch"><div class="swatch-bg" style="background:#d92127"></div><div class="swatch-txt">Fehler<br>#d92127</div></div>
+        <div class="swatch"><div class="swatch-bg" style="background:#2563eb"></div><div class="swatch-txt">Info<br>#2563eb</div></div>
+        <div class="swatch"><div class="swatch-bg" style="background:#fff;border:1px solid #e7e5e4"></div><div class="swatch-txt">Weiß<br>#ffffff</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TYPOGRAPHY -->
+<section class="section" id="type">
+  <div class="eyebrow">02 · Typografie</div>
+  <h2 class="section-title">Geist — Schriftsystem</h2>
+  <p class="section-desc">Perfect Fourth Scale (×1.333). Geist Mono für alle Zahlen, CHF-Beträge und technische Werte.</p>
+  <div class="type-rows">
+    <div class="type-row">
+      <div><div class="type-meta-token">display</div><div class="type-meta-spec">56px · 800<br>lh 1.0 · mono</div></div>
+      <div style="font-family:var(--font-mono);font-size:52px;font-weight:600;color:var(--text-primary);font-variant-numeric:tabular-nums;letter-spacing:-.02em">CHF 28'450</div>
+    </div>
+    <div class="type-row">
+      <div><div class="type-meta-token">h1</div><div class="type-meta-spec">42px · 800<br>lh 1.1</div></div>
+      <div style="font-family:var(--font-sans);font-size:40px;font-weight:800;line-height:1.1;color:var(--text-primary)">Offerten-Übersicht</div>
+    </div>
+    <div class="type-row">
+      <div><div class="type-meta-token">h2</div><div class="type-meta-spec">32px · 700<br>lh 1.15</div></div>
+      <div style="font-family:var(--font-sans);font-size:30px;font-weight:700;line-height:1.15;color:var(--text-primary)">Systemkonfiguration</div>
+    </div>
+    <div class="type-row">
+      <div><div class="type-meta-token">h3</div><div class="type-meta-spec">24px · 600<br>lh 1.2</div></div>
+      <div style="font-family:var(--font-sans);font-size:24px;font-weight:600;line-height:1.2;color:var(--text-primary)">Panele & Wechselrichter</div>
+    </div>
+    <div class="type-row">
+      <div><div class="type-meta-token">body</div><div class="type-meta-spec">16px · 400<br>lh 1.6</div></div>
+      <div style="font-family:var(--font-sans);font-size:16px;font-weight:400;line-height:1.6;color:var(--text-primary);max-width:65ch">Die Offerte ist 90 Tage gültig. Der Preis versteht sich exklusive Mehrwertsteuer. Änderungen an Material oder Ausführung können den Endpreis beeinflussen.</div>
+    </div>
+    <div class="type-row">
+      <div><div class="type-meta-token">mono</div><div class="type-meta-spec">16px · 500<br>tabular-nums</div></div>
+      <div style="font-family:var(--font-mono);font-size:15px;font-weight:500;color:var(--text-primary);font-variant-numeric:tabular-nums">CHF 18'200.00 · 28.5 % · 8.75 kWp · OFR-2026-0042</div>
+    </div>
+  </div>
+</section>
+
+<!-- COMPONENTS -->
+<section class="section" id="components">
+  <div class="eyebrow">03 · Komponenten</div>
+  <h2 class="section-title">UI-Komponenten</h2>
+  <p class="section-desc">Schaltflächen, Eingaben, Badges und Meldungen im vollständigen Zustandssatz.</p>
+
+  <div style="margin-bottom:32px">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-tertiary);margin-bottom:12px">Schaltflächen</div>
+    <div class="row">
+      <button class="btn btn-primary">Offerte speichern</button>
+      <button class="btn btn-secondary">Vorschau</button>
+      <button class="btn btn-ghost">Abbrechen</button>
+      <button class="btn btn-danger">Deaktivieren</button>
+    </div>
+    <div class="row">
+      <button class="btn btn-primary btn-sm">Speichern</button>
+      <button class="btn btn-secondary btn-sm">Bearbeiten</button>
+      <button class="btn btn-ghost btn-sm">Verwerfen</button>
+      <button class="btn btn-primary" disabled style="opacity:.45;cursor:not-allowed">Wird gespeichert…</button>
+    </div>
+  </div>
+
+  <div style="margin-bottom:32px">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-tertiary);margin-bottom:12px">Eingabefelder</div>
+    <div class="input-grid">
+      <div class="field">
+        <label class="label">Kundenname</label>
+        <input class="input" type="text" placeholder="Hans Müller">
+        <span class="helper">Vollständiger Name</span>
+      </div>
+      <div class="field">
+        <label class="label">Marge (%)</label>
+        <input class="input input-mono" value="28.5">
+      </div>
+      <div class="field">
+        <label class="label">PLZ</label>
+        <input class="input input-mono err" value="9999">
+        <span class="error-text">PLZ nicht gefunden — Rate manuell eingeben</span>
+      </div>
+      <div class="field">
+        <label class="label" style="opacity:.6">Systemgrösse</label>
+        <input class="input input-mono" value="8.75" disabled>
+        <span class="helper" style="opacity:.5">Durch Admin gesperrt</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-bottom:32px">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-tertiary);margin-bottom:12px">Status-Badges</div>
+    <div class="row">
+      <span class="badge badge-draft">Entwurf</span>
+      <span class="badge badge-sent">Versendet</span>
+      <span class="badge badge-accepted">Angenommen</span>
+      <span class="badge badge-rejected">Abgelehnt</span>
+      <span class="badge badge-expired">Abgelaufen</span>
+    </div>
+  </div>
+
+  <div>
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-tertiary);margin-bottom:12px">Systemmeldungen</div>
+    <div class="alert alert-success"><div class="alert-icon">✓</div><div><div class="alert-title">Offerte gespeichert</div><div class="alert-desc">OFR-2026-0042 wurde erfolgreich erstellt.</div></div></div>
+    <div class="alert alert-error"><div class="alert-icon">⚠</div><div><div class="alert-title">Marge unter Mindestgrenze (20 %)</div><div class="alert-desc">Bitte Marge anpassen oder Vorgesetzten kontaktieren.</div></div></div>
+    <div class="alert alert-warning"><div class="alert-icon">!</div><div><div class="alert-title">Produkt nicht mehr verfügbar</div><div class="alert-desc">SunPower SPR-M440-H wurde deaktiviert. Bitte alternatives Panel wählen.</div></div></div>
+    <div class="alert alert-info"><div class="alert-icon">i</div><div><div class="alert-title">PLZ 8001 → Kanton Zürich</div><div class="alert-desc">Stromtarif: CHF 0.27/kWh · Einstrahlung: 1'100 kWh/m²</div></div></div>
+  </div>
+</section>
+
+<!-- APP MOCKUP -->
+<section class="section" id="app">
+  <div class="eyebrow">04 · App-Mockup</div>
+  <h2 class="section-title">Vollständiges App-Layout</h2>
+  <p class="section-desc">So sieht die App aus: Dunkle Sidebar mit Rot-Akzent, Rechner mit klebender Preiszusammenfassung.</p>
+
+  <div class="app-shell">
+    <div class="sidebar">
+      <div class="sidebar-head">
+        <div class="s-logo">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="white"><polygon points="8,1 10,6 15,6 11,9.5 12.5,14.5 8,11 3.5,14.5 5,9.5 1,6 6,6"/></svg>
+        </div>
+        <div><div class="s-brand">Solar Rechner</div><div class="s-sub">v1.0 · Intern</div></div>
+      </div>
+      <div class="s-nav">
+        <div class="s-section">Verkauf</div>
+        <div class="s-item active">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" rx="2"/><line x1="5" y1="8" x2="11" y2="8"/><line x1="8" y1="5" x2="8" y2="11"/></svg>
+          Rechner
+        </div>
+        <div class="s-item">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 16 16"><line x1="2" y1="4" x2="14" y2="4"/><line x1="2" y1="8" x2="10" y2="8"/><line x1="2" y1="12" x2="7" y2="12"/></svg>
+          Offerten
+        </div>
+        <div class="s-section" style="margin-top:8px">Admin</div>
+        <div class="s-item">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 16 16"><path d="M3 3h10a1 1 0 011 1v8a1 1 0 01-1 1H3a1 1 0 01-1-1V4a1 1 0 011-1z"/><line x1="5" y1="3" x2="5" y2="1"/><line x1="11" y1="3" x2="11" y2="1"/><line x1="2" y1="7" x2="14" y2="7"/></svg>
+          Produktkatalog
+        </div>
+        <div class="s-item">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 2"/></svg>
+          Einstellungen
+        </div>
+      </div>
+      <div class="s-footer">
+        <div class="s-avatar">MM</div>
+        <div><div class="s-name">M. Müller</div><div class="s-role">Verkauf</div></div>
+      </div>
+    </div>
+
+    <div class="main">
+      <div class="main-header">
+        <div>
+          <div class="main-breadcrumb">Rechner</div>
+          <div class="main-title">Neue Offerte erstellen</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn btn-secondary btn-sm">Entwurf laden</button>
+          <span class="badge badge-draft">Entwurf</span>
+        </div>
+      </div>
+      <div class="main-body">
+        <div class="calc-grid">
+          <div class="card">
+            <div class="card-title">Kundendaten & Systemkonfiguration</div>
+            <div class="f-row">
+              <div><label class="f-label">Kundenname</label><input class="f-input" value="Familie Meier, Zürich"></div>
+              <div><label class="f-label">PLZ</label><input class="f-input input-mono" value="8001"></div>
+            </div>
+            <div><label class="f-label">Systemgrösse (kWp)</label><input class="f-input input-mono" value="8.75" style="max-width:160px"></div>
+            <div class="s-section-title">Panele</div>
+            <select class="f-select" style="margin-bottom:12px">
+              <option>SunPower SPR-M440-H (440 Wp) — CHF 380/Stk.</option>
+              <option>JA Solar JAM72D30 (580 Wp) — CHF 295/Stk.</option>
+            </select>
+            <div class="s-section-title">Wechselrichter</div>
+            <select class="f-select" style="margin-bottom:12px">
+              <option>Fronius Primo 8.2-1 (8.2 kW) — CHF 2'450</option>
+              <option>SMA Sunny Boy 8.0 — CHF 2'180</option>
+            </select>
+            <div class="s-section-title">Kostenpositionen</div>
+            <div class="opts">
+              <div class="opt on"><div class="check"><span class="check-mark">✓</span></div>Gerüst (+CHF 1'200)</div>
+              <div class="opt"><div class="check"><span class="check-mark">✓</span></div>Steildach (+CHF 800)</div>
+              <div class="opt on"><div class="check"><span class="check-mark">✓</span></div>Langer Kabelweg (+CHF 450)</div>
+              <div class="opt"><div class="check"><span class="check-mark">✓</span></div>Komplexe Verschaltung</div>
+            </div>
+            <div><label class="f-label">Marge (%)</label><input class="f-input input-mono" value="28.5" style="max-width:140px"></div>
+            <div class="calc-footer">
+              <button class="btn btn-primary">Offerte speichern</button>
+              <button class="btn btn-secondary">PDF-Vorschau</button>
+              <button class="btn btn-ghost">Zurücksetzen</button>
+            </div>
+          </div>
+
+          <div class="price-card">
+            <div class="price-label">Gesamtpreis</div>
+            <div class="price-total">CHF 28'450</div>
+            <div class="price-sub">inkl. 8.1 % MWST</div>
+            <div class="p-row"><span>Materialkosten</span><span class="p-val">18'200</span></div>
+            <div class="p-row"><span>Arbeitskosten</span><span class="p-val">3'850</span></div>
+            <div class="p-row"><span>Sonderkosten</span><span class="p-val">1'650</span></div>
+            <div class="p-div"></div>
+            <div class="p-row"><span style="font-weight:600">Exkl. MWST</span><span class="p-val" style="font-weight:600">26'316</span></div>
+            <div class="p-row"><span>MWST (8.1 %)</span><span class="p-val">2'134</span></div>
+            <div class="p-div"></div>
+            <div class="p-margin"><span>Marge</span><span class="p-margin-val"><div class="p-dot"></div>28.5 %</span></div>
+            <div class="p-valid">Gültig bis: 17.06.2026</div>
+            <button class="btn btn-primary p-btn">Offerte speichern</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- QUOTES TABLE -->
+<section class="section" id="quotes">
+  <div class="eyebrow">05 · Offertenverlauf</div>
+  <h2 class="section-title">Offerten-Übersicht</h2>
+  <p class="section-desc">Alle erstellten Offerten — mit Status, Betrag, Marge und Direktaktionen.</p>
+  <div class="table-wrap">
+    <div class="table-head">
+      <div style="display:flex;align-items:center">
+        <div class="table-title">Meine Offerten</div>
+        <span class="table-count">42</span>
+      </div>
+      <button class="btn btn-primary btn-sm">+ Neue Offerte</button>
+    </div>
+    <table>
+      <thead><tr>
+        <th>Offerte</th><th>Kunde</th><th>System</th>
+        <th class="r">Betrag</th><th class="r">Marge</th>
+        <th>Status</th><th class="r">Datum</th><th></th>
+      </tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="q-num">OFR-2026-0042</span></td>
+          <td><span class="q-name">Familie Meier, Zürich</span></td>
+          <td class="r" style="font-family:var(--font-mono);font-size:12px;font-variant-numeric:tabular-nums">8.75 kWp</td>
+          <td class="r">CHF 28'450</td>
+          <td class="r" style="color:var(--green-600)">28.5 %</td>
+          <td><span class="badge badge-sent">Versendet</span></td>
+          <td class="r" style="font-size:11px;color:var(--text-tertiary)">17.03.2026</td>
+          <td><div class="t-actions"><button class="btn btn-secondary btn-sm">PDF</button><button class="btn btn-ghost btn-sm">Details</button></div></td>
+        </tr>
+        <tr>
+          <td><span class="q-num">OFR-2026-0041</span></td>
+          <td><span class="q-name">Schmid AG, Bern</span></td>
+          <td class="r" style="font-family:var(--font-mono);font-size:12px;font-variant-numeric:tabular-nums">12.0 kWp</td>
+          <td class="r">CHF 41'200</td>
+          <td class="r" style="color:var(--green-600)">31.2 %</td>
+          <td><span class="badge badge-accepted">Angenommen</span></td>
+          <td class="r" style="font-size:11px;color:var(--text-tertiary)">14.03.2026</td>
+          <td><div class="t-actions"><button class="btn btn-secondary btn-sm">PDF</button><button class="btn btn-ghost btn-sm">Details</button></div></td>
+        </tr>
+        <tr>
+          <td><span class="q-num">OFR-2026-0040</span></td>
+          <td><span class="q-name">Weber, Luzern</span></td>
+          <td class="r" style="font-family:var(--font-mono);font-size:12px;font-variant-numeric:tabular-nums">5.0 kWp</td>
+          <td class="r">CHF 16'800</td>
+          <td class="r" style="color:var(--red-600)">17.3 %</td>
+          <td><span class="badge badge-rejected">Abgelehnt</span></td>
+          <td class="r" style="font-size:11px;color:var(--text-tertiary)">10.03.2026</td>
+          <td><div class="t-actions"><button class="btn btn-secondary btn-sm">PDF</button><button class="btn btn-ghost btn-sm">Details</button></div></td>
+        </tr>
+        <tr>
+          <td><span class="q-num">OFR-2026-0039</span></td>
+          <td><span class="q-name">Keller, Basel</span></td>
+          <td class="r" style="font-family:var(--font-mono);font-size:12px;font-variant-numeric:tabular-nums">10.5 kWp</td>
+          <td class="r">CHF 34'900</td>
+          <td class="r" style="color:var(--green-600)">25.1 %</td>
+          <td><span class="badge badge-draft">Entwurf</span></td>
+          <td class="r" style="font-size:11px;color:var(--text-tertiary)">08.03.2026</td>
+          <td><div class="t-actions"><button class="btn btn-primary btn-sm">Bearbeiten</button></div></td>
+        </tr>
+        <tr>
+          <td><span class="q-num">OFR-2026-0038</span></td>
+          <td><span class="q-name">Brunner, St. Gallen</span></td>
+          <td class="r" style="font-family:var(--font-mono);font-size:12px;font-variant-numeric:tabular-nums">6.25 kWp</td>
+          <td class="r">CHF 21'350</td>
+          <td class="r" style="color:var(--text-tertiary)">22.8 %</td>
+          <td><span class="badge badge-expired">Abgelaufen</span></td>
+          <td class="r" style="font-size:11px;color:var(--text-tertiary)">01.02.2026</td>
+          <td><div class="t-actions"><button class="btn btn-secondary btn-sm">Erneuern</button></div></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<footer>
+  <p>Solar Rechner · Design System Preview · 2026-03-17</p>
+  <p><strong>#d92127</strong> × Geist × Warm Gray</p>
+</footer>
+
+<script>
+function toggleTheme() {
+  const html = document.documentElement;
+  const btn = document.querySelector('.theme-btn');
+  const dark = html.getAttribute('data-theme') === 'dark';
+  html.setAttribute('data-theme', dark ? 'light' : 'dark');
+  btn.textContent = dark ? '☾ Dark mode' : '☀ Light mode';
+}
+</script>
+</body>
+</html>
