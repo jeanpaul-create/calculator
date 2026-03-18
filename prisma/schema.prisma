@@ -172,6 +172,11 @@ model QuoteScenario {
   sortOrder Int      @default(0)
   roofType  String?  @default("tuile")
   roofSlope String?  @default("simple")
+  // Computed price snapshotted at save time — ensures PDF re-generation shows
+  // the same price that was quoted, even if admin changes pricing coefficients later.
+  // NULL for quotes saved before this field was added (PDF falls back to live computation).
+  sellingPriceExVatRappen  Int?
+  sellingPriceIncVatRappen Int?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
