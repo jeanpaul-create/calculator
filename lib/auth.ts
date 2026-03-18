@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db'
 import { Role } from '@prisma/client'
 
 export const authOptions: NextAuthOptions = {
+  secret: process.env.NEXTAUTH_SECRET,
   // Credentials provider requires JWT sessions — database sessions are not supported
   session: {
     strategy: 'jwt',
