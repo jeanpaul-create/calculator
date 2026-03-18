@@ -1,0 +1,176 @@
+export type Lang = 'fr' | 'de'
+
+export const translations = {
+  fr: {
+    // Navigation
+    nav_calculator: 'Calculateur',
+    nav_quotes: 'Offres',
+    nav_catalog: 'Catalogue',
+    nav_settings: 'Paramètres',
+    nav_admin: 'Admin',
+    nav_logout: 'Déconnexion',
+    role_rep: 'Conseiller',
+    role_admin: 'Admin',
+
+    // Calculator
+    calc_title: 'Calculateur de prix',
+    calc_subtitle: 'Sélectionner des produits et calculer le prix de vente',
+    calc_zip_label: 'NPA (pour tarif & amortissement)',
+    calc_zip_placeholder: 'ex. 1180',
+    calc_zip_button: 'Charger tarif',
+    calc_canton: 'Canton',
+    calc_rate_avg: 'Tarif moyen',
+    calc_margin: 'Marge',
+    calc_margin_label: 'Marge (%)',
+    calc_margin_min: 'Marge minimum',
+    calc_installed_power: 'Puissance installée',
+    calc_annual_yield: 'Production annuelle estimée',
+    calc_add: 'Ajouter',
+    calc_surcharges: 'Suppléments & prestations',
+    calc_select_products: 'Sélectionner des produits pour calculer le prix',
+
+    // Categories
+    cat_panel: 'Panneaux solaires',
+    cat_inverter: 'Onduleurs',
+    cat_battery: 'Batteries',
+    cat_mounting: 'Montage',
+    cat_accessory: 'Accessoires',
+    cat_ev_charger: 'Bornes de recharge VE',
+
+    // Price summary
+    price_selling: 'Prix de vente',
+    price_incl_vat: 'TVA incluse',
+    price_material: 'Coûts matériaux',
+    price_margin: 'Marge',
+    price_excl_vat: 'Prix HT',
+    price_vat: 'TVA',
+    price_total_incl_vat: 'Total TTC',
+    price_amortization: 'Amortissement',
+    price_annual_savings: 'Économies annuelles',
+    price_payback: 'Amortissement',
+    price_payback_years: 'ans',
+    price_save: "Enregistrer l'offre",
+    price_saving: 'Enregistrement...',
+    price_saved: 'Enregistré',
+    price_new_quote: 'Nouvelle offre',
+    price_save_as_quote: 'Enregistrer comme offre',
+
+    // Quotes
+    quotes_title: 'Offres',
+    quotes_new: 'Nouvelle offre',
+    quotes_empty: 'Aucune offre pour le moment.',
+    quotes_empty_sub: 'Créez une nouvelle offre pour commencer.',
+    quotes_create: 'Créer une offre',
+
+    // Admin
+    admin_catalog_title: 'Catalogue',
+    admin_products: 'Produits',
+    admin_options: 'Suppléments',
+    admin_add_product: 'Ajouter un produit',
+    admin_add_option: 'Ajouter un supplément',
+    admin_edit: 'Modifier',
+    admin_save: 'Enregistrer',
+    admin_cancel: 'Annuler',
+    admin_activate: 'Activer',
+    admin_deactivate: 'Désactiver',
+    admin_delete: 'Supprimer',
+    admin_confirm_delete: 'Supprimer définitivement ?',
+    admin_active: 'Actif',
+    admin_inactive: 'Inactif',
+
+    // Fields
+    field_name: 'Nom',
+    field_description: 'Description',
+    field_category: 'Catégorie',
+    field_cost: 'Coût (CHF HT)',
+    field_power: 'Puissance (Wp / kWh)',
+    field_sort_order: 'Ordre',
+  },
+  de: {
+    // Navigation
+    nav_calculator: 'Kalkulator',
+    nav_quotes: 'Offerten',
+    nav_catalog: 'Katalog',
+    nav_settings: 'Einstellungen',
+    nav_admin: 'Admin',
+    nav_logout: 'Abmelden',
+    role_rep: 'Verkäufer',
+    role_admin: 'Admin',
+
+    // Calculator
+    calc_title: 'Preiskalkulator',
+    calc_subtitle: 'Produkte auswählen und Verkaufspreis berechnen',
+    calc_zip_label: 'PLZ (für Stromtarif & Amortisation)',
+    calc_zip_placeholder: 'z.B. 8001',
+    calc_zip_button: 'Tarif laden',
+    calc_canton: 'Kanton',
+    calc_rate_avg: 'Durchschnittstarif',
+    calc_margin: 'Marge',
+    calc_margin_label: 'Marge (%)',
+    calc_margin_min: 'Mindestmarge',
+    calc_installed_power: 'Installierte Leistung',
+    calc_annual_yield: 'Geschätzter Jahresertrag',
+    calc_add: 'Hinzufügen',
+    calc_surcharges: 'Zusatzkosten',
+    calc_select_products: 'Produkte auswählen, um den Preis zu berechnen',
+
+    // Categories
+    cat_panel: 'Solarmodule',
+    cat_inverter: 'Wechselrichter',
+    cat_battery: 'Speicher',
+    cat_mounting: 'Montage',
+    cat_accessory: 'Zubehör',
+    cat_ev_charger: 'E-Ladestation',
+
+    // Price summary
+    price_selling: 'Verkaufspreis',
+    price_incl_vat: 'inkl. MWST',
+    price_material: 'Materialkosten',
+    price_margin: 'Marge',
+    price_excl_vat: 'Preis exkl. MWST',
+    price_vat: 'MWST',
+    price_total_incl_vat: 'Total inkl. MWST',
+    price_amortization: 'Amortisation',
+    price_annual_savings: 'Jährl. Einsparung',
+    price_payback: 'Amortisation',
+    price_payback_years: 'Jahre',
+    price_save: 'Offerte speichern',
+    price_saving: 'Wird gespeichert…',
+    price_saved: 'Gespeichert',
+    price_new_quote: 'Neue Offerte',
+    price_save_as_quote: 'Als Offerte speichern',
+
+    // Quotes
+    quotes_title: 'Offerten',
+    quotes_new: 'Neue Offerte',
+    quotes_empty: 'Noch keine Offerten.',
+    quotes_empty_sub: 'Erstellen Sie eine neue Offerte.',
+    quotes_create: 'Offerte erstellen',
+
+    // Admin
+    admin_catalog_title: 'Katalog',
+    admin_products: 'Produkte',
+    admin_options: 'Zusatzkosten',
+    admin_add_product: 'Produkt hinzufügen',
+    admin_add_option: 'Option hinzufügen',
+    admin_edit: 'Bearbeiten',
+    admin_save: 'Speichern',
+    admin_cancel: 'Abbrechen',
+    admin_activate: 'Aktivieren',
+    admin_deactivate: 'Deaktivieren',
+    admin_delete: 'Löschen',
+    admin_confirm_delete: 'Endgültig löschen?',
+    admin_active: 'Aktiv',
+    admin_inactive: 'Inaktiv',
+
+    // Fields
+    field_name: 'Name',
+    field_description: 'Beschreibung',
+    field_category: 'Kategorie',
+    field_cost: 'Kosten (CHF exkl. MWST)',
+    field_power: 'Leistung (Wp / kWh)',
+    field_sort_order: 'Reihenfolge',
+  },
+} satisfies Record<Lang, Record<string, string>>
+
+export type TranslationKey = keyof (typeof translations)['fr']
