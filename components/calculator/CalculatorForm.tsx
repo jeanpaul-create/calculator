@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { calculatePrice, calculateRoi, estimateAnnualYield, sumInstalledKwp } from '@/lib/pricing'
+import { calculateIonPrice, calculateRoi, estimateAnnualYield, sumInstalledKwp, IonPricingCoefficients } from '@/lib/pricing'
 import PriceSummaryCard from './PriceSummaryCard'
 import { useLanguage } from '@/context/LanguageContext'
 
@@ -30,8 +30,7 @@ interface CalculatorFormProps {
   products: Product[]
   costOptions: CostOption[]
   vatBasisPts: number
-  minMarginBasisPts: number
-  defaultMarginBasisPts?: number
+  ionCoefficients: IonPricingCoefficients
   rateRappenPerKwh?: number
   quoteId?: string
   onSaved?: (quoteId: string) => void
@@ -41,8 +40,7 @@ export default function CalculatorForm({
   products,
   costOptions,
   vatBasisPts,
-  minMarginBasisPts,
-  defaultMarginBasisPts,
+  ionCoefficients,
   rateRappenPerKwh,
   quoteId,
   onSaved,
@@ -51,30 +49,25 @@ export default function CalculatorForm({
   const router = useRouter()
   const [selectedProducts, setSelectedProducts] = useState<SelectedProduct[]>([])
   const [selectedOptions, setSelectedOptions] = useState<Set<string>>(new Set())
-  const [marginPct, setMarginPct] = useState(
-    ((defaultMarginBasisPts ?? minMarginBasisPts) / 100).toFixed(1)
-  )
   const [isDirty, setIsDirty] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [savedQuoteNumber, setSavedQuoteNumber] = useState<string | null>(null)
 
-  const marginBasisPts = Math.round(parseFloat(marginPct) * 100) || 0
+  const ionProducts = selectedProducts.map((sp) => ({
+    category: sp.product.category,
+    costRappen: sp.product.costRappen,
+    quantity: sp.quantity,
+  }))
 
-  const pricingItems = [
-    ...selectedProducts.map((sp) => ({
-      costRappen: sp.product.costRappen,
-      quantity: sp.quantity,
-    })),
-    ...Array.from(selectedOptions).map((id) => {
-      const opt = costOptions.find((o) => o.id === id)!
-      return { costRappen: opt.costRappen, quantity: 1 }
-    }),
-  ]
+  const ionOptions = Array.from(selectedOptions).map((id) => {
+    const opt = costOptions.find((o) => o.id === id)!
+    return { costRappen: opt.costRappen }
+  })
 
   const pricing =
-    marginBasisPts >= 0 && marginBasisPts < 10000
-      ? calculatePrice({ items: pricingItems, marginBasisPts, vatBasisPts })
+    ionProducts.length > 0 || ionOptions.length > 0
+      ? calculateIonPrice(ionProducts, ionOptions, ionCoefficients)
       : null
 
   const panels = selectedProducts
@@ -151,7 +144,7 @@ export default function CalculatorForm({
   }
 
   const buildScenarioPayload = () => ({
-    marginBasisPts,
+    marginBasisPts: pricing?.effectiveMarginBasisPts ?? 0,
     items: selectedProducts.map((sp) => ({
       productId: sp.product.id,
       quantity: sp.quantity,
@@ -181,7 +174,7 @@ export default function CalculatorForm({
       setIsSaving(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quoteId, pricing, marginBasisPts, selectedProducts, selectedOptions, onSaved])
+  }, [quoteId, pricing, selectedProducts, selectedOptions, onSaved])
 
   // Create a new quote and save the scenario to it
   const handleSaveAsNewQuote = useCallback(async () => {
@@ -223,56 +216,25 @@ export default function CalculatorForm({
       setIsSaving(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pricing, marginBasisPts, selectedProducts, selectedOptions, onSaved, router])
-
-  const marginTooLow = marginBasisPts < minMarginBasisPts
+  }, [pricing, selectedProducts, selectedOptions, onSaved, router])
 
   return (
     <div className="flex gap-6">
       {/* Left: form */}
       <div className="flex-1 space-y-6 min-w-0">
-        {/* Margin input */}
-        <div className="card-padded">
-          <div className="section-title mb-4">{t('calc_margin')}</div>
-          <div className="flex items-end gap-4">
-            <div className="w-40">
-              <label className="label">{t('calc_margin_label')}</label>
-              <div className="relative">
-                <input
-                  type="number"
-                  className={marginTooLow ? 'input-error' : 'input'}
-                  value={marginPct}
-                  min={minMarginBasisPts / 100}
-                  max={99}
-                  step={0.5}
-                  onChange={(e) => {
-                    setMarginPct(e.target.value)
-                    setIsDirty(true)
-                    setSavedQuoteNumber(null)
-                  }}
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">
-                  %
-                </span>
-              </div>
-              {marginTooLow && (
-                <p className="field-error">
-                  {t('calc_margin_min')}: {(minMarginBasisPts / 100).toFixed(1)}%
-                </p>
+        {/* System info bar (installed kWp + annual yield) */}
+        {installedKwp > 0 && (
+          <div className="card-padded">
+            <div className="text-sm text-gray-500">
+              {t('calc_installed_power')}: <strong>{installedKwp.toFixed(1)} kWp</strong>
+              {annualYield && (
+                <>
+                  {' '}· {t('calc_annual_yield')} <strong>{annualYield.toLocaleString('fr-CH')} kWh/an</strong>
+                </>
               )}
             </div>
-            {installedKwp > 0 && (
-              <div className="text-sm text-gray-500 pb-2">
-                {t('calc_installed_power')}: <strong>{installedKwp.toFixed(1)} kWp</strong>
-                {annualYield && (
-                  <>
-                    {' '}· {t('calc_annual_yield')} <strong>{annualYield.toLocaleString('fr-CH')} kWh/an</strong>
-                  </>
-                )}
-              </div>
-            )}
           </div>
-        </div>
+        )}
 
         {/* Product selection by category */}
         {Object.entries(byCategory).map(([category, categoryProducts]) => (
@@ -398,7 +360,11 @@ export default function CalculatorForm({
       <div className="w-72 flex-shrink-0">
         {pricing ? (
           <PriceSummaryCard
-            {...pricing}
+            rawCostRappen={pricing.rawCostRappen}
+            sellingPriceExVatRappen={pricing.sellingPriceExVatRappen}
+            vatRappen={pricing.vatRappen}
+            sellingPriceIncVatRappen={pricing.sellingPriceIncVatRappen}
+            effectiveMarginBasisPts={pricing.effectiveMarginBasisPts}
             vatBasisPts={vatBasisPts}
             annualSavingsRappen={roi?.annualSavingsRappen}
             paybackYears={roi?.paybackYears}
@@ -409,7 +375,9 @@ export default function CalculatorForm({
           />
         ) : (
           <div className="card-padded text-sm text-gray-500 text-center py-10">
-            {t('calc_select_products')}
+            {selectedProducts.length === 0 && selectedOptions.size === 0
+              ? t('calc_select_products')
+              : '…'}
           </div>
         )}
       </div>

@@ -4,7 +4,7 @@ import { formatChf, formatPct } from '@/lib/pricing'
 import { useLanguage } from '@/context/LanguageContext'
 
 interface PriceSummaryCardProps {
-  subtotalCostRappen: number
+  rawCostRappen: number
   sellingPriceExVatRappen: number
   vatRappen: number
   sellingPriceIncVatRappen: number
@@ -20,7 +20,7 @@ interface PriceSummaryCardProps {
 }
 
 export default function PriceSummaryCard({
-  subtotalCostRappen,
+  rawCostRappen,
   sellingPriceExVatRappen,
   vatRappen,
   sellingPriceIncVatRappen,
@@ -53,10 +53,10 @@ export default function PriceSummaryCard({
 
       {/* Price breakdown */}
       <div className="px-5 py-4 space-y-2 border-b border-gray-100">
-        <PriceRow label={t('price_material')} value={subtotalCostRappen} muted />
+        <PriceRow label={t('price_material')} value={rawCostRappen} muted />
         <PriceRow
           label={`${t('price_margin')} ${formatPct(effectiveMarginBasisPts)}`}
-          value={sellingPriceExVatRappen - subtotalCostRappen}
+          value={sellingPriceExVatRappen - rawCostRappen}
           accent
         />
         <div className="border-t border-gray-100 pt-2 mt-2">

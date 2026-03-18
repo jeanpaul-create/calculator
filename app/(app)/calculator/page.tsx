@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/db'
 import { auth } from '@/lib/auth'
 import CalculatorForm from '@/components/calculator/CalculatorForm'
+import { DEFAULT_ION_COEFFICIENTS, IonPricingCoefficients } from '@/lib/pricing'
 
 export const metadata = { title: 'Calculateur' }
 
@@ -23,7 +24,29 @@ export default async function CalculatorPage({
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
     }),
     prisma.setting.findMany({
-      where: { key: { in: ['vat_pct_basis_pts', 'min_margin_basis_pts'] } },
+      where: {
+        key: {
+          in: [
+            'vat_pct_basis_pts',
+            'min_margin_basis_pts',
+            'pv_accessories_bps',
+            'pv_frais_supp_bps',
+            'pv_transport_bps',
+            'pv_labor_panel_rappen',
+            'pv_labor_inverter_rappen',
+            'pv_raccordement_mat_rappen',
+            'pv_raccordement_labor_rappen',
+            'pv_pm_fixed_rappen',
+            'pv_admin_fixed_rappen',
+            'pv_sales_overhead_bps',
+            'pv_profit_appro_bps',
+            'pv_profit_constr_bps',
+            'bat_pm_bps',
+            'bat_admin_bps',
+            'bat_profit_bps',
+          ],
+        },
+      },
     }),
     searchParams.zip
       ? prisma.swissRate.findFirst({
@@ -35,7 +58,25 @@ export default async function CalculatorPage({
 
   const settingsMap = Object.fromEntries(settings.map((s) => [s.key, parseInt(s.value)]))
   const vatBasisPts = settingsMap['vat_pct_basis_pts'] ?? 810
-  const minMarginBasisPts = settingsMap['min_margin_basis_pts'] ?? 2000
+
+  const ionCoefficients: IonPricingCoefficients = {
+    pv_accessories_bps: settingsMap['pv_accessories_bps'] ?? DEFAULT_ION_COEFFICIENTS.pv_accessories_bps,
+    pv_frais_supp_bps: settingsMap['pv_frais_supp_bps'] ?? DEFAULT_ION_COEFFICIENTS.pv_frais_supp_bps,
+    pv_transport_bps: settingsMap['pv_transport_bps'] ?? DEFAULT_ION_COEFFICIENTS.pv_transport_bps,
+    pv_labor_panel_rappen: settingsMap['pv_labor_panel_rappen'] ?? DEFAULT_ION_COEFFICIENTS.pv_labor_panel_rappen,
+    pv_labor_inverter_rappen: settingsMap['pv_labor_inverter_rappen'] ?? DEFAULT_ION_COEFFICIENTS.pv_labor_inverter_rappen,
+    pv_raccordement_mat_rappen: settingsMap['pv_raccordement_mat_rappen'] ?? DEFAULT_ION_COEFFICIENTS.pv_raccordement_mat_rappen,
+    pv_raccordement_labor_rappen: settingsMap['pv_raccordement_labor_rappen'] ?? DEFAULT_ION_COEFFICIENTS.pv_raccordement_labor_rappen,
+    pv_pm_fixed_rappen: settingsMap['pv_pm_fixed_rappen'] ?? DEFAULT_ION_COEFFICIENTS.pv_pm_fixed_rappen,
+    pv_admin_fixed_rappen: settingsMap['pv_admin_fixed_rappen'] ?? DEFAULT_ION_COEFFICIENTS.pv_admin_fixed_rappen,
+    pv_sales_overhead_bps: settingsMap['pv_sales_overhead_bps'] ?? DEFAULT_ION_COEFFICIENTS.pv_sales_overhead_bps,
+    pv_profit_appro_bps: settingsMap['pv_profit_appro_bps'] ?? DEFAULT_ION_COEFFICIENTS.pv_profit_appro_bps,
+    pv_profit_constr_bps: settingsMap['pv_profit_constr_bps'] ?? DEFAULT_ION_COEFFICIENTS.pv_profit_constr_bps,
+    bat_pm_bps: settingsMap['bat_pm_bps'] ?? DEFAULT_ION_COEFFICIENTS.bat_pm_bps,
+    bat_admin_bps: settingsMap['bat_admin_bps'] ?? DEFAULT_ION_COEFFICIENTS.bat_admin_bps,
+    bat_profit_bps: settingsMap['bat_profit_bps'] ?? DEFAULT_ION_COEFFICIENTS.bat_profit_bps,
+    vatBasisPts,
+  }
 
   return (
     <div className="p-6 max-w-6xl">
@@ -57,7 +98,7 @@ export default async function CalculatorPage({
         products={products}
         costOptions={costOptions}
         vatBasisPts={vatBasisPts}
-        minMarginBasisPts={minMarginBasisPts}
+        ionCoefficients={ionCoefficients}
         rateRappenPerKwh={rateRow?.rateRappenPerKwh}
         quoteId={searchParams.quoteId}
       />

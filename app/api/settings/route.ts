@@ -3,18 +3,53 @@ import { prisma } from '@/lib/db'
 import { requireAuth, requireAdmin } from '@/lib/auth'
 import { z } from 'zod'
 
+const ALL_SETTING_KEYS = [
+  'vat_pct_basis_pts',
+  'min_margin_basis_pts',
+  'pv_accessories_bps',
+  'pv_frais_supp_bps',
+  'pv_transport_bps',
+  'pv_labor_panel_rappen',
+  'pv_labor_inverter_rappen',
+  'pv_raccordement_mat_rappen',
+  'pv_raccordement_labor_rappen',
+  'pv_pm_fixed_rappen',
+  'pv_admin_fixed_rappen',
+  'pv_sales_overhead_bps',
+  'pv_profit_appro_bps',
+  'pv_profit_constr_bps',
+  'bat_pm_bps',
+  'bat_admin_bps',
+  'bat_profit_bps',
+]
+
 const UpdateSettingsSchema = z.object({
   vat_pct_basis_pts: z.number().int().min(0).max(3000).optional(),
   min_margin_basis_pts: z.number().int().min(0).max(9999).optional(),
+  pv_accessories_bps: z.number().int().min(0).optional(),
+  pv_frais_supp_bps: z.number().int().min(0).optional(),
+  pv_transport_bps: z.number().int().min(0).optional(),
+  pv_labor_panel_rappen: z.number().int().min(0).optional(),
+  pv_labor_inverter_rappen: z.number().int().min(0).optional(),
+  pv_raccordement_mat_rappen: z.number().int().min(0).optional(),
+  pv_raccordement_labor_rappen: z.number().int().min(0).optional(),
+  pv_pm_fixed_rappen: z.number().int().min(0).optional(),
+  pv_admin_fixed_rappen: z.number().int().min(0).optional(),
+  pv_sales_overhead_bps: z.number().int().min(0).max(9999).optional(),
+  pv_profit_appro_bps: z.number().int().min(0).optional(),
+  pv_profit_constr_bps: z.number().int().min(0).optional(),
+  bat_pm_bps: z.number().int().min(0).optional(),
+  bat_admin_bps: z.number().int().min(0).optional(),
+  bat_profit_bps: z.number().int().min(0).optional(),
 })
 
-// GET /api/settings — returns VAT and min margin (any authenticated user can read)
+// GET /api/settings — returns all settings (any authenticated user can read)
 export async function GET(_req: NextRequest) {
   try {
     await requireAuth()
 
     const settings = await prisma.setting.findMany({
-      where: { key: { in: ['vat_pct_basis_pts', 'min_margin_basis_pts'] } },
+      where: { key: { in: ALL_SETTING_KEYS } },
     })
 
     const result = Object.fromEntries(

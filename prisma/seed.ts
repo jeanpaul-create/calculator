@@ -573,7 +573,34 @@ async function main() {
     update: {},
     create: { key: 'min_margin_basis_pts', value: '2000' }, // 20.00% marge minimum
   })
+
+  // ─── I.ON Energy Excel Pricing Coefficients ────────────────────────────────
+  const ionSettings: Array<{ key: string; value: string }> = [
+    { key: 'pv_accessories_bps', value: '300' },       // 3% accessoires matériel
+    { key: 'pv_frais_supp_bps', value: '200' },        // 2% frais supplémentaires
+    { key: 'pv_transport_bps', value: '500' },         // 5% transport
+    { key: 'pv_labor_panel_rappen', value: '6500' },   // 65 CHF/panneau
+    { key: 'pv_labor_inverter_rappen', value: '18000' }, // 180 CHF/onduleur
+    { key: 'pv_raccordement_mat_rappen', value: '50000' }, // 500 CHF matériel raccordement AC
+    { key: 'pv_raccordement_labor_rappen', value: '155000' }, // 1550 CHF MO raccordement AC
+    { key: 'pv_pm_fixed_rappen', value: '120000' },    // 1200 CHF project management
+    { key: 'pv_admin_fixed_rappen', value: '90000' },  // 900 CHF frais administratifs
+    { key: 'pv_sales_overhead_bps', value: '1500' },   // 15% frais généraux sales
+    { key: 'pv_profit_appro_bps', value: '2500' },     // 25% profit approvision
+    { key: 'pv_profit_constr_bps', value: '2500' },    // 25% profit construction
+    { key: 'bat_pm_bps', value: '700' },               // 7% PM batteries
+    { key: 'bat_admin_bps', value: '600' },            // 6% admin batteries
+    { key: 'bat_profit_bps', value: '1925' },          // 19.25% profit batteries/VE
+  ]
+  for (const s of ionSettings) {
+    await prisma.setting.upsert({
+      where: { key: s.key },
+      update: {},
+      create: s,
+    })
+  }
   console.log('  ✓ Paramètres: TVA=8.10%, marge min=20%')
+  console.log(`  ✓ ${ionSettings.length} coefficients I.ON Energy (PV + batteries)`)
 
   // ─── Swiss rates ───────────────────────────────────────────────────────────
   for (const rate of SWISS_RATES) {

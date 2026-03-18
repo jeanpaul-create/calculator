@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { requireOwnerOrAdmin } from '@/lib/auth'
-import { calculatePrice } from '@/lib/pricing'
+import { calculateIonPrice, DEFAULT_ION_COEFFICIENTS, IonPricingCoefficients } from '@/lib/pricing'
 import { z } from 'zod'
 
 const ScenarioItemSchema = z.object({
@@ -82,40 +82,71 @@ export async function PUT(req: NextRequest, { params }: Params) {
     const body = await req.json()
     const data = SaveScenarioSchema.parse(body)
 
-    // Fetch app settings: VAT + min margin (required — crash loudly if missing)
+    // Fetch all app settings including pricing coefficients
     const settings = await prisma.setting.findMany({
-      where: { key: { in: ['vat_pct_basis_pts', 'min_margin_basis_pts'] } },
+      where: {
+        key: {
+          in: [
+            'vat_pct_basis_pts',
+            'min_margin_basis_pts',
+            'pv_accessories_bps',
+            'pv_frais_supp_bps',
+            'pv_transport_bps',
+            'pv_labor_panel_rappen',
+            'pv_labor_inverter_rappen',
+            'pv_raccordement_mat_rappen',
+            'pv_raccordement_labor_rappen',
+            'pv_pm_fixed_rappen',
+            'pv_admin_fixed_rappen',
+            'pv_sales_overhead_bps',
+            'pv_profit_appro_bps',
+            'pv_profit_constr_bps',
+            'bat_pm_bps',
+            'bat_admin_bps',
+            'bat_profit_bps',
+          ],
+        },
+      },
     })
     const settingsMap = Object.fromEntries(settings.map((s) => [s.key, parseInt(s.value)]))
     const vatBasisPts = settingsMap['vat_pct_basis_pts']
-    const minMarginBasisPts = settingsMap['min_margin_basis_pts']
 
-    if (vatBasisPts == null || minMarginBasisPts == null) {
-      console.error('[PUT /api/quotes/[id]] Missing settings: vat_pct_basis_pts or min_margin_basis_pts')
+    if (vatBasisPts == null) {
+      console.error('[PUT /api/quotes/[id]] Missing settings: vat_pct_basis_pts')
       return NextResponse.json(
         { error: 'App settings not configured. Contact your administrator.' },
         { status: 500 }
       )
     }
 
-    // Enforce minimum margin server-side
-    if (data.marginBasisPts < minMarginBasisPts) {
-      return NextResponse.json(
-        {
-          error: `Margin too low. Minimum is ${minMarginBasisPts / 100}%.`,
-          minMarginBasisPts,
-        },
-        { status: 422 }
-      )
+    // Build pricing coefficients from settings (fall back to defaults if not set)
+    const ionCoefficients: IonPricingCoefficients = {
+      pv_accessories_bps: settingsMap['pv_accessories_bps'] ?? DEFAULT_ION_COEFFICIENTS.pv_accessories_bps,
+      pv_frais_supp_bps: settingsMap['pv_frais_supp_bps'] ?? DEFAULT_ION_COEFFICIENTS.pv_frais_supp_bps,
+      pv_transport_bps: settingsMap['pv_transport_bps'] ?? DEFAULT_ION_COEFFICIENTS.pv_transport_bps,
+      pv_labor_panel_rappen: settingsMap['pv_labor_panel_rappen'] ?? DEFAULT_ION_COEFFICIENTS.pv_labor_panel_rappen,
+      pv_labor_inverter_rappen: settingsMap['pv_labor_inverter_rappen'] ?? DEFAULT_ION_COEFFICIENTS.pv_labor_inverter_rappen,
+      pv_raccordement_mat_rappen: settingsMap['pv_raccordement_mat_rappen'] ?? DEFAULT_ION_COEFFICIENTS.pv_raccordement_mat_rappen,
+      pv_raccordement_labor_rappen: settingsMap['pv_raccordement_labor_rappen'] ?? DEFAULT_ION_COEFFICIENTS.pv_raccordement_labor_rappen,
+      pv_pm_fixed_rappen: settingsMap['pv_pm_fixed_rappen'] ?? DEFAULT_ION_COEFFICIENTS.pv_pm_fixed_rappen,
+      pv_admin_fixed_rappen: settingsMap['pv_admin_fixed_rappen'] ?? DEFAULT_ION_COEFFICIENTS.pv_admin_fixed_rappen,
+      pv_sales_overhead_bps: settingsMap['pv_sales_overhead_bps'] ?? DEFAULT_ION_COEFFICIENTS.pv_sales_overhead_bps,
+      pv_profit_appro_bps: settingsMap['pv_profit_appro_bps'] ?? DEFAULT_ION_COEFFICIENTS.pv_profit_appro_bps,
+      pv_profit_constr_bps: settingsMap['pv_profit_constr_bps'] ?? DEFAULT_ION_COEFFICIENTS.pv_profit_constr_bps,
+      bat_pm_bps: settingsMap['bat_pm_bps'] ?? DEFAULT_ION_COEFFICIENTS.bat_pm_bps,
+      bat_admin_bps: settingsMap['bat_admin_bps'] ?? DEFAULT_ION_COEFFICIENTS.bat_admin_bps,
+      bat_profit_bps: settingsMap['bat_profit_bps'] ?? DEFAULT_ION_COEFFICIENTS.bat_profit_bps,
+      vatBasisPts,
     }
 
-    // Resolve product costs for snapshot
+    // Resolve product costs and categories for snapshot
     const productIds = data.items.map((i) => i.productId)
     const products = await prisma.product.findMany({
       where: { id: { in: productIds }, active: true },
-      select: { id: true, costRappen: true },
+      select: { id: true, costRappen: true, category: true },
     })
     const productCostMap = Object.fromEntries(products.map((p) => [p.id, p.costRappen]))
+    const productCategoryMap = Object.fromEntries(products.map((p) => [p.id, p.category]))
 
     // Verify all products exist and are active
     const missingProducts = productIds.filter((id) => !productCostMap[id])
@@ -156,6 +187,18 @@ export async function PUT(req: NextRequest, { params }: Params) {
       rateRappenPerKwh = rate?.rateRappenPerKwh ?? null
     }
 
+    // Compute pricing using the I.ON Energy model (before saving — we need effectiveMarginBasisPts)
+    type ProductCategory = 'PANEL' | 'INVERTER' | 'BATTERY' | 'MOUNTING' | 'ACCESSORY' | 'EV_CHARGER'
+    const ionProducts = data.items.map((item) => ({
+      category: productCategoryMap[item.productId] as ProductCategory,
+      costRappen: productCostMap[item.productId],
+      quantity: item.quantity,
+    }))
+    const ionOptions = (data.options ?? []).map((opt) => ({
+      costRappen: optionCostMap[opt.optionId],
+    }))
+    const pricing = calculateIonPrice(ionProducts, ionOptions, ionCoefficients)
+
     // Atomically replace the scenario (delete old + create new in one transaction)
     // In Phase 2 multi-scenario: create/update by scenario ID
     const scenario = await prisma.$transaction(async (tx) => {
@@ -163,8 +206,8 @@ export async function PUT(req: NextRequest, { params }: Params) {
       return tx.quoteScenario.create({
         data: {
           quoteId: params.id,
-          name: data.name ?? 'Szenario 1',
-          marginBasisPts: data.marginBasisPts,
+          name: data.name ?? 'Scénario 1',
+          marginBasisPts: pricing.effectiveMarginBasisPts,
           vatPctBasisPts: vatBasisPts,
           rateRappenPerKwh,
           items: {
@@ -188,25 +231,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
       })
     })
 
-    // Compute pricing summary for response (using snapshotted values)
-    const pricingItems = [
-      ...scenario.items.map((i) => ({
-        costRappen: i.costRappenSnapshot,
-        quantity: i.quantity,
-      })),
-      ...scenario.options.map((o) => ({
-        costRappen: o.costRappenSnapshot,
-        quantity: 1,
-      })),
-    ]
-
-    const pricing = calculatePrice({
-      items: pricingItems,
-      marginBasisPts: data.marginBasisPts,
-      vatBasisPts,
-    })
-
-    // Update quote status to DRAFT if it was somehow not
+    // Update quote updatedAt
     await prisma.quote.update({
       where: { id: params.id },
       data: { updatedAt: new Date() },
