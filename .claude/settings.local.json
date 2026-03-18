@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(B=~/.claude/skills/gstack/browse/dist/browse.exe)",
+      "Bash(\"$B\" goto:*)",
+      "Bash(\"$B\" url:*)",
+      "Bash(\"$B\" snapshot:*)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code} -> %{redirect_url}\" https://solarcalculator.vercel.app/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" https://solarcalculator.vercel.app/login)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" -L https://solarcalculator.vercel.app/calculator)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" -L https://solarcalculator.vercel.app/quotes)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" -L https://solarcalculator.vercel.app/admin)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code} -> %{redirect_url}\" https://calculatorsolarch.vercel.app/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" https://calculatorsolarch.vercel.app/login)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" -L https://calculatorsolarch.vercel.app/calculator)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" -L https://calculatorsolarch.vercel.app/quotes)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" -L https://calculatorsolarch.vercel.app/admin)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" https://calculatorsolarch.vercel.app/api/auth/csrf)",
+      "Bash(curl -s -w \"%{http_code}\" https://calculatorsolarch.vercel.app/api/auth/providers)",
+      "Bash(curl -s https://calculatorsolarch.vercel.app/api/auth/csrf)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" -L --max-redirs 3 https://calculatorsolarch.vercel.app/calculator)",
+      "Bash(curl -s -w \" %{http_code}\" https://calculatorsolarch.vercel.app/api/rates?zip=8001)",
+      "Bash(curl:*)",
+      "Bash(ls:*)",
+      "Bash(QUOTE_ID=\"cmmvbg7rh0001129gy445duss\" __NEW_LINE_f36785f5574b4b72__ echo \"=== GET /api/catalog/products ===\" curl -s -b /tmp/rep_cookies.txt \"https://calculatorsolarch.vercel.app/api/catalog/products\" -w \"\\\\nHTTP %{http_code}\")",
+      "Bash(npm run:*)"
+    ]
+  }
+}

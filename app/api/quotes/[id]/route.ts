@@ -5,12 +5,12 @@ import { calculatePrice } from '@/lib/pricing'
 import { z } from 'zod'
 
 const ScenarioItemSchema = z.object({
-  productId: z.string().cuid(),
+  productId: z.string().min(1),
   quantity: z.number().int().min(1),
 })
 
 const ScenarioOptionSchema = z.object({
-  optionId: z.string().cuid(),
+  optionId: z.string().min(1),
 })
 
 const SaveScenarioSchema = z.object({
