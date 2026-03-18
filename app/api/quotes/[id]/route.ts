@@ -234,6 +234,8 @@ export async function PUT(req: NextRequest, { params }: Params) {
           rateRappenPerKwh,
           roofType: data.roofType ?? 'tuile',
           roofSlope: data.roofSlope ?? 'simple',
+          sellingPriceExVatRappen: pricing.sellingPriceExVatRappen,
+          sellingPriceIncVatRappen: pricing.sellingPriceIncVatRappen,
           items: {
             create: data.items.map((item) => ({
               productId: item.productId,
@@ -277,7 +279,12 @@ export async function PUT(req: NextRequest, { params }: Params) {
       })
     }
 
-    return NextResponse.json({ scenario, pricing })
+    return NextResponse.json({
+      scenario,
+      pricing,
+      sellingPriceExVatRappen: pricing.sellingPriceExVatRappen,
+      sellingPriceIncVatRappen: pricing.sellingPriceIncVatRappen,
+    })
   } catch (err) {
     if (err instanceof Response) return err
     if (err instanceof z.ZodError) {
