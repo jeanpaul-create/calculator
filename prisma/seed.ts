@@ -509,20 +509,6 @@ const COST_OPTIONS = [
     sortOrder: 20,
   },
   {
-    id: 'seed-opt-montage-tuiles',
-    name: 'Système de fixation ardoise/tuile',
-    description: 'Sous-construction pour toiture en ardoise ou tuile',
-    costRappen: 85000,
-    sortOrder: 30,
-  },
-  {
-    id: 'seed-opt-montage-plat',
-    name: 'Fixation toiture plate',
-    description: "Structure d'inclinaison pour toiture plate",
-    costRappen: 120000,
-    sortOrder: 40,
-  },
-  {
     id: 'seed-opt-cable-10m',
     name: 'Câblage supplémentaire 10 m',
     description: "Passage de câbles jusqu'à 10 m",
@@ -599,8 +585,26 @@ async function main() {
       create: s,
     })
   }
+  // Mounting system settings
+  const mountSettings: Array<{ key: string; value: string }> = [
+    { key: 'mount_tuile_rappen', value: '10000' },       // 100 CHF/panel for tile roof (net material cost before appro chain)
+    { key: 'mount_ardoise_rappen', value: '11500' },     // 115 CHF/panel for slate roof
+    { key: 'mount_bac_acier_rappen', value: '8500' },    // 85 CHF/panel for corrugated metal
+    { key: 'mount_plat_rappen', value: '14000' },        // 140 CHF/panel for flat roof with tilt structure
+    { key: 'mount_slope_medium_bps', value: '1500' },    // 15% surcharge for medium slope (30-45°)
+    { key: 'mount_slope_steep_bps', value: '3000' },     // 30% surcharge for steep/complex slope (>45° or hip/valley)
+  ]
+  for (const s of mountSettings) {
+    await prisma.setting.upsert({
+      where: { key: s.key },
+      update: {},
+      create: s,
+    })
+  }
+
   console.log('  ✓ Paramètres: TVA=8.10%, marge min=20%')
   console.log(`  ✓ ${ionSettings.length} coefficients I.ON Energy (PV + batteries)`)
+  console.log(`  ✓ ${mountSettings.length} paramètres système de montage`)
 
   // ─── Swiss rates ───────────────────────────────────────────────────────────
   for (const rate of SWISS_RATES) {

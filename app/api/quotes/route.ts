@@ -7,6 +7,7 @@ import { z } from 'zod'
 const CreateQuoteSchema = z.object({
   customerName: z.string().min(1).optional(),
   customerEmail: z.string().email().optional(),
+  customerPhone: z.string().optional(),
   customerZip: z.string().min(4).max(4).optional(),
   siteAddress: z.string().optional(),
   notes: z.string().optional(),
@@ -71,6 +72,7 @@ export async function POST(req: NextRequest) {
         repId: session.user.id,
         customerName: data.customerName,
         customerEmail: data.customerEmail,
+        customerPhone: data.customerPhone,
         customerZip: data.customerZip,
         customerCanton,
         siteAddress: data.siteAddress,

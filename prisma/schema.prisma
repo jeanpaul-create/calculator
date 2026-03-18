@@ -147,6 +147,7 @@ model Quote {
   customerCanton  String?
   // Address for site
   siteAddress String?
+  customerPhone String?
   notes       String?     @db.Text
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
@@ -169,6 +170,8 @@ model QuoteScenario {
   // Electricity rate used for ROI calc (Rappen/kWh, snapshotted)
   rateRappenPerKwh Int?
   sortOrder Int      @default(0)
+  roofType  String?  @default("tuile")
+  roofSlope String?  @default("simple")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { requireOwnerOrAdmin } from '@/lib/auth'
-import { calculateIonPrice, DEFAULT_ION_COEFFICIENTS, IonPricingCoefficients } from '@/lib/pricing'
+import { calculateIonPrice, DEFAULT_ION_COEFFICIENTS, IonPricingCoefficients, RoofType, RoofSlope } from '@/lib/pricing'
 import { z } from 'zod'
 
 const ScenarioItemSchema = z.object({
@@ -18,6 +18,14 @@ const SaveScenarioSchema = z.object({
   marginBasisPts: z.number().int().min(0).max(9999),
   items: z.array(ScenarioItemSchema),
   options: z.array(ScenarioOptionSchema).optional(),
+  roofType: z.enum(['tuile', 'ardoise', 'bac_acier', 'plat']).optional(),
+  roofSlope: z.enum(['simple', 'moyen', 'complexe']).optional(),
+  // Optional project info update
+  customerName: z.string().optional(),
+  customerEmail: z.string().email().optional().or(z.literal('')),
+  customerPhone: z.string().optional(),
+  siteAddress: z.string().optional(),
+  notes: z.string().optional(),
 })
 
 type Params = { params: { id: string } }
@@ -104,6 +112,12 @@ export async function PUT(req: NextRequest, { params }: Params) {
             'bat_pm_bps',
             'bat_admin_bps',
             'bat_profit_bps',
+            'mount_tuile_rappen',
+            'mount_ardoise_rappen',
+            'mount_bac_acier_rappen',
+            'mount_plat_rappen',
+            'mount_slope_medium_bps',
+            'mount_slope_steep_bps',
           ],
         },
       },
@@ -136,6 +150,12 @@ export async function PUT(req: NextRequest, { params }: Params) {
       bat_pm_bps: settingsMap['bat_pm_bps'] ?? DEFAULT_ION_COEFFICIENTS.bat_pm_bps,
       bat_admin_bps: settingsMap['bat_admin_bps'] ?? DEFAULT_ION_COEFFICIENTS.bat_admin_bps,
       bat_profit_bps: settingsMap['bat_profit_bps'] ?? DEFAULT_ION_COEFFICIENTS.bat_profit_bps,
+      mount_tuile_rappen: settingsMap['mount_tuile_rappen'] ?? DEFAULT_ION_COEFFICIENTS.mount_tuile_rappen,
+      mount_ardoise_rappen: settingsMap['mount_ardoise_rappen'] ?? DEFAULT_ION_COEFFICIENTS.mount_ardoise_rappen,
+      mount_bac_acier_rappen: settingsMap['mount_bac_acier_rappen'] ?? DEFAULT_ION_COEFFICIENTS.mount_bac_acier_rappen,
+      mount_plat_rappen: settingsMap['mount_plat_rappen'] ?? DEFAULT_ION_COEFFICIENTS.mount_plat_rappen,
+      mount_slope_medium_bps: settingsMap['mount_slope_medium_bps'] ?? DEFAULT_ION_COEFFICIENTS.mount_slope_medium_bps,
+      mount_slope_steep_bps: settingsMap['mount_slope_steep_bps'] ?? DEFAULT_ION_COEFFICIENTS.mount_slope_steep_bps,
       vatBasisPts,
     }
 
@@ -197,7 +217,9 @@ export async function PUT(req: NextRequest, { params }: Params) {
     const ionOptions = (data.options ?? []).map((opt) => ({
       costRappen: optionCostMap[opt.optionId],
     }))
-    const pricing = calculateIonPrice(ionProducts, ionOptions, ionCoefficients)
+    const pricing = calculateIonPrice(ionProducts, ionOptions, ionCoefficients,
+      (data.roofType ?? 'tuile') as RoofType,
+      (data.roofSlope ?? 'simple') as RoofSlope)
 
     // Atomically replace the scenario (delete old + create new in one transaction)
     // In Phase 2 multi-scenario: create/update by scenario ID
@@ -210,6 +232,8 @@ export async function PUT(req: NextRequest, { params }: Params) {
           marginBasisPts: pricing.effectiveMarginBasisPts,
           vatPctBasisPts: vatBasisPts,
           rateRappenPerKwh,
+          roofType: data.roofType ?? 'tuile',
+          roofSlope: data.roofSlope ?? 'simple',
           items: {
             create: data.items.map((item) => ({
               productId: item.productId,
@@ -231,11 +255,27 @@ export async function PUT(req: NextRequest, { params }: Params) {
       })
     })
 
-    // Update quote updatedAt
-    await prisma.quote.update({
-      where: { id: params.id },
-      data: { updatedAt: new Date() },
-    })
+    // Update project info if provided
+    const infoFields = ['customerName', 'customerEmail', 'customerPhone', 'siteAddress', 'notes'] as const
+    const hasInfo = infoFields.some(f => data[f] !== undefined)
+    if (hasInfo) {
+      await prisma.quote.update({
+        where: { id: params.id },
+        data: {
+          customerName: data.customerName,
+          customerEmail: data.customerEmail || null,
+          customerPhone: data.customerPhone,
+          siteAddress: data.siteAddress,
+          notes: data.notes,
+          updatedAt: new Date(),
+        },
+      })
+    } else {
+      await prisma.quote.update({
+        where: { id: params.id },
+        data: { updatedAt: new Date() },
+      })
+    }
 
     return NextResponse.json({ scenario, pricing })
   } catch (err) {

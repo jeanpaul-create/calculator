@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { calculateIonPrice, calculateRoi, estimateAnnualYield, sumInstalledKwp, IonPricingCoefficients } from '@/lib/pricing'
+import { calculateIonPrice, calculateRoi, estimateAnnualYield, sumInstalledKwp, IonPricingCoefficients, RoofType, RoofSlope } from '@/lib/pricing'
 import PriceSummaryCard from './PriceSummaryCard'
 import { useLanguage } from '@/context/LanguageContext'
 
@@ -53,6 +53,15 @@ export default function CalculatorForm({
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [savedQuoteNumber, setSavedQuoteNumber] = useState<string | null>(null)
+  const [projectInfo, setProjectInfo] = useState({
+    customerName: '',
+    customerEmail: '',
+    customerPhone: '',
+    siteAddress: '',
+    notes: '',
+  })
+  const [roofType, setRoofType] = useState<RoofType>('tuile')
+  const [roofSlope, setRoofSlope] = useState<RoofSlope>('simple')
 
   const ionProducts = selectedProducts.map((sp) => ({
     category: sp.product.category,
@@ -67,7 +76,7 @@ export default function CalculatorForm({
 
   const pricing =
     ionProducts.length > 0 || ionOptions.length > 0
-      ? calculateIonPrice(ionProducts, ionOptions, ionCoefficients)
+      ? calculateIonPrice(ionProducts, ionOptions, ionCoefficients, roofType, roofSlope)
       : null
 
   const panels = selectedProducts
@@ -86,13 +95,17 @@ export default function CalculatorForm({
         })
       : null
 
-  // Group products by category
-  const byCategory = products.reduce<Record<string, Product[]>>((acc, p) => {
-    acc[p.category] = acc[p.category] ?? []
-    acc[p.category].push(p)
-    return acc
-  }, {})
+  // Extract brand from product name
+  const getBrand = (name: string): string => {
+    const brands = ['Huawei', 'Fronius', 'Jinko', 'Longi', 'LONGi', 'Aiko', 'BYD', 'SMA', 'ABB', 'Solaredge', 'SolarEdge', 'Enphase']
+    const lower = name.toLowerCase()
+    for (const brand of brands) {
+      if (lower.includes(brand.toLowerCase())) return brand
+    }
+    return name.split(' ')[0]
+  }
 
+  const CATEGORY_ORDER = ['PANEL', 'INVERTER', 'BATTERY', 'EV_CHARGER', 'ACCESSORY', 'MOUNTING']
   const CATEGORY_LABELS: Record<string, string> = {
     PANEL: t('cat_panel'),
     INVERTER: t('cat_inverter'),
@@ -101,6 +114,18 @@ export default function CalculatorForm({
     ACCESSORY: t('cat_accessory'),
     EV_CHARGER: t('cat_ev_charger'),
   }
+
+  // Group by brand, then by category within brand
+  const byBrand = products.reduce<Record<string, Record<string, Product[]>>>((acc, p) => {
+    const brand = getBrand(p.name)
+    if (!acc[brand]) acc[brand] = {}
+    if (!acc[brand][p.category]) acc[brand][p.category] = []
+    acc[brand][p.category].push(p)
+    return acc
+  }, {})
+
+  // Sort brands alphabetically
+  const sortedBrands = Object.keys(byBrand).sort()
 
   const addProduct = (product: Product) => {
     setSelectedProducts((prev) => {
@@ -145,6 +170,9 @@ export default function CalculatorForm({
 
   const buildScenarioPayload = () => ({
     marginBasisPts: pricing?.effectiveMarginBasisPts ?? 0,
+    roofType,
+    roofSlope,
+    ...projectInfo,
     items: selectedProducts.map((sp) => ({
       productId: sp.product.id,
       quantity: sp.quantity,
@@ -182,11 +210,17 @@ export default function CalculatorForm({
     setIsSaving(true)
     setSaveError(null)
     try {
-      // Step 1: create the quote (no customer info needed — can be filled in later)
+      // Step 1: create the quote with project info
       const createRes = await fetch('/api/quotes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        body: JSON.stringify({
+          customerName: projectInfo.customerName || undefined,
+          customerEmail: projectInfo.customerEmail || undefined,
+          customerPhone: projectInfo.customerPhone || undefined,
+          siteAddress: projectInfo.siteAddress || undefined,
+          notes: projectInfo.notes || undefined,
+        }),
       })
       if (!createRes.ok) {
         const data = await createRes.json()
@@ -222,6 +256,67 @@ export default function CalculatorForm({
     <div className="flex gap-6">
       {/* Left: form */}
       <div className="flex-1 space-y-6 min-w-0">
+        {/* Project Information */}
+        <div className="card-padded">
+          <div className="section-title mb-4">Informations du projet</div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Client</label>
+              <input type="text" className="input" placeholder="Nom du client"
+                value={projectInfo.customerName}
+                onChange={e => setProjectInfo(p => ({...p, customerName: e.target.value}))} />
+            </div>
+            <div>
+              <label className="label">Adresse du site</label>
+              <input type="text" className="input" placeholder="Rue, Ville"
+                value={projectInfo.siteAddress}
+                onChange={e => setProjectInfo(p => ({...p, siteAddress: e.target.value}))} />
+            </div>
+            <div>
+              <label className="label">Email client</label>
+              <input type="email" className="input" placeholder="client@exemple.ch"
+                value={projectInfo.customerEmail}
+                onChange={e => setProjectInfo(p => ({...p, customerEmail: e.target.value}))} />
+            </div>
+            <div>
+              <label className="label">Téléphone client</label>
+              <input type="tel" className="input" placeholder="+41 79 000 00 00"
+                value={projectInfo.customerPhone}
+                onChange={e => setProjectInfo(p => ({...p, customerPhone: e.target.value}))} />
+            </div>
+            <div className="col-span-2">
+              <label className="label">Notes</label>
+              <textarea className="input resize-none" rows={2} placeholder="Notes internes..."
+                value={projectInfo.notes}
+                onChange={e => setProjectInfo(p => ({...p, notes: e.target.value}))} />
+            </div>
+          </div>
+        </div>
+
+        {/* Installation Configuration */}
+        <div className="card-padded">
+          <div className="section-title mb-4">Configuration de l&apos;installation</div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="label">Type de toiture</label>
+              <select className="input" value={roofType} onChange={e => { setRoofType(e.target.value as RoofType); setIsDirty(true) }}>
+                <option value="tuile">Tuile</option>
+                <option value="ardoise">Ardoise</option>
+                <option value="bac_acier">Bac acier / Métal</option>
+                <option value="plat">Toiture plate</option>
+              </select>
+            </div>
+            <div>
+              <label className="label">Complexité / Inclinaison</label>
+              <select className="input" value={roofSlope} onChange={e => { setRoofSlope(e.target.value as RoofSlope); setIsDirty(true) }}>
+                <option value="simple">Simple (≤30°)</option>
+                <option value="moyen">Moyenne (30–45°)</option>
+                <option value="complexe">Complexe (&gt;45° ou configuration difficile)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
         {/* System info bar (installed kWp + annual yield) */}
         {installedKwp > 0 && (
           <div className="card-padded">
@@ -236,72 +331,83 @@ export default function CalculatorForm({
           </div>
         )}
 
-        {/* Product selection by category */}
-        {Object.entries(byCategory).map(([category, categoryProducts]) => (
-          <div key={category} className="card-padded">
-            <div className="section-title mb-4">{CATEGORY_LABELS[category] ?? category}</div>
-            <div className="space-y-2">
-              {categoryProducts.map((product) => {
-                const selected = selectedProducts.find((sp) => sp.product.id === product.id)
-                return (
-                  <div
-                    key={product.id}
-                    className={`flex items-center gap-4 p-3 rounded-lg border transition-colors ${
-                      selected
-                        ? 'border-red-200 bg-red-50'
-                        : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50'
-                    }`}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-gray-800">{product.name}</div>
-                      {product.powerWp && (
-                        <div className="text-xs text-gray-500">
-                          {product.powerWp >= 1000
-                            ? `${(product.powerWp / 1000).toFixed(1)} kW`
-                            : `${product.powerWp} Wp`}
-                        </div>
-                      )}
-                    </div>
-                    <div className="text-sm tabular-nums font-mono text-gray-600 w-24 text-right">
-                      CHF {(product.costRappen / 100).toLocaleString('fr-CH', { minimumFractionDigits: 2 })}
-                    </div>
-                    {selected ? (
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => setQuantity(product.id, selected.quantity - 1)}
-                          className="w-7 h-7 flex items-center justify-center rounded border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 text-sm"
-                          aria-label="Diminuer quantité"
-                        >
-                          −
-                        </button>
-                        <input
-                          type="number"
-                          min={1}
-                          max={99}
-                          value={selected.quantity}
-                          onChange={(e) => setQuantity(product.id, parseInt(e.target.value) || 1)}
-                          className="w-12 text-center text-sm border border-gray-200 rounded py-1 tabular-nums"
-                        />
-                        <button
-                          onClick={() => setQuantity(product.id, selected.quantity + 1)}
-                          className="w-7 h-7 flex items-center justify-center rounded border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 text-sm"
-                          aria-label="Augmenter quantité"
-                        >
-                          +
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => addProduct(product)}
-                        className="btn-secondary text-xs px-3 py-1.5"
-                      >
-                        {t('calc_add')}
-                      </button>
-                    )}
+        {/* Product selection by brand */}
+        {sortedBrands.map((brand) => (
+          <div key={brand} className="card-padded">
+            <div className="section-title mb-4">{brand}</div>
+            {/* Within brand, show categories in order */}
+            {CATEGORY_ORDER
+              .filter(cat => byBrand[brand][cat]?.length > 0)
+              .map(cat => (
+                <div key={cat} className="mb-4 last:mb-0">
+                  <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+                    {CATEGORY_LABELS[cat]}
                   </div>
-                )
-              })}
-            </div>
+                  <div className="space-y-2">
+                    {byBrand[brand][cat].map((product) => {
+                      const selected = selectedProducts.find((sp) => sp.product.id === product.id)
+                      return (
+                        <div
+                          key={product.id}
+                          className={`flex items-center gap-4 p-3 rounded-lg border transition-colors ${
+                            selected
+                              ? 'border-red-200 bg-red-50'
+                              : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50'
+                          }`}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-gray-800">{product.name}</div>
+                            {product.powerWp && (
+                              <div className="text-xs text-gray-500">
+                                {product.powerWp >= 1000
+                                  ? `${(product.powerWp / 1000).toFixed(1)} kW`
+                                  : `${product.powerWp} Wp`}
+                              </div>
+                            )}
+                          </div>
+                          <div className="text-sm tabular-nums font-mono text-gray-600 w-24 text-right">
+                            CHF {(product.costRappen / 100).toLocaleString('fr-CH', { minimumFractionDigits: 2 })}
+                          </div>
+                          {selected ? (
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => setQuantity(product.id, selected.quantity - 1)}
+                                className="w-7 h-7 flex items-center justify-center rounded border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 text-sm"
+                                aria-label="Diminuer quantité"
+                              >
+                                −
+                              </button>
+                              <input
+                                type="number"
+                                min={1}
+                                max={99}
+                                value={selected.quantity}
+                                onChange={(e) => setQuantity(product.id, parseInt(e.target.value) || 1)}
+                                className="w-12 text-center text-sm border border-gray-200 rounded py-1 tabular-nums"
+                              />
+                              <button
+                                onClick={() => setQuantity(product.id, selected.quantity + 1)}
+                                className="w-7 h-7 flex items-center justify-center rounded border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 text-sm"
+                                aria-label="Augmenter quantité"
+                              >
+                                +
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => addProduct(product)}
+                              className="btn-secondary text-xs px-3 py-1.5"
+                            >
+                              {t('calc_add')}
+                            </button>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))
+            }
           </div>
         ))}
 

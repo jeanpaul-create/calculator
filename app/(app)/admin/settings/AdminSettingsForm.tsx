@@ -22,6 +22,13 @@ interface AdminSettingsFormProps {
   batPmBps: number
   batAdminBps: number
   batProfitBps: number
+  // Mounting system
+  mountTuileRappen: number
+  mountArdoiseRappen: number
+  mountBacAcierRappen: number
+  mountPlatRappen: number
+  mountSlopeMediumBps: number
+  mountSlopeSteepBps: number
 }
 
 export default function AdminSettingsForm({
@@ -42,6 +49,12 @@ export default function AdminSettingsForm({
   batPmBps: initialBatPm,
   batAdminBps: initialBatAdmin,
   batProfitBps: initialBatProfit,
+  mountTuileRappen: initialMountTuile,
+  mountArdoiseRappen: initialMountArdoise,
+  mountBacAcierRappen: initialMountBacAcier,
+  mountPlatRappen: initialMountPlat,
+  mountSlopeMediumBps: initialMountSlopeMedium,
+  mountSlopeSteepBps: initialMountSlopeSteep,
 }: AdminSettingsFormProps) {
   const [vatPct, setVatPct] = useState((initialVat / 100).toFixed(2))
   const [minMarginPct, setMinMarginPct] = useState((initialMinMargin / 100).toFixed(1))
@@ -66,6 +79,14 @@ export default function AdminSettingsForm({
   const [batPmPct, setBatPmPct] = useState((initialBatPm / 100).toFixed(2))
   const [batAdminPct, setBatAdminPct] = useState((initialBatAdmin / 100).toFixed(2))
   const [batProfitPct, setBatProfitPct] = useState((initialBatProfit / 100).toFixed(2))
+
+  // Mounting system
+  const [mountTuileChf, setMountTuileChf] = useState((initialMountTuile / 100).toFixed(0))
+  const [mountArdoiseChf, setMountArdoiseChf] = useState((initialMountArdoise / 100).toFixed(0))
+  const [mountBacAcierChf, setMountBacAcierChf] = useState((initialMountBacAcier / 100).toFixed(0))
+  const [mountPlatChf, setMountPlatChf] = useState((initialMountPlat / 100).toFixed(0))
+  const [mountSlopeMediumPct, setMountSlopeMediumPct] = useState((initialMountSlopeMedium / 100).toFixed(1))
+  const [mountSlopeSteepPct, setMountSlopeSteepPct] = useState((initialMountSlopeSteep / 100).toFixed(1))
 
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -99,6 +120,12 @@ export default function AdminSettingsForm({
           bat_pm_bps: Math.round(parseFloat(batPmPct) * 100),
           bat_admin_bps: Math.round(parseFloat(batAdminPct) * 100),
           bat_profit_bps: Math.round(parseFloat(batProfitPct) * 100),
+          mount_tuile_rappen: Math.round(parseFloat(mountTuileChf) * 100),
+          mount_ardoise_rappen: Math.round(parseFloat(mountArdoiseChf) * 100),
+          mount_bac_acier_rappen: Math.round(parseFloat(mountBacAcierChf) * 100),
+          mount_plat_rappen: Math.round(parseFloat(mountPlatChf) * 100),
+          mount_slope_medium_bps: Math.round(parseFloat(mountSlopeMediumPct) * 100),
+          mount_slope_steep_bps: Math.round(parseFloat(mountSlopeSteepPct) * 100),
         }),
       })
 
@@ -351,6 +378,106 @@ export default function AdminSettingsForm({
                 onChange={(e) => setPvAdminChf(e.target.value)}
               />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">CHF</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Système de Montage ── */}
+      <div className="card-padded space-y-6">
+        <div className="section-title">Système de Montage</div>
+        <p className="field-hint -mt-2">Coût matériel par panneau (CHF, avant chaîne d&apos;approvisionnement)</p>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="label">Coût montage tuile (CHF/panneau)</label>
+            <div className="relative">
+              <input
+                type="number"
+                className="input"
+                value={mountTuileChf}
+                min={0}
+                step={1}
+                onChange={(e) => setMountTuileChf(e.target.value)}
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">CHF</span>
+            </div>
+          </div>
+
+          <div>
+            <label className="label">Coût montage ardoise (CHF/panneau)</label>
+            <div className="relative">
+              <input
+                type="number"
+                className="input"
+                value={mountArdoiseChf}
+                min={0}
+                step={1}
+                onChange={(e) => setMountArdoiseChf(e.target.value)}
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">CHF</span>
+            </div>
+          </div>
+
+          <div>
+            <label className="label">Coût montage bac acier/métal (CHF/panneau)</label>
+            <div className="relative">
+              <input
+                type="number"
+                className="input"
+                value={mountBacAcierChf}
+                min={0}
+                step={1}
+                onChange={(e) => setMountBacAcierChf(e.target.value)}
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">CHF</span>
+            </div>
+          </div>
+
+          <div>
+            <label className="label">Coût montage toiture plate (CHF/panneau)</label>
+            <div className="relative">
+              <input
+                type="number"
+                className="input"
+                value={mountPlatChf}
+                min={0}
+                step={1}
+                onChange={(e) => setMountPlatChf(e.target.value)}
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">CHF</span>
+            </div>
+          </div>
+
+          <div>
+            <label className="label">Surcoût pente moyenne 30-45° (%)</label>
+            <div className="relative">
+              <input
+                type="number"
+                className="input"
+                value={mountSlopeMediumPct}
+                min={0}
+                max={100}
+                step={0.1}
+                onChange={(e) => setMountSlopeMediumPct(e.target.value)}
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">%</span>
+            </div>
+          </div>
+
+          <div>
+            <label className="label">Surcoût pente complexe &gt;45° (%)</label>
+            <div className="relative">
+              <input
+                type="number"
+                className="input"
+                value={mountSlopeSteepPct}
+                min={0}
+                max={100}
+                step={0.1}
+                onChange={(e) => setMountSlopeSteepPct(e.target.value)}
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">%</span>
             </div>
           </div>
         </div>

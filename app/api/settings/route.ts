@@ -21,6 +21,12 @@ const ALL_SETTING_KEYS = [
   'bat_pm_bps',
   'bat_admin_bps',
   'bat_profit_bps',
+  'mount_tuile_rappen',
+  'mount_ardoise_rappen',
+  'mount_bac_acier_rappen',
+  'mount_plat_rappen',
+  'mount_slope_medium_bps',
+  'mount_slope_steep_bps',
 ]
 
 const UpdateSettingsSchema = z.object({
@@ -41,6 +47,12 @@ const UpdateSettingsSchema = z.object({
   bat_pm_bps: z.number().int().min(0).optional(),
   bat_admin_bps: z.number().int().min(0).optional(),
   bat_profit_bps: z.number().int().min(0).optional(),
+  mount_tuile_rappen: z.number().int().min(0).optional(),
+  mount_ardoise_rappen: z.number().int().min(0).optional(),
+  mount_bac_acier_rappen: z.number().int().min(0).optional(),
+  mount_plat_rappen: z.number().int().min(0).optional(),
+  mount_slope_medium_bps: z.number().int().min(0).max(9999).optional(),
+  mount_slope_steep_bps: z.number().int().min(0).max(9999).optional(),
 })
 
 // GET /api/settings — returns all settings (any authenticated user can read)

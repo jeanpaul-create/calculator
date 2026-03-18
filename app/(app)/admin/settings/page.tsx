@@ -33,6 +33,12 @@ export default async function AdminSettingsPage() {
           'bat_pm_bps',
           'bat_admin_bps',
           'bat_profit_bps',
+          'mount_tuile_rappen',
+          'mount_ardoise_rappen',
+          'mount_bac_acier_rappen',
+          'mount_plat_rappen',
+          'mount_slope_medium_bps',
+          'mount_slope_steep_bps',
         ],
       },
     },
@@ -60,6 +66,12 @@ export default async function AdminSettingsPage() {
         batPmBps={settingsMap['bat_pm_bps'] ?? DEFAULT_ION_COEFFICIENTS.bat_pm_bps}
         batAdminBps={settingsMap['bat_admin_bps'] ?? DEFAULT_ION_COEFFICIENTS.bat_admin_bps}
         batProfitBps={settingsMap['bat_profit_bps'] ?? DEFAULT_ION_COEFFICIENTS.bat_profit_bps}
+        mountTuileRappen={settingsMap['mount_tuile_rappen'] ?? DEFAULT_ION_COEFFICIENTS.mount_tuile_rappen}
+        mountArdoiseRappen={settingsMap['mount_ardoise_rappen'] ?? DEFAULT_ION_COEFFICIENTS.mount_ardoise_rappen}
+        mountBacAcierRappen={settingsMap['mount_bac_acier_rappen'] ?? DEFAULT_ION_COEFFICIENTS.mount_bac_acier_rappen}
+        mountPlatRappen={settingsMap['mount_plat_rappen'] ?? DEFAULT_ION_COEFFICIENTS.mount_plat_rappen}
+        mountSlopeMediumBps={settingsMap['mount_slope_medium_bps'] ?? DEFAULT_ION_COEFFICIENTS.mount_slope_medium_bps}
+        mountSlopeSteepBps={settingsMap['mount_slope_steep_bps'] ?? DEFAULT_ION_COEFFICIENTS.mount_slope_steep_bps}
       />
     </div>
   )

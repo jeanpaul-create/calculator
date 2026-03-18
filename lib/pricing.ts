@@ -219,6 +219,14 @@ export interface IonPricingCoefficients {
   bat_pm_bps: number
   bat_admin_bps: number
   bat_profit_bps: number
+  // Mounting system (rappen per panel, net material cost before appro chain)
+  mount_tuile_rappen: number
+  mount_ardoise_rappen: number
+  mount_bac_acier_rappen: number
+  mount_plat_rappen: number
+  // Slope complexity surcharges (basis points)
+  mount_slope_medium_bps: number
+  mount_slope_steep_bps: number
   // VAT
   vatBasisPts: number
 }
@@ -275,8 +283,17 @@ export const DEFAULT_ION_COEFFICIENTS: IonPricingCoefficients = {
   bat_pm_bps: 700,
   bat_admin_bps: 600,
   bat_profit_bps: 1925,
+  mount_tuile_rappen: 10000,
+  mount_ardoise_rappen: 11500,
+  mount_bac_acier_rappen: 8500,
+  mount_plat_rappen: 14000,
+  mount_slope_medium_bps: 1500,
+  mount_slope_steep_bps: 3000,
   vatBasisPts: 810,
 }
+
+export type RoofType = 'tuile' | 'ardoise' | 'bac_acier' | 'plat'
+export type RoofSlope = 'simple' | 'moyen' | 'complexe'
 
 /**
  * Calculate selling price using the I.ON Energy Excel pricing model.
@@ -295,7 +312,9 @@ export const DEFAULT_ION_COEFFICIENTS: IonPricingCoefficients = {
 export function calculateIonPrice(
   products: IonPricingProduct[],
   options: IonPricingOption[],
-  coeff: IonPricingCoefficients
+  coeff: IonPricingCoefficients,
+  roofType: RoofType = 'tuile',
+  roofSlope: RoofSlope = 'simple'
 ): IonPricingBreakdown {
   const acc = coeff.pv_accessories_bps / 10000
   const fraisSupp = coeff.pv_frais_supp_bps / 10000
@@ -322,6 +341,39 @@ export function calculateIonPrice(
     pvApproRappen += appro * p.quantity
     if (p.category === 'PANEL') pvLaborRappen += coeff.pv_labor_panel_rappen * p.quantity
     if (p.category === 'INVERTER') pvLaborRappen += coeff.pv_labor_inverter_rappen * p.quantity
+  }
+
+  // ── Mounting cost (auto-calculated per panel) ─────────────────────────────
+  const panelCount = pvProducts
+    .filter(p => p.category === 'PANEL')
+    .reduce((sum, p) => sum + p.quantity, 0)
+
+  if (panelCount > 0) {
+    // Get base material cost per panel for selected roof type
+    const mountMatPerPanel: Record<RoofType, number> = {
+      tuile: coeff.mount_tuile_rappen,
+      ardoise: coeff.mount_ardoise_rappen,
+      bac_acier: coeff.mount_bac_acier_rappen,
+      plat: coeff.mount_plat_rappen,
+    }
+    let mountBaseMat = mountMatPerPanel[roofType]
+
+    // Apply slope complexity surcharge to material
+    const slopeMultiplier = roofSlope === 'complexe'
+      ? 1 + coeff.mount_slope_steep_bps / 10000
+      : roofSlope === 'moyen'
+        ? 1 + coeff.mount_slope_medium_bps / 10000
+        : 1
+
+    mountBaseMat = Math.round(mountBaseMat * slopeMultiplier)
+
+    // Mounting material goes through ACC + frais_supp + transport chain (same as PV)
+    const mountMatNet = mountBaseMat * (1 + acc)
+    const mountAppro = mountMatNet * (1 + fraisSupp + transport)
+    pvApproRappen += mountAppro * panelCount
+
+    // Mounting labor = same rate as panel labor, slope multiplier also applies
+    pvLaborRappen += Math.round(coeff.pv_labor_panel_rappen * slopeMultiplier) * panelCount
   }
 
   // ── Cost Options (services: acc + frais_supp, no transport) ─────────────────
