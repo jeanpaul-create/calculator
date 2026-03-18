@@ -23,7 +23,17 @@
       "Bash(curl:*)",
       "Bash(ls:*)",
       "Bash(QUOTE_ID=\"cmmvbg7rh0001129gy445duss\" __NEW_LINE_f36785f5574b4b72__ echo \"=== GET /api/catalog/products ===\" curl -s -b /tmp/rep_cookies.txt \"https://calculatorsolarch.vercel.app/api/catalog/products\" -w \"\\\\nHTTP %{http_code}\")",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(QUOTE_ID=\"cmmvblgzx00017evxuepnnjus\" __NEW_LINE_8e181e90b87af287__ echo \"=== 7. GET full quote ===\" curl -s -b /tmp/qa2_cookies.txt \"https://calculatorsolarch.vercel.app/api/quotes/$QUOTE_ID\")",
+      "Bash(__NEW_LINE_2ca5777bcd0dca64__ echo:*)",
+      "Read(//c/Users/jeanp/Downloads/**)",
+      "Bash(mkdir -p /tmp/xlsx_extracted)",
+      "Bash(cp '/c/Users/jeanp/Downloads/Sales List-PV-2026 \\(v2.1\\).xlsx' /tmp/sales.xlsx)",
+      "Read(//c/tmp/**)",
+      "Bash(unzip -o sales.xlsx -d xlsx_extracted)",
+      "Bash(node -e \":*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx prisma:*)"
     ]
   }
 }
