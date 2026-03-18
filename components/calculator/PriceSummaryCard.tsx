@@ -1,6 +1,7 @@
 'use client'
 
 import { formatChf, formatPct } from '@/lib/pricing'
+import { useLanguage } from '@/context/LanguageContext'
 
 interface PriceSummaryCardProps {
   subtotalCostRappen: number
@@ -9,13 +10,12 @@ interface PriceSummaryCardProps {
   sellingPriceIncVatRappen: number
   effectiveMarginBasisPts: number
   vatBasisPts: number
-  // ROI
   annualSavingsRappen?: number
   paybackYears?: number
-  // State
   isDirty?: boolean
   isSaving?: boolean
   onSave?: () => void
+  onSaveAsNew?: () => void
   onNewQuote?: () => void
 }
 
@@ -31,35 +31,40 @@ export default function PriceSummaryCard({
   isDirty,
   isSaving,
   onSave,
+  onSaveAsNew,
   onNewQuote,
 }: PriceSummaryCardProps) {
+  const { t } = useLanguage()
+
   return (
     <div className="card sticky top-6">
       {/* Header */}
       <div className="px-5 py-4 border-b border-gray-100">
         <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
-          Verkaufspreis
+          {t('price_selling')}
         </div>
         <div className="text-3xl font-semibold text-gray-900 tabular-nums">
           {formatChf(sellingPriceIncVatRappen)}
         </div>
-        <div className="text-xs text-gray-500 mt-0.5">inkl. {formatPct(vatBasisPts)} MWST</div>
+        <div className="text-xs text-gray-500 mt-0.5">
+          {t('price_incl_vat')} {formatPct(vatBasisPts)}
+        </div>
       </div>
 
       {/* Price breakdown */}
       <div className="px-5 py-4 space-y-2 border-b border-gray-100">
-        <PriceRow label="Materialkosten" value={subtotalCostRappen} muted />
+        <PriceRow label={t('price_material')} value={subtotalCostRappen} muted />
         <PriceRow
-          label={`Marge ${formatPct(effectiveMarginBasisPts)}`}
+          label={`${t('price_margin')} ${formatPct(effectiveMarginBasisPts)}`}
           value={sellingPriceExVatRappen - subtotalCostRappen}
           accent
         />
         <div className="border-t border-gray-100 pt-2 mt-2">
-          <PriceRow label="Preis exkl. MWST" value={sellingPriceExVatRappen} bold />
-          <PriceRow label={`MWST ${formatPct(vatBasisPts)}`} value={vatRappen} muted />
+          <PriceRow label={t('price_excl_vat')} value={sellingPriceExVatRappen} bold />
+          <PriceRow label={`${t('price_vat')} ${formatPct(vatBasisPts)}`} value={vatRappen} muted />
         </div>
         <div className="border-t border-gray-200 pt-2">
-          <PriceRow label="Total inkl. MWST" value={sellingPriceIncVatRappen} bold large />
+          <PriceRow label={t('price_total_incl_vat')} value={sellingPriceIncVatRappen} bold large />
         </div>
       </div>
 
@@ -67,19 +72,19 @@ export default function PriceSummaryCard({
       {annualSavingsRappen != null && paybackYears != null && (
         <div className="px-5 py-4 border-b border-gray-100 bg-green-50">
           <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-            Amortisation
+            {t('price_amortization')}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <RoiStat
-              label="Jährl. Einsparung"
+              label={t('price_annual_savings')}
               value={formatChf(annualSavingsRappen)}
             />
             <RoiStat
-              label="Amortisation"
+              label={t('price_payback')}
               value={
                 paybackYears === Infinity
                   ? '—'
-                  : `${paybackYears} Jahre`
+                  : `${paybackYears} ${t('price_payback_years')}`
               }
               accent={paybackYears !== Infinity && paybackYears <= 12}
             />
@@ -95,12 +100,25 @@ export default function PriceSummaryCard({
             disabled={isSaving || !isDirty}
             className="btn-primary w-full"
           >
-            {isSaving ? 'Wird gespeichert…' : isDirty ? 'Offerte speichern' : 'Gespeichert'}
+            {isSaving
+              ? t('price_saving')
+              : isDirty
+              ? t('price_save')
+              : t('price_saved')}
+          </button>
+        )}
+        {onSaveAsNew && (
+          <button
+            onClick={onSaveAsNew}
+            disabled={isSaving || !isDirty}
+            className="btn-primary w-full"
+          >
+            {isSaving ? t('price_saving') : t('price_save_as_quote')}
           </button>
         )}
         {onNewQuote && (
           <button onClick={onNewQuote} className="btn-secondary w-full">
-            Neue Offerte
+            {t('price_new_quote')}
           </button>
         )}
       </div>
