@@ -13,12 +13,14 @@ const CreateProductSchema = z.object({
 })
 
 // GET /api/catalog/products — all active products (any authenticated user)
-export async function GET(_req: NextRequest) {
+// ?all=1 returns including inactive (admin only)
+export async function GET(req: NextRequest) {
   try {
-    await requireAuth()
+    const session = await requireAuth()
+    const showAll = req.nextUrl.searchParams.get('all') === '1' && session.user.role === 'ADMIN'
 
     const products = await prisma.product.findMany({
-      where: { active: true },
+      where: showAll ? undefined : { active: true },
       orderBy: [{ category: 'asc' }, { name: 'asc' }],
     })
 

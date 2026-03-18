@@ -3,7 +3,7 @@ import { prisma } from '@/lib/db'
 import { auth } from '@/lib/auth'
 import CalculatorForm from '@/components/calculator/CalculatorForm'
 
-export const metadata = { title: 'Kalkulator' }
+export const metadata = { title: 'Calculateur' }
 
 export default async function CalculatorPage({
   searchParams,
@@ -13,7 +13,6 @@ export default async function CalculatorPage({
   const session = await auth()
   if (!session) redirect('/login')
 
-  // Load catalog and settings in parallel
   const [products, costOptions, settings, rateRow] = await Promise.all([
     prisma.product.findMany({
       where: { active: true },
@@ -41,13 +40,12 @@ export default async function CalculatorPage({
   return (
     <div className="p-6 max-w-6xl">
       <div className="mb-6">
-        <h1 className="page-title">Preiskalkulator</h1>
+        <h1 className="page-title">Calculateur de prix</h1>
         <p className="text-sm text-gray-500 mt-1">
-          Produkte auswählen und Verkaufspreis berechnen
+          Sélectionner des produits et calculer le prix de vente
         </p>
       </div>
 
-      {/* ZIP / customer context bar */}
       <ZipBar
         currentZip={searchParams.zip}
         canton={rateRow?.canton}
@@ -82,27 +80,27 @@ function ZipBar({
     <div className="flex items-center gap-4 mb-6 p-4 card">
       <form className="flex items-end gap-3">
         <div>
-          <label className="label">PLZ (für Stromtarif &amp; Amortisation)</label>
+          <label className="label">NPA (pour tarif &amp; amortissement)</label>
           <input
             name="zip"
             type="text"
             pattern="[0-9]{4}"
             maxLength={4}
             defaultValue={currentZip ?? ''}
-            placeholder="z.B. 8001"
+            placeholder="ex. 1180"
             className="input w-28"
           />
         </div>
         {quoteId && <input type="hidden" name="quoteId" value={quoteId} />}
         <button type="submit" className="btn-secondary">
-          Tarif laden
+          Charger tarif
         </button>
       </form>
 
       {canton && rateRappenPerKwh && (
         <div className="text-sm text-gray-600">
-          Kanton <strong>{canton}</strong> ·{' '}
-          <span className="tabular-nums font-mono">{rateRappenPerKwh} Rp/kWh</span> Durchschnitt
+          Canton <strong>{canton}</strong> ·{' '}
+          <span className="tabular-nums font-mono">{rateRappenPerKwh} ct/kWh</span> moyen
         </div>
       )}
     </div>

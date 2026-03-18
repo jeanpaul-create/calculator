@@ -10,12 +10,15 @@ const CreateOptionSchema = z.object({
   sortOrder: z.number().int().optional(),
 })
 
-export async function GET(_req: NextRequest) {
+// GET /api/catalog/options — active options (any authenticated user)
+// ?all=1 returns including inactive (admin only)
+export async function GET(req: NextRequest) {
   try {
-    await requireAuth()
+    const session = await requireAuth()
+    const showAll = req.nextUrl.searchParams.get('all') === '1' && session.user.role === 'ADMIN'
 
     const options = await prisma.costOption.findMany({
-      where: { active: true },
+      where: showAll ? undefined : { active: true },
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
     })
 
