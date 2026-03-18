@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.0.2] - 2026-03-18
+
+### Fixed
+- Added `/admin` index page — admins now redirect to `/admin/catalog`, reps redirect to `/calculator` (previously returned 404)
+- Relaxed `productId`/`optionId` validation from `.cuid()` to `.min(1)` in `PUT /api/quotes/[id]` to support seed data string IDs
+- Removed temporary debug endpoint `GET /api/debug` that exposed environment variable presence
+
 ## [0.1.0.1] - 2026-03-18
 
 ### Fixed
