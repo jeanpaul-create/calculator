@@ -3,15 +3,15 @@ import './globals.css'
 
 export const metadata: Metadata = {
   title: {
-    default: 'Solar-Kalkulator',
-    template: '%s | Solar-Kalkulator',
+    default: 'I.ON Energy',
+    template: '%s | I.ON Energy',
   },
-  description: 'Preiskalkulator für Solar-Verkaufsteams',
+  description: 'Calculateur de prix pour équipes commerciales solaires',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="de">
+    <html lang="fr">
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />

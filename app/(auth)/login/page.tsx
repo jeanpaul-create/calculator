@@ -48,7 +48,7 @@ export default function LoginPage() {
               <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
             </svg>
           </div>
-          <span className="text-xl font-semibold text-gray-900">Solar-Kalkulator</span>
+          <span className="text-xl font-semibold text-gray-900">I.ON Energy</span>
         </div>
 
         <div className="card-padded shadow-md">
