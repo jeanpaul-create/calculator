@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.2.0] - 2026-03-19
+
+### Added
+- **PDF quote generation** — `GET /api/quotes/[id]/pdf` streams a branded A4 PDF; includes customer info, product list per scenario, pricing (HT/TVA/TTC), and ROI section (payback years, annual savings, annual kWh yield)
+- **Email send** — `POST /api/quotes/[id]/send` generates PDF and delivers it via Resend to the customer's email address; requires `RESEND_API_KEY` + `RESEND_FROM_EMAIL` env vars
+- **Quote detail page** — `/quotes/[id]` shows customer info, scenario summaries with TTC price, PDF download link, and email send button; fixes the broken quote-number link on the quotes list
+- **Multi-scenario PDF** — multiple scenarios render as sequential page-break sections with "Option N" badges
+- **ROI section in PDF** — shows estimated annual yield (kWh), annual savings (CHF), and payback period; displays "Données insuffisantes" when ZIP/rate is unavailable
+- **Price snapshot** — `QuoteScenario` now stores `sellingPriceExVatRappen` and `sellingPriceIncVatRappen` at save time; PDF re-generation always shows the originally quoted price even if admin changes pricing coefficients later; old quotes (NULL) fall back to live computation
+- **TODOS.md** — added project TODO tracking for logo integration and status management UI
+
+### Changed
+- `PUT /api/quotes/[id]` response now includes `sellingPriceExVatRappen` and `sellingPriceIncVatRappen`
+
 ## [0.1.1.0] - 2026-03-18
 
 ### Added

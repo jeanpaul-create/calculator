@@ -633,10 +633,13 @@ async function main() {
   console.log(`  ✓ ${PRODUCTS.length} produits`)
 
   // ─── Cost options ──────────────────────────────────────────────────────────
+  // Deactivate all existing options first, then re-activate only the seeded ones
+  await prisma.costOption.updateMany({ data: { active: false } })
+  const seedOptionIds = COST_OPTIONS.map(o => o.id)
   for (const option of COST_OPTIONS) {
     await prisma.costOption.upsert({
       where: { id: option.id },
-      update: { name: option.name, description: option.description, costRappen: option.costRappen },
+      update: { name: option.name, description: option.description, costRappen: option.costRappen, active: true },
       create: { ...option, active: true },
     })
   }
