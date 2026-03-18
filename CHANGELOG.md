@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.1.0] - 2026-03-18
+
+### Added
+- **Language switching (FR/DE)** — FR/DE toggle in sidebar; all UI strings translated via `lib/i18n.ts`; language persisted in localStorage; default French (company is French-Swiss)
+- **Save button in calculator** — "Enregistrer comme offre" button creates a new quote automatically when no `quoteId` is present, then redirects to the linked calculator view
+- **Admin catalog CRUD** — full inline edit, activate/deactivate toggle, delete with confirmation, and add-new forms for products and cost options; powered by `components/admin/CatalogManager.tsx`
+- **Real product catalog** — 43 products from I.ON Energy Services (Jinko, LONGi, Aiko panels; Huawei & Fronius inverters; Huawei LUNA & Fronius Reserva batteries; accessories; EV chargers)
+- **EV charger category** — new `EV_CHARGER` enum value in `ProductCategory`; translations in FR/DE
+
+### Changed
+- UI language switched from German to French throughout (labels, placeholders, page titles, locale formatting `fr-CH`)
+- Admin catalog page converted from read-only server component to interactive client component
+- Sidebar renamed from "Solar-Kalkulator" to "I.ON Energy"; navigation labels now translated
+- `?all=1` param on `/api/catalog/products` and `/api/catalog/options` returns inactive items for admin use
+- Seed data completely replaced with real I.ON Energy price list (v2.1, 2026); cost options in French
+
 ## [0.1.0.2] - 2026-03-18
 
 ### Fixed
