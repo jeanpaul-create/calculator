@@ -1,14 +1,13 @@
 import { NextAuthOptions, getServerSession } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
-import { PrismaAdapter } from '@next-auth/prisma-adapter'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/db'
 import { Role } from '@prisma/client'
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
+  // Credentials provider requires JWT sessions — database sessions are not supported
   session: {
-    strategy: 'database',
+    strategy: 'jwt',
     maxAge: 8 * 60 * 60, // 8 hours — standard workday
   },
   pages: {
@@ -50,12 +49,18 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    // Attach role to the JWT/session
-    async session({ session, user }) {
-      // With database sessions, `user` is the DB user
-      if (user && session.user) {
-        session.user.id = user.id
-        session.user.role = (user as { role: Role }).role
+    async jwt({ token, user }) {
+      // On sign-in, persist id and role into the token
+      if (user) {
+        token.id = user.id
+        token.role = (user as { role: Role }).role
+      }
+      return token
+    },
+    async session({ session, token }) {
+      if (session.user) {
+        session.user.id = token.id as string
+        session.user.role = token.role as Role
       }
       return session
     },
