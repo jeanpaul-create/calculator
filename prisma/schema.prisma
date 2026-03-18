@@ -75,6 +75,7 @@ enum ProductCategory {
   BATTERY
   MOUNTING
   ACCESSORY
+  EV_CHARGER
 }
 
 model Product {
