@@ -193,8 +193,9 @@ export async function buildPricedScenarios(quote: FullQuote): Promise<PricedScen
     const uniquePowerWps = Array.from(new Set(panelItems.map((i) => i.powerWp!)))
     const panelPowerWp = uniquePowerWps.length === 1 ? uniquePowerWps[0] : null
 
-    // ROI computation
-    const annualKwhYield = installedKwp != null ? estimateAnnualYield(installedKwp) : null
+    // ROI computation — use stored PVGIS factor if available, else fall back to 950
+    const yieldFactor = scenario.yieldKwhPerKwp ?? 950
+    const annualKwhYield = installedKwp != null ? estimateAnnualYield(installedKwp, yieldFactor) : null
     const rateRappenPerKwh = scenario.rateRappenPerKwh
 
     let annualSavingsRappen: number | null = null

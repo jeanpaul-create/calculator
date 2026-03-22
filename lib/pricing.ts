@@ -155,6 +155,7 @@ export function calculateRoi(input: RoiInput): RoiResult {
  */
 export function estimateAnnualYield(
   installedKwp: number,
+  /** kWh/kWp/year — from PVGIS for the install location, default = Swiss average */
   yieldFactor = 950
 ): number {
   return Math.round(installedKwp * yieldFactor)

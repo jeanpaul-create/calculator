@@ -32,6 +32,8 @@ interface CalculatorFormProps {
   vatBasisPts: number
   ionCoefficients: IonPricingCoefficients
   rateRappenPerKwh?: number
+  /** PVGIS yield factor for the install location (kWh/kWp/year) */
+  yieldKwhPerKwp?: number
   quoteId?: string
   onSaved?: (quoteId: string) => void
 }
@@ -42,6 +44,7 @@ export default function CalculatorForm({
   vatBasisPts,
   ionCoefficients,
   rateRappenPerKwh,
+  yieldKwhPerKwp,
   quoteId,
   onSaved,
 }: CalculatorFormProps) {
@@ -84,7 +87,7 @@ export default function CalculatorForm({
     .map((sp) => ({ powerWp: sp.product.powerWp!, quantity: sp.quantity }))
 
   const installedKwp = sumInstalledKwp(panels)
-  const annualYield = installedKwp > 0 ? estimateAnnualYield(installedKwp) : null
+  const annualYield = installedKwp > 0 ? estimateAnnualYield(installedKwp, yieldKwhPerKwp ?? 950) : null
 
   const roi =
     annualYield && rateRappenPerKwh && pricing
@@ -172,6 +175,7 @@ export default function CalculatorForm({
     marginBasisPts: pricing?.effectiveMarginBasisPts ?? 0,
     roofType,
     roofSlope,
+    yieldKwhPerKwp,
     ...projectInfo,
     items: selectedProducts.map((sp) => ({
       productId: sp.product.id,

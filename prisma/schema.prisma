@@ -177,6 +177,9 @@ model QuoteScenario {
   // NULL for quotes saved before this field was added (PDF falls back to live computation).
   sellingPriceExVatRappen  Int?
   sellingPriceIncVatRappen Int?
+  // PVGIS yield factor snapshotted at save time (kWh/kWp/year).
+  // NULL = falls back to 950 (Swiss average).
+  yieldKwhPerKwp           Int?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

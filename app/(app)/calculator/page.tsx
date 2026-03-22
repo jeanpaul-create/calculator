@@ -4,6 +4,39 @@ import { auth } from '@/lib/auth'
 import CalculatorForm from '@/components/calculator/CalculatorForm'
 import { DEFAULT_ION_COEFFICIENTS, IonPricingCoefficients } from '@/lib/pricing'
 
+// ─── PVGIS helpers ────────────────────────────────────────────────────────────
+
+async function geocodeZip(zip: string): Promise<{ lat: number; lon: number } | null> {
+  try {
+    const res = await fetch(
+      `https://api3.geo.admin.ch/rest/services/ech/SearchServer?type=locations&searchText=${zip}&lang=fr&limit=1`,
+      { next: { revalidate: 86400 }, signal: AbortSignal.timeout(4000) }
+    )
+    if (!res.ok) return null
+    const data = await res.json()
+    const attrs = data.results?.[0]?.attrs
+    if (!attrs?.lat || !attrs?.lon) return null
+    return { lat: attrs.lat, lon: attrs.lon }
+  } catch {
+    return null
+  }
+}
+
+async function fetchPvgisYield(lat: number, lon: number): Promise<number> {
+  try {
+    const res = await fetch(
+      `https://re.jrc.ec.europa.eu/api/v5_3/PVcalc?lat=${lat}&lon=${lon}&peakpower=1&loss=14&outputformat=json`,
+      { next: { revalidate: 86400 }, signal: AbortSignal.timeout(6000) }
+    )
+    if (!res.ok) return 950
+    const data = await res.json()
+    const ey = data?.outputs?.totals?.fixed?.E_y
+    return typeof ey === 'number' && ey > 0 ? Math.round(ey) : 950
+  } catch {
+    return 950
+  }
+}
+
 export const metadata = { title: 'Calculateur' }
 
 export default async function CalculatorPage({
@@ -62,6 +95,15 @@ export default async function CalculatorPage({
       : Promise.resolve(null),
   ])
 
+  // PVGIS: get location-specific solar yield factor (kWh/kWp/year) for the ZIP
+  let yieldKwhPerKwp: number | undefined
+  if (searchParams.zip) {
+    const coords = await geocodeZip(searchParams.zip)
+    if (coords) {
+      yieldKwhPerKwp = await fetchPvgisYield(coords.lat, coords.lon)
+    }
+  }
+
   const settingsMap = Object.fromEntries(settings.map((s) => [s.key, parseInt(s.value)]))
   const vatBasisPts = settingsMap['vat_pct_basis_pts'] ?? 810
 
@@ -103,6 +145,7 @@ export default async function CalculatorPage({
         currentZip={searchParams.zip}
         canton={rateRow?.canton}
         rateRappenPerKwh={rateRow?.rateRappenPerKwh}
+        yieldKwhPerKwp={yieldKwhPerKwp}
         quoteId={searchParams.quoteId}
       />
 
@@ -112,6 +155,7 @@ export default async function CalculatorPage({
         vatBasisPts={vatBasisPts}
         ionCoefficients={ionCoefficients}
         rateRappenPerKwh={rateRow?.rateRappenPerKwh}
+        yieldKwhPerKwp={yieldKwhPerKwp}
         quoteId={searchParams.quoteId}
       />
     </div>
@@ -122,11 +166,13 @@ function ZipBar({
   currentZip,
   canton,
   rateRappenPerKwh,
+  yieldKwhPerKwp,
   quoteId,
 }: {
   currentZip?: string
   canton?: string
   rateRappenPerKwh?: number
+  yieldKwhPerKwp?: number
   quoteId?: string
 }) {
   return (
@@ -151,9 +197,13 @@ function ZipBar({
       </form>
 
       {canton && rateRappenPerKwh && (
-        <div className="text-sm text-gray-600">
-          Canton <strong>{canton}</strong> ·{' '}
-          <span className="tabular-nums font-mono">{rateRappenPerKwh} ct/kWh</span> moyen
+        <div className="text-sm text-gray-600 space-y-0.5">
+          <div>Canton <strong>{canton}</strong> · <span className="tabular-nums font-mono">{rateRappenPerKwh} ct/kWh</span> moyen</div>
+          {yieldKwhPerKwp && (
+            <div className="text-xs text-gray-500">
+              ☀ Production estimée : <span className="font-mono tabular-nums font-medium text-gray-700">{yieldKwhPerKwp} kWh/kWp/an</span> <span className="text-gray-400">(PVGIS)</span>
+            </div>
+          )}
         </div>
       )}
     </div>
