@@ -190,7 +190,7 @@ export async function buildPricedScenarios(quote: FullQuote): Promise<PricedScen
     const installedKwp = panelItems.length > 0
       ? sumInstalledKwp(panelItems.map((i) => ({ powerWp: i.powerWp!, quantity: i.quantity })))
       : null
-    const uniquePowerWps = [...new Set(panelItems.map((i) => i.powerWp!))]
+    const uniquePowerWps = Array.from(new Set(panelItems.map((i) => i.powerWp!)))
     const panelPowerWp = uniquePowerWps.length === 1 ? uniquePowerWps[0] : null
 
     // ROI computation
