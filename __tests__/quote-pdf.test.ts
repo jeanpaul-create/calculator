@@ -41,6 +41,10 @@ const mockScenario: PricedScenario = {
   annualKwhYield: 4400,
   annualSavingsRappen: 174000,
   paybackYears: 9.2,
+  pronovoSubsidyRappen: 158400,
+  taxSavingsRappen: 297000,
+  effectiveInvestmentRappen: 1149885,
+  paybackYearsWithSubsidy: 6.6,
   items: [
     { name: 'Jinko Tiger Neo 440W', quantity: 10, category: 'PANEL' },
     { name: 'Huawei SUN2000-5KTL-M1', quantity: 1, category: 'INVERTER' },
@@ -94,6 +98,8 @@ describe('QuotePdf rendering', () => {
       annualKwhYield: null,
       annualSavingsRappen: null,
       paybackYears: null,
+      effectiveInvestmentRappen: null,
+      paybackYearsWithSubsidy: null,
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const buffer = await renderToBuffer(
@@ -126,7 +132,8 @@ describe('PricedScenario structure', () => {
       'id', 'name', 'roofType', 'roofSlope',
       'vatPctBasisPts', 'sellingPriceExVatRappen', 'vatRappen',
       'sellingPriceIncVatRappen', 'annualKwhYield', 'annualSavingsRappen',
-      'paybackYears', 'items', 'options',
+      'paybackYears', 'pronovoSubsidyRappen', 'taxSavingsRappen',
+      'effectiveInvestmentRappen', 'paybackYearsWithSubsidy', 'items', 'options',
     ]
     for (const key of keys) {
       expect(mockScenario).toHaveProperty(key)

@@ -171,6 +171,44 @@ export function sumInstalledKwp(
   return totalWp / 1000
 }
 
+// ─── Swiss solar financial incentives ────────────────────────────────────────
+
+/**
+ * Calculate the federal Pronovo PRU (Petite Rétribution Unique) subsidy.
+ *
+ * The PRU is a one-time federal subsidy for PV installations < 100 kWp.
+ * Rates apply to "ajoutée" (added-on) systems — the most common residential type.
+ * Source: Pronovo / OEneR Annexe 2.1, rates effective 2025.
+ *
+ * @param installedKwp - Total installed power in kWp
+ * @returns Subsidy in Rappen (0 if < 2 kWp)
+ */
+export function calculatePronovoSubsidy(installedKwp: number): number {
+  if (installedKwp < 2) return 0
+  const kwpCapped = Math.min(installedKwp, 100)
+  const firstTier = Math.min(kwpCapped, 30) * 36000   // 360 CHF/kWp for first 30 kWp
+  const secondTier = Math.max(0, kwpCapped - 30) * 26000 // 260 CHF/kWp for 30–100 kWp
+  return Math.round(firstTier + secondTier)
+}
+
+/**
+ * Estimate tax savings from deducting PV installation costs.
+ *
+ * In Switzerland, PV investments are deductible as property maintenance costs
+ * from cantonal and federal income tax. The saving depends on the taxpayer's
+ * marginal rate. Default assumes 20% — a conservative midpoint for Swiss households.
+ *
+ * @param sellingPriceExVatRappen - Installation cost before VAT (VAT is not deductible)
+ * @param marginalTaxRateBps - Marginal tax rate in basis points (default: 2000 = 20%)
+ * @returns Estimated tax savings in Rappen
+ */
+export function estimateTaxSavings(
+  sellingPriceExVatRappen: number,
+  marginalTaxRateBps = 2000
+): number {
+  return Math.round(sellingPriceExVatRappen * marginalTaxRateBps / 10000)
+}
+
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 
 /**

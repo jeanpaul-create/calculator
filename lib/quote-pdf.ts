@@ -22,6 +22,8 @@ import {
   calculateRoi,
   estimateAnnualYield,
   sumInstalledKwp,
+  calculatePronovoSubsidy,
+  estimateTaxSavings,
   DEFAULT_ION_COEFFICIENTS,
   IonPricingCoefficients,
   RoofType,
@@ -50,6 +52,14 @@ export interface PricedScenario {
   /** null if ROI cannot be computed */
   annualSavingsRappen: number | null
   paybackYears: number | null
+  /** Pronovo PRU federal subsidy in Rappen (null if < 2 kWp) */
+  pronovoSubsidyRappen: number | null
+  /** Estimated income tax savings from deducting installation cost */
+  taxSavingsRappen: number | null
+  /** Effective investment after subsidies and tax savings */
+  effectiveInvestmentRappen: number | null
+  /** Payback period recalculated using effectiveInvestmentRappen */
+  paybackYearsWithSubsidy: number | null
   items: Array<{ name: string; quantity: number; category: string }>
   options: Array<{ name: string }>
 }
@@ -211,6 +221,24 @@ export async function buildPricedScenarios(quote: FullQuote): Promise<PricedScen
       paybackYears = roi.paybackYears
     }
 
+    // Financial incentives
+    const pronovoSubsidyRappen = installedKwp != null && installedKwp >= 2
+      ? calculatePronovoSubsidy(installedKwp)
+      : null
+    const taxSavingsRappen = estimateTaxSavings(sellingPriceExVatRappen)
+
+    let effectiveInvestmentRappen: number | null = null
+    let paybackYearsWithSubsidy: number | null = null
+    if (annualSavingsRappen != null && sellingPriceIncVatRappen > 0) {
+      effectiveInvestmentRappen = Math.max(
+        0,
+        sellingPriceIncVatRappen - (pronovoSubsidyRappen ?? 0) - taxSavingsRappen
+      )
+      if (annualSavingsRappen > 0) {
+        paybackYearsWithSubsidy = Math.round((effectiveInvestmentRappen / annualSavingsRappen) * 10) / 10
+      }
+    }
+
     return {
       id: scenario.id,
       name: scenario.name,
@@ -226,6 +254,10 @@ export async function buildPricedScenarios(quote: FullQuote): Promise<PricedScen
       annualKwhYield,
       annualSavingsRappen,
       paybackYears,
+      pronovoSubsidyRappen,
+      taxSavingsRappen,
+      effectiveInvestmentRappen,
+      paybackYearsWithSubsidy,
       items: items.map(({ name, quantity, category }) => ({ name, quantity, category })),
       options,
     }

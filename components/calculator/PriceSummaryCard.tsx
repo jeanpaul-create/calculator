@@ -12,6 +12,10 @@ interface PriceSummaryCardProps {
   vatBasisPts: number
   annualSavingsRappen?: number
   paybackYears?: number
+  pronovoSubsidyRappen?: number
+  taxSavingsRappen?: number
+  effectiveInvestmentRappen?: number
+  paybackYearsWithSubsidy?: number
   isDirty?: boolean
   isSaving?: boolean
   onSave?: () => void
@@ -28,6 +32,10 @@ export default function PriceSummaryCard({
   vatBasisPts,
   annualSavingsRappen,
   paybackYears,
+  pronovoSubsidyRappen,
+  taxSavingsRappen,
+  effectiveInvestmentRappen,
+  paybackYearsWithSubsidy,
   isDirty,
   isSaving,
   onSave,
@@ -89,6 +97,52 @@ export default function PriceSummaryCard({
               accent={paybackYears !== Infinity && paybackYears <= 12}
             />
           </div>
+        </div>
+      )}
+
+      {/* Subsidies & incentives */}
+      {(pronovoSubsidyRappen != null || taxSavingsRappen != null) && (
+        <div className="px-5 py-4 border-b border-gray-100 bg-blue-50">
+          <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+            Aides &amp; déductions
+          </div>
+          <div className="space-y-1.5">
+            {pronovoSubsidyRappen != null && (
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-sm text-gray-600">Subvention Pronovo (PRU)</span>
+                <span className="tabular-nums font-mono text-sm font-medium text-blue-700">
+                  −{formatChf(pronovoSubsidyRappen)}
+                </span>
+              </div>
+            )}
+            {taxSavingsRappen != null && (
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-sm text-gray-600">Déduction fiscale (est. 20%)</span>
+                <span className="tabular-nums font-mono text-sm font-medium text-blue-700">
+                  −{formatChf(taxSavingsRappen)}
+                </span>
+              </div>
+            )}
+            {effectiveInvestmentRappen != null && (
+              <div className="flex items-baseline justify-between gap-2 pt-1.5 border-t border-blue-200">
+                <span className="text-sm font-medium text-gray-800">Investissement net</span>
+                <span className="tabular-nums font-mono text-sm font-semibold text-gray-900">
+                  {formatChf(effectiveInvestmentRappen)}
+                </span>
+              </div>
+            )}
+            {paybackYearsWithSubsidy != null && (
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-sm text-gray-600">Amortissement avec aides</span>
+                <span className={`tabular-nums font-mono text-sm font-semibold ${paybackYearsWithSubsidy <= 10 ? 'text-green-700' : 'text-gray-800'}`}>
+                  {paybackYearsWithSubsidy} ans
+                </span>
+              </div>
+            )}
+          </div>
+          <p className="text-xs text-gray-400 mt-2">
+            Subvention Pronovo indicative · Déduction fiscale estimée à 20% du HT
+          </p>
         </div>
       )}
 

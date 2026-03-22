@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { calculateIonPrice, calculateRoi, estimateAnnualYield, sumInstalledKwp, IonPricingCoefficients, RoofType, RoofSlope } from '@/lib/pricing'
+import { calculateIonPrice, calculateRoi, estimateAnnualYield, sumInstalledKwp, calculatePronovoSubsidy, estimateTaxSavings, IonPricingCoefficients, RoofType, RoofSlope } from '@/lib/pricing'
 import PriceSummaryCard from './PriceSummaryCard'
 import { useLanguage } from '@/context/LanguageContext'
 
@@ -97,6 +97,22 @@ export default function CalculatorForm({
           investmentRappen: pricing.sellingPriceIncVatRappen,
         })
       : null
+
+  // Financial incentives (shown whenever panels are present)
+  const pronovoSubsidyRappen = installedKwp >= 2
+    ? calculatePronovoSubsidy(installedKwp)
+    : undefined
+  const taxSavingsRappen = pricing
+    ? estimateTaxSavings(pricing.sellingPriceExVatRappen)
+    : undefined
+  const effectiveInvestmentRappen =
+    pricing && pronovoSubsidyRappen != null && taxSavingsRappen != null
+      ? Math.max(0, pricing.sellingPriceIncVatRappen - pronovoSubsidyRappen - taxSavingsRappen)
+      : undefined
+  const paybackYearsWithSubsidy =
+    roi && effectiveInvestmentRappen != null && roi.annualSavingsRappen > 0
+      ? Math.round((effectiveInvestmentRappen / roi.annualSavingsRappen) * 10) / 10
+      : undefined
 
   // Extract brand from product name
   const getBrand = (name: string): string => {
@@ -478,6 +494,10 @@ export default function CalculatorForm({
             vatBasisPts={vatBasisPts}
             annualSavingsRappen={roi?.annualSavingsRappen}
             paybackYears={roi?.paybackYears}
+            pronovoSubsidyRappen={pronovoSubsidyRappen}
+            taxSavingsRappen={taxSavingsRappen}
+            effectiveInvestmentRappen={effectiveInvestmentRappen}
+            paybackYearsWithSubsidy={paybackYearsWithSubsidy}
             isDirty={isDirty}
             isSaving={isSaving}
             onSave={quoteId ? handleSave : undefined}

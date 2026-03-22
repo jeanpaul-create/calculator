@@ -542,10 +542,45 @@ function ScenarioSection({
           ) : null}
           {scenario.paybackYears != null ? (
             <View style={s.roiRow}>
-              <Text style={s.roiLabel}>Amortissement</Text>
+              <Text style={s.roiLabel}>Amortissement brut</Text>
               <Text style={s.roiValue}>{scenario.paybackYears.toFixed(1)} ans</Text>
             </View>
           ) : null}
+
+          {/* Subsidies */}
+          {(scenario.pronovoSubsidyRappen != null || scenario.taxSavingsRappen != null) ? (
+            <View style={{ marginTop: 6, paddingTop: 6, borderTopWidth: 0.5, borderTopColor: '#bbf7d0' }}>
+              <Text style={[s.roiTitle, { color: '#1d4ed8', marginBottom: 4 }]}>Aides &amp; déductions</Text>
+              {scenario.pronovoSubsidyRappen != null ? (
+                <View style={s.roiRow}>
+                  <Text style={s.roiLabel}>Subvention Pronovo (PRU)</Text>
+                  <Text style={[s.roiValue, { color: '#1d4ed8' }]}>−{formatChf(scenario.pronovoSubsidyRappen)}</Text>
+                </View>
+              ) : null}
+              {scenario.taxSavingsRappen != null ? (
+                <View style={s.roiRow}>
+                  <Text style={s.roiLabel}>Déduction fiscale (est. 20%)</Text>
+                  <Text style={[s.roiValue, { color: '#1d4ed8' }]}>−{formatChf(scenario.taxSavingsRappen)}</Text>
+                </View>
+              ) : null}
+              {scenario.effectiveInvestmentRappen != null ? (
+                <View style={s.roiRow}>
+                  <Text style={[s.roiLabel, { fontFamily: 'Helvetica-Bold' }]}>Investissement net</Text>
+                  <Text style={[s.roiValue, { fontFamily: 'Helvetica-Bold' }]}>{formatChf(scenario.effectiveInvestmentRappen)}</Text>
+                </View>
+              ) : null}
+              {scenario.paybackYearsWithSubsidy != null ? (
+                <View style={s.roiRow}>
+                  <Text style={[s.roiLabel, { fontFamily: 'Helvetica-Bold' }]}>Amortissement avec aides</Text>
+                  <Text style={[s.roiValue, { fontFamily: 'Helvetica-Bold', color: GREEN }]}>{scenario.paybackYearsWithSubsidy.toFixed(1)} ans</Text>
+                </View>
+              ) : null}
+              <Text style={[s.roiUnavailable, { marginTop: 3 }]}>
+                Subvention Pronovo indicative · Déduction fiscale estimée à 20% du HT
+              </Text>
+            </View>
+          ) : null}
+
           {scenario.annualSavingsRappen == null ? (
             <Text style={s.roiUnavailable}>
               {scenario.annualKwhYield != null
