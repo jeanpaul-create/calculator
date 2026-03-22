@@ -39,6 +39,12 @@ export interface PricedScenario {
   sellingPriceExVatRappen: number
   vatRappen: number
   sellingPriceIncVatRappen: number
+  /** Total installed power in kWp (null if no panels) */
+  installedKwp: number | null
+  /** Total number of panels */
+  panelCount: number
+  /** Per-panel power in Wp — set only when all panels have the same powerWp */
+  panelPowerWp: number | null
   /** null if no panels or no rate data */
   annualKwhYield: number | null
   /** null if ROI cannot be computed */
@@ -178,11 +184,17 @@ export async function buildPricedScenarios(quote: FullQuote): Promise<PricedScen
 
     const vatRappen = Math.round(sellingPriceExVatRappen * vatPctBasisPts / 10000)
 
+    // System size
+    const panelItems = items.filter((i) => i.category === 'PANEL' && i.powerWp)
+    const panelCount = panelItems.reduce((sum, i) => sum + i.quantity, 0)
+    const installedKwp = panelItems.length > 0
+      ? sumInstalledKwp(panelItems.map((i) => ({ powerWp: i.powerWp!, quantity: i.quantity })))
+      : null
+    const uniquePowerWps = [...new Set(panelItems.map((i) => i.powerWp!))]
+    const panelPowerWp = uniquePowerWps.length === 1 ? uniquePowerWps[0] : null
+
     // ROI computation
-    const panels = items
-      .filter((i) => i.category === 'PANEL' && i.powerWp)
-      .map((i) => ({ powerWp: i.powerWp!, quantity: i.quantity }))
-    const annualKwhYield = panels.length > 0 ? estimateAnnualYield(sumInstalledKwp(panels)) : null
+    const annualKwhYield = installedKwp != null ? estimateAnnualYield(installedKwp) : null
     const rateRappenPerKwh = scenario.rateRappenPerKwh
 
     let annualSavingsRappen: number | null = null
@@ -207,6 +219,9 @@ export async function buildPricedScenarios(quote: FullQuote): Promise<PricedScen
       sellingPriceExVatRappen,
       vatRappen,
       sellingPriceIncVatRappen,
+      installedKwp,
+      panelCount,
+      panelPowerWp,
       annualKwhYield,
       annualSavingsRappen,
       paybackYears,
