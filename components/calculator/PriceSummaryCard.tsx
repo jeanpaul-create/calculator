@@ -16,6 +16,10 @@ interface PriceSummaryCardProps {
   taxSavingsRappen?: number
   effectiveInvestmentRappen?: number
   paybackYearsWithSubsidy?: number
+  /** ElCom tariff used for ROI calculation (ct/kWh) */
+  rateRappenPerKwh?: number
+  /** PVGIS yield factor used for annual yield estimate (kWh/kWp/year) */
+  yieldKwhPerKwp?: number
   isDirty?: boolean
   isSaving?: boolean
   onSave?: () => void
@@ -36,6 +40,8 @@ export default function PriceSummaryCard({
   taxSavingsRappen,
   effectiveInvestmentRappen,
   paybackYearsWithSubsidy,
+  rateRappenPerKwh,
+  yieldKwhPerKwp,
   isDirty,
   isSaving,
   onSave,
@@ -82,7 +88,7 @@ export default function PriceSummaryCard({
           <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
             {t('price_amortization')}
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 mb-3">
             <RoiStat
               label={t('price_annual_savings')}
               value={formatChf(annualSavingsRappen)}
@@ -97,6 +103,23 @@ export default function PriceSummaryCard({
               accent={paybackYears !== Infinity && paybackYears <= 12}
             />
           </div>
+          {/* Tariff + yield context */}
+          {(rateRappenPerKwh != null || yieldKwhPerKwp != null) && (
+            <div className="space-y-0.5 pt-2 border-t border-green-100">
+              {rateRappenPerKwh != null && (
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>Tarif ElCom</span>
+                  <span className="font-mono tabular-nums">{rateRappenPerKwh.toFixed(2)} ct/kWh</span>
+                </div>
+              )}
+              {yieldKwhPerKwp != null && (
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>Production PVGIS</span>
+                  <span className="font-mono tabular-nums">{yieldKwhPerKwp} kWh/kWp/an</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

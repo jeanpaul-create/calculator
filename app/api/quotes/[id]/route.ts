@@ -21,6 +21,7 @@ const SaveScenarioSchema = z.object({
   roofType: z.enum(['tuile', 'ardoise', 'bac_acier', 'plat']).optional(),
   roofSlope: z.enum(['simple', 'moyen', 'complexe']).optional(),
   yieldKwhPerKwp: z.number().int().min(500).max(2000).optional(),
+  rateRappenPerKwh: z.number().min(0).max(500).optional(),
   // Optional project info update
   customerName: z.string().optional(),
   customerEmail: z.string().email().optional().or(z.literal('')),
@@ -201,9 +202,11 @@ export async function PUT(req: NextRequest, { params }: Params) {
       }
     }
 
-    // Resolve canton rate
+    // Use client-sent ElCom rate if provided, otherwise fall back to SwissRate DB lookup
     let rateRappenPerKwh: number | null = null
-    if (quote.customerZip) {
+    if (data.rateRappenPerKwh != null) {
+      rateRappenPerKwh = Math.round(data.rateRappenPerKwh)
+    } else if (quote.customerZip) {
       const zipPrefix = quote.customerZip.slice(0, 2)
       const rate = await prisma.swissRate.findFirst({
         where: { zipPrefix },

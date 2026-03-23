@@ -165,18 +165,32 @@ export default async function QuoteDetailPage({ params }: Props) {
                 ))}
               </div>
 
-              {/* Price summary */}
-              {scenario.sellingPriceIncVatRappen != null && (
-                <div className="border-t border-gray-100 pt-2 text-sm flex justify-between">
-                  <span className="text-gray-600">Prix TTC</span>
-                  <span className="font-semibold tabular-nums">
-                    CHF {(scenario.sellingPriceIncVatRappen / 100).toLocaleString('fr-CH', {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </span>
-                </div>
-              )}
+              {/* Price + tariff summary */}
+              <div className="border-t border-gray-100 pt-2 space-y-1">
+                {scenario.sellingPriceIncVatRappen != null && (
+                  <div className="text-sm flex justify-between">
+                    <span className="text-gray-600">Prix TTC</span>
+                    <span className="font-semibold tabular-nums">
+                      CHF {(scenario.sellingPriceIncVatRappen / 100).toLocaleString('fr-CH', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </span>
+                  </div>
+                )}
+                {scenario.rateRappenPerKwh != null && (
+                  <div className="text-xs flex justify-between text-gray-500">
+                    <span>Tarif ElCom</span>
+                    <span className="font-mono tabular-nums">{scenario.rateRappenPerKwh} ct/kWh</span>
+                  </div>
+                )}
+                {scenario.yieldKwhPerKwp != null && (
+                  <div className="text-xs flex justify-between text-gray-500">
+                    <span>Production PVGIS</span>
+                    <span className="font-mono tabular-nums">{scenario.yieldKwhPerKwp} kWh/kWp/an</span>
+                  </div>
+                )}
+              </div>
             </div>
           ))}
         </div>

@@ -60,6 +60,8 @@ export interface PricedScenario {
   effectiveInvestmentRappen: number | null
   /** Payback period recalculated using effectiveInvestmentRappen */
   paybackYearsWithSubsidy: number | null
+  /** ElCom tariff used for ROI calculation (ct/kWh), null if not saved */
+  rateRappenPerKwh: number | null
   items: Array<{ name: string; quantity: number; category: string }>
   options: Array<{ name: string }>
 }
@@ -291,6 +293,7 @@ export async function buildPricedScenarios(quote: FullQuote): Promise<PricedScen
       taxSavingsRappen,
       effectiveInvestmentRappen,
       paybackYearsWithSubsidy,
+      rateRappenPerKwh: rateRappenPerKwh ?? null,
       items: items.map(({ name, quantity, category }) => ({ name, quantity, category })),
       options,
     }

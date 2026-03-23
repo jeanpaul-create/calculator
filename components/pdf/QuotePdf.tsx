@@ -542,6 +542,12 @@ function ScenarioSection({
         {/* ROI */}
         <View style={s.roiBox}>
           <Text style={s.roiTitle}>Rentabilité estimée</Text>
+          {scenario.rateRappenPerKwh != null ? (
+            <View style={s.roiRow}>
+              <Text style={s.roiLabel}>Tarif électricité (ElCom)</Text>
+              <Text style={s.roiValue}>{scenario.rateRappenPerKwh.toFixed(2)} ct/kWh</Text>
+            </View>
+          ) : null}
           {scenario.annualKwhYield != null ? (
             <View style={s.roiRow}>
               <Text style={s.roiLabel}>Production annuelle</Text>
@@ -600,7 +606,7 @@ function ScenarioSection({
           {scenario.annualSavingsRappen == null ? (
             <Text style={s.roiUnavailable}>
               {scenario.annualKwhYield != null
-                ? 'Entrez le NPA client pour calculer les économies.'
+                ? 'Saisissez l\'adresse du site pour calculer les économies.'
                 : 'Aucun panneau — données insuffisantes.'}
             </Text>
           ) : null}

@@ -210,6 +210,7 @@ export default function CalculatorForm({
     roofType,
     roofSlope,
     yieldKwhPerKwp: activeYield,
+    rateRappenPerKwh: activeRate ?? undefined,
     mapLat: mapState?.lat,
     mapLon: mapState?.lon,
     mapZoom: mapState?.zoom,
@@ -597,6 +598,8 @@ export default function CalculatorForm({
             taxSavingsRappen={taxSavingsRappen}
             effectiveInvestmentRappen={effectiveInvestmentRappen}
             paybackYearsWithSubsidy={paybackYearsWithSubsidy}
+            rateRappenPerKwh={activeRate ?? undefined}
+            yieldKwhPerKwp={activeYield ?? undefined}
             isDirty={isDirty}
             isSaving={isSaving}
             onSave={quoteId ? handleSave : undefined}
