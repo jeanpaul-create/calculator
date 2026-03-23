@@ -39,9 +39,6 @@ interface CalculatorFormProps {
   /** PVGIS yield factor for the install location (kWh/kWp/year) */
   yieldKwhPerKwp?: number
   customerZip?: string
-  /** Initial map center from ZIP geocoding (for the aerial site map) */
-  initialMapLat?: number
-  initialMapLon?: number
   quoteId?: string
   onSaved?: (quoteId: string) => void
 }
@@ -54,8 +51,6 @@ export default function CalculatorForm({
   rateRappenPerKwh,
   yieldKwhPerKwp,
   customerZip,
-  initialMapLat,
-  initialMapLon,
   quoteId,
   onSaved,
 }: CalculatorFormProps) {
@@ -76,11 +71,7 @@ export default function CalculatorForm({
   })
   const [roofType, setRoofType] = useState<RoofType>('tuile')
   const [roofSlope, setRoofSlope] = useState<RoofSlope>('simple')
-  const [mapState, setMapState] = useState<{ lat: number; lon: number; zoom: number } | null>(
-    initialMapLat != null && initialMapLon != null
-      ? { lat: initialMapLat, lon: initialMapLon, zoom: 17 }
-      : null
-  )
+  const [mapState, setMapState] = useState<{ lat: number; lon: number; zoom: number } | null>(null)
 
   const ionProducts = selectedProducts.map((sp) => ({
     category: sp.product.category,

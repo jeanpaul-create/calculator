@@ -158,8 +158,6 @@ export default async function CalculatorPage({
         rateRappenPerKwh={rateRow?.rateRappenPerKwh}
         yieldKwhPerKwp={yieldKwhPerKwp}
         customerZip={searchParams.zip}
-        initialMapLat={zipCoords?.lat}
-        initialMapLon={zipCoords?.lon}
         quoteId={searchParams.quoteId}
       />
     </div>
