@@ -27,6 +27,10 @@ const SaveScenarioSchema = z.object({
   customerPhone: z.string().optional(),
   siteAddress: z.string().optional(),
   notes: z.string().optional(),
+  // Map position for aerial view in PDF
+  mapLat: z.number().optional(),
+  mapLon: z.number().optional(),
+  mapZoom: z.number().int().optional(),
 })
 
 type Params = { params: { id: string } }
@@ -259,8 +263,8 @@ export async function PUT(req: NextRequest, { params }: Params) {
       })
     })
 
-    // Update project info if provided
-    const infoFields = ['customerName', 'customerEmail', 'customerPhone', 'siteAddress', 'notes'] as const
+    // Update project info and map position if provided
+    const infoFields = ['customerName', 'customerEmail', 'customerPhone', 'siteAddress', 'notes', 'mapLat', 'mapLon', 'mapZoom'] as const
     const hasInfo = infoFields.some(f => data[f] !== undefined)
     if (hasInfo) {
       await prisma.quote.update({
@@ -271,6 +275,9 @@ export async function PUT(req: NextRequest, { params }: Params) {
           customerPhone: data.customerPhone,
           siteAddress: data.siteAddress,
           notes: data.notes,
+          mapLat: data.mapLat ?? null,
+          mapLon: data.mapLon ?? null,
+          mapZoom: data.mapZoom ?? null,
           updatedAt: new Date(),
         },
       })

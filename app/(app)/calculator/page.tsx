@@ -97,10 +97,11 @@ export default async function CalculatorPage({
 
   // PVGIS: get location-specific solar yield factor (kWh/kWp/year) for the ZIP
   let yieldKwhPerKwp: number | undefined
+  let zipCoords: { lat: number; lon: number } | null = null
   if (searchParams.zip) {
-    const coords = await geocodeZip(searchParams.zip)
-    if (coords) {
-      yieldKwhPerKwp = await fetchPvgisYield(coords.lat, coords.lon)
+    zipCoords = await geocodeZip(searchParams.zip)
+    if (zipCoords) {
+      yieldKwhPerKwp = await fetchPvgisYield(zipCoords.lat, zipCoords.lon)
     }
   }
 
@@ -157,6 +158,8 @@ export default async function CalculatorPage({
         rateRappenPerKwh={rateRow?.rateRappenPerKwh}
         yieldKwhPerKwp={yieldKwhPerKwp}
         customerZip={searchParams.zip}
+        initialMapLat={zipCoords?.lat}
+        initialMapLon={zipCoords?.lon}
         quoteId={searchParams.quoteId}
       />
     </div>

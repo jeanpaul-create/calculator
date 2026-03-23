@@ -148,6 +148,10 @@ model Quote {
   // Address for site
   siteAddress String?
   customerPhone String?
+  // Map position for aerial/satellite view in PDF
+  mapLat  Float?
+  mapLon  Float?
+  mapZoom Int?
   notes       String?     @db.Text
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt

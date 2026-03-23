@@ -11,6 +11,9 @@ const CreateQuoteSchema = z.object({
   customerZip: z.string().min(4).max(4).optional(),
   siteAddress: z.string().optional(),
   notes: z.string().optional(),
+  mapLat: z.number().optional(),
+  mapLon: z.number().optional(),
+  mapZoom: z.number().int().optional(),
 })
 
 // GET /api/quotes — list quotes for the current rep (all for admin)
@@ -77,6 +80,9 @@ export async function POST(req: NextRequest) {
         customerCanton,
         siteAddress: data.siteAddress,
         notes: data.notes,
+        mapLat: data.mapLat,
+        mapLon: data.mapLon,
+        mapZoom: data.mapZoom,
       },
     })
 

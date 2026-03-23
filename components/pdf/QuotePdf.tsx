@@ -13,6 +13,7 @@ import {
   Text,
   View,
   StyleSheet,
+  Image,
 } from '@react-pdf/renderer'
 import { formatChf, formatPct } from '@/lib/pricing'
 import type { FullQuote, PricedScenario } from '@/lib/quote-pdf'
@@ -321,9 +322,10 @@ function fmtKwp(kwp: number) {
 interface Props {
   quote: FullQuote
   scenarios: PricedScenario[]
+  mapImageDataUrl?: string | null
 }
 
-export default function QuotePdf({ quote, scenarios }: Props) {
+export default function QuotePdf({ quote, scenarios, mapImageDataUrl }: Props) {
   const generatedDate = formatDate(new Date())
   const validUntil = addDays(new Date(), 30)
 
@@ -395,6 +397,20 @@ export default function QuotePdf({ quote, scenarios }: Props) {
               />
             ))
           )}
+
+          {/* ── Aerial site map ── */}
+          {mapImageDataUrl ? (
+            <View style={{ marginTop: 16 }}>
+              <Text style={[s.sectionLabel, { marginBottom: 6 }]}>Vue aérienne du site d&apos;installation</Text>
+              <Image
+                src={mapImageDataUrl}
+                style={{ width: '100%', height: 220, objectFit: 'cover', borderRadius: 4 }}
+              />
+              <Text style={{ fontSize: 7, color: MID, marginTop: 3 }}>
+                © swisstopo — Image aérienne à titre indicatif
+              </Text>
+            </View>
+          ) : null}
 
           {/* ── Notes ── */}
           {quote.notes ? (

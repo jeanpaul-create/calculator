@@ -68,6 +68,39 @@ export type FullQuote = NonNullable<Awaited<ReturnType<typeof getFullQuoteForPdf
 
 // ─── Prisma query ─────────────────────────────────────────────────────────────
 
+// ─── Aerial map image fetch (swisstopo WMS) ───────────────────────────────────
+
+// Swiss bounds validation — prevents SSRF outside Switzerland
+const SWISS_LAT_MIN = 45.5, SWISS_LAT_MAX = 47.9
+const SWISS_LON_MIN = 5.9,  SWISS_LON_MAX = 10.6
+
+export async function fetchMapImageBase64(
+  lat: number,
+  lon: number,
+  zoom: number
+): Promise<string | null> {
+  if (lat < SWISS_LAT_MIN || lat > SWISS_LAT_MAX || lon < SWISS_LON_MIN || lon > SWISS_LON_MAX) {
+    return null
+  }
+  // Convert zoom level to a reasonable degree offset for the WMS BBOX
+  // zoom 17 ≈ 0.005°, zoom 18 ≈ 0.0025°, zoom 16 ≈ 0.01°
+  const degOffset = 0.005 * Math.pow(2, 17 - Math.min(Math.max(zoom, 14), 20))
+  const bbox = `${lon - degOffset},${lat - degOffset},${lon + degOffset},${lat + degOffset}`
+  const url =
+    `https://wms.geo.admin.ch/?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap` +
+    `&LAYERS=ch.swisstopo.swissimage&CRS=EPSG:4326` +
+    `&BBOX=${bbox}&WIDTH=800&HEIGHT=500&FORMAT=image/jpeg`
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) })
+    if (!res.ok) return null
+    const buffer = await res.arrayBuffer()
+    const base64 = Buffer.from(buffer).toString('base64')
+    return `data:image/jpeg;base64,${base64}`
+  } catch {
+    return null
+  }
+}
+
 export async function getFullQuoteForPdf(id: string) {
   return prisma.quote.findUnique({
     where: { id },

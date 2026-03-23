@@ -1,10 +1,14 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { calculateIonPrice, calculateRoi, estimateAnnualYield, sumInstalledKwp, calculatePronovoSubsidy, estimateTaxSavings, IonPricingCoefficients, RoofType, RoofSlope } from '@/lib/pricing'
 import PriceSummaryCard from './PriceSummaryCard'
 import { useLanguage } from '@/context/LanguageContext'
+import AddressSearch from './AddressSearch'
+
+const SiteMap = dynamic(() => import('./SiteMap'), { ssr: false })
 
 interface Product {
   id: string
@@ -35,6 +39,9 @@ interface CalculatorFormProps {
   /** PVGIS yield factor for the install location (kWh/kWp/year) */
   yieldKwhPerKwp?: number
   customerZip?: string
+  /** Initial map center from ZIP geocoding (for the aerial site map) */
+  initialMapLat?: number
+  initialMapLon?: number
   quoteId?: string
   onSaved?: (quoteId: string) => void
 }
@@ -47,6 +54,8 @@ export default function CalculatorForm({
   rateRappenPerKwh,
   yieldKwhPerKwp,
   customerZip,
+  initialMapLat,
+  initialMapLon,
   quoteId,
   onSaved,
 }: CalculatorFormProps) {
@@ -67,6 +76,11 @@ export default function CalculatorForm({
   })
   const [roofType, setRoofType] = useState<RoofType>('tuile')
   const [roofSlope, setRoofSlope] = useState<RoofSlope>('simple')
+  const [mapState, setMapState] = useState<{ lat: number; lon: number; zoom: number } | null>(
+    initialMapLat != null && initialMapLon != null
+      ? { lat: initialMapLat, lon: initialMapLon, zoom: 17 }
+      : null
+  )
 
   const ionProducts = selectedProducts.map((sp) => ({
     category: sp.product.category,
@@ -196,6 +210,9 @@ export default function CalculatorForm({
     roofType,
     roofSlope,
     yieldKwhPerKwp,
+    mapLat: mapState?.lat,
+    mapLon: mapState?.lon,
+    mapZoom: mapState?.zoom,
     ...projectInfo,
     items: selectedProducts.map((sp) => ({
       productId: sp.product.id,
@@ -245,6 +262,9 @@ export default function CalculatorForm({
           customerZip: customerZip || undefined,
           siteAddress: projectInfo.siteAddress || undefined,
           notes: projectInfo.notes || undefined,
+          mapLat: mapState?.lat,
+          mapLon: mapState?.lon,
+          mapZoom: mapState?.zoom,
         }),
       })
       if (!createRes.ok) {
@@ -293,9 +313,14 @@ export default function CalculatorForm({
             </div>
             <div>
               <label className="label">Adresse du site</label>
-              <input type="text" className="input" placeholder="Rue, Ville"
+              <AddressSearch
                 value={projectInfo.siteAddress}
-                onChange={e => setProjectInfo(p => ({...p, siteAddress: e.target.value}))} />
+                onChange={val => setProjectInfo(p => ({...p, siteAddress: val}))}
+                onSelect={(address, lat, lon) => {
+                  setProjectInfo(p => ({...p, siteAddress: address}))
+                  setMapState(prev => ({ lat, lon, zoom: prev?.zoom ?? 17 }))
+                }}
+              />
             </div>
             <div>
               <label className="label">Email client</label>
@@ -341,6 +366,22 @@ export default function CalculatorForm({
             </div>
           </div>
         </div>
+
+        {/* Aerial site map */}
+        {mapState && (
+          <div className="card-padded">
+            <div className="section-title mb-3">Vue aérienne du site</div>
+            <p className="text-xs text-gray-500 mb-3">
+              Déplacez le marqueur rouge pour centrer la vue sur le toit. La carte sera incluse dans le PDF.
+            </p>
+            <SiteMap
+              initialLat={mapState.lat}
+              initialLon={mapState.lon}
+              initialZoom={mapState.zoom}
+              onPositionChange={(lat, lon, zoom) => setMapState({ lat, lon, zoom })}
+            />
+          </div>
+        )}
 
         {/* System info bar (installed kWp + annual yield) */}
         {installedKwp > 0 && (
