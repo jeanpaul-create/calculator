@@ -72,6 +72,12 @@ export default function CalculatorForm({
   const [roofType, setRoofType] = useState<RoofType>('tuile')
   const [roofSlope, setRoofSlope] = useState<RoofSlope>('simple')
   const [mapState, setMapState] = useState<{ lat: number; lon: number; zoom: number } | null>(null)
+  const [siteInfo, setSiteInfo] = useState<{
+    rateCtPerKwh: number | null
+    communeName: string | null
+    yieldKwhPerKwp: number | null
+  } | null>(null)
+  const [fetchingSiteInfo, setFetchingSiteInfo] = useState(false)
 
   const ionProducts = selectedProducts.map((sp) => ({
     category: sp.product.category,
@@ -94,13 +100,16 @@ export default function CalculatorForm({
     .map((sp) => ({ powerWp: sp.product.powerWp!, quantity: sp.quantity }))
 
   const installedKwp = sumInstalledKwp(panels)
-  const annualYield = installedKwp > 0 ? estimateAnnualYield(installedKwp, yieldKwhPerKwp ?? 950) : null
+  // Prefer live site-info values over server-side props
+  const activeYield = siteInfo?.yieldKwhPerKwp ?? yieldKwhPerKwp
+  const activeRate = siteInfo?.rateCtPerKwh ?? rateRappenPerKwh
+  const annualYield = installedKwp > 0 ? estimateAnnualYield(installedKwp, activeYield ?? 950) : null
 
   const roi =
-    annualYield && rateRappenPerKwh && pricing
+    annualYield && activeRate && pricing
       ? calculateRoi({
           annualKwhYield: annualYield,
-          rateRappenPerKwh,
+          rateRappenPerKwh: activeRate,
           investmentRappen: pricing.sellingPriceIncVatRappen,
         })
       : null
@@ -200,7 +209,7 @@ export default function CalculatorForm({
     marginBasisPts: pricing?.effectiveMarginBasisPts ?? 0,
     roofType,
     roofSlope,
-    yieldKwhPerKwp,
+    yieldKwhPerKwp: activeYield,
     mapLat: mapState?.lat,
     mapLon: mapState?.lon,
     mapZoom: mapState?.zoom,
@@ -307,11 +316,42 @@ export default function CalculatorForm({
               <AddressSearch
                 value={projectInfo.siteAddress}
                 onChange={val => setProjectInfo(p => ({...p, siteAddress: val}))}
-                onSelect={(address, lat, lon) => {
+                onSelect={(address, lat, lon, zip) => {
                   setProjectInfo(p => ({...p, siteAddress: address}))
                   setMapState(prev => ({ lat, lon, zoom: prev?.zoom ?? 17 }))
+                  if (zip) {
+                    setSiteInfo(null)
+                    setFetchingSiteInfo(true)
+                    fetch(`/api/site-info?zip=${zip}&lat=${lat}&lon=${lon}`)
+                      .then(r => r.ok ? r.json() : null)
+                      .then(d => d && setSiteInfo({
+                        rateCtPerKwh: d.rateCtPerKwh,
+                        communeName: d.communeName,
+                        yieldKwhPerKwp: d.yieldKwhPerKwp,
+                      }))
+                      .catch(() => {})
+                      .finally(() => setFetchingSiteInfo(false))
+                  }
                 }}
               />
+              {/* Electricity rate + solar yield from address selection */}
+              {fetchingSiteInfo && (
+                <p className="text-xs text-gray-400 mt-1">Chargement tarif &amp; production…</p>
+              )}
+              {!fetchingSiteInfo && siteInfo?.rateCtPerKwh != null && (
+                <div className="mt-1.5 text-xs text-gray-600 space-y-0.5">
+                  <div>
+                    {siteInfo.communeName && <><strong>{siteInfo.communeName}</strong> · </>}
+                    <span className="font-mono tabular-nums">{siteInfo.rateCtPerKwh.toFixed(2)} ct/kWh</span>
+                    {' '}<span className="text-gray-400">(ElCom {new Date().getFullYear()})</span>
+                  </div>
+                  {siteInfo.yieldKwhPerKwp && (
+                    <div className="text-gray-500">
+                      ☀ <span className="font-mono tabular-nums font-medium text-gray-700">{siteInfo.yieldKwhPerKwp} kWh/kWp/an</span> <span className="text-gray-400">(PVGIS)</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             <div>
               <label className="label">Email client</label>

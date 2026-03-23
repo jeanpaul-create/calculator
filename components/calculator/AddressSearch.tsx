@@ -12,7 +12,7 @@ interface Suggestion {
 interface AddressSearchProps {
   value: string
   onChange: (value: string) => void
-  onSelect: (address: string, lat: number, lon: number) => void
+  onSelect: (address: string, lat: number, lon: number, zip?: string) => void
   placeholder?: string
   className?: string
 }
@@ -73,7 +73,10 @@ export default function AddressSearch({
 
   const handleSelect = (s: Suggestion) => {
     onChange(s.text)
-    onSelect(s.text, s.lat, s.lon)
+    // Extract NPA from the bold part of the swisstopo label, e.g. "<b>1185 Mont-sur-Rolle</b>"
+    const boldMatch = s.label.match(/<b>(\d{4})[^<]*<\/b>/)
+    const zip = boldMatch?.[1] ?? undefined
+    onSelect(s.text, s.lat, s.lon, zip)
     setSuggestions([])
     setOpen(false)
   }

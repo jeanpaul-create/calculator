@@ -40,9 +40,14 @@ async function fetchElcomRate(zip: string): Promise<{ rateCtPerKwh: number; comm
     if (!communeName) return null
 
     // 2. Find ElCom municipality ID by commune name
+    const ELCOM_HEADERS = {
+      'Content-Type': 'application/json',
+      Referer: 'https://www.prix-electricite.elcom.admin.ch/',
+      Origin: 'https://www.prix-electricite.elcom.admin.ch',
+    }
     const searchRes = await fetch('https://www.prix-electricite.elcom.admin.ch/api/graphql', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: ELCOM_HEADERS,
       body: JSON.stringify({ query: `{ search(locale: "fr", query: ${JSON.stringify(communeName)}) { id name } }` }),
       next: { revalidate: 86400 },
       signal: AbortSignal.timeout(5000),
@@ -57,7 +62,7 @@ async function fetchElcomRate(zip: string): Promise<{ rateCtPerKwh: number; comm
     const currentYear = new Date().getFullYear().toString()
     const rateRes = await fetch('https://www.prix-electricite.elcom.admin.ch/api/graphql', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: ELCOM_HEADERS,
       body: JSON.stringify({
         query: `{ observations(locale: "fr", filters: { municipality: [${JSON.stringify(municipality.id)}], category: "H4", product: "standard", period: [${JSON.stringify(currentYear)}] }, observationKind: Municipality) { value(priceComponent: total) } }`,
       }),
