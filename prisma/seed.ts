@@ -524,9 +524,9 @@ const COST_OPTIONS = [
   },
   {
     id: 'seed-opt-inspection',
-    name: 'Inspection électrique',
+    name: 'Contrôle électrique',
     description: "Contrôle et rapport d'inspection NIBT",
-    costRappen: 50000,
+    costRappen: 64000,
     sortOrder: 70,
   },
   {

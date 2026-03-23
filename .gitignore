@@ -38,3 +38,5 @@ npm-debug.log*
 .claude/skills/
 package-lock.json
 .gstack/
+
+.vercel

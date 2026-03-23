@@ -134,17 +134,19 @@ export default function CalculatorForm({
     EV_CHARGER: t('cat_ev_charger'),
   }
 
-  // Group by brand, then by category within brand
-  const byBrand = products.reduce<Record<string, Record<string, Product[]>>>((acc, p) => {
+  // Group by category, then brand within category
+  const byCategory = products.reduce<Record<string, Record<string, Product[]>>>((acc, p) => {
+    if (!acc[p.category]) acc[p.category] = {}
     const brand = getBrand(p.name)
-    if (!acc[brand]) acc[brand] = {}
-    if (!acc[brand][p.category]) acc[brand][p.category] = []
-    acc[brand][p.category].push(p)
+    if (!acc[p.category][brand]) acc[p.category][brand] = []
+    acc[p.category][brand].push(p)
     return acc
   }, {})
 
-  // Sort brands alphabetically
-  const sortedBrands = Object.keys(byBrand).sort()
+  // Only show tabs for categories that have products, in workflow order
+  const availableCategories = CATEGORY_ORDER.filter(cat => Object.keys(byCategory[cat] ?? {}).length > 0)
+
+  const [activeCategory, setActiveCategory] = useState<string>(availableCategories[0] ?? 'PANEL')
 
   const addProduct = (product: Product) => {
     setSelectedProducts((prev) => {
@@ -351,85 +353,107 @@ export default function CalculatorForm({
           </div>
         )}
 
-        {/* Product selection by brand */}
-        {sortedBrands.map((brand) => (
-          <div key={brand} className="card-padded">
-            <div className="section-title mb-4">{brand}</div>
-            {/* Within brand, show categories in order */}
-            {CATEGORY_ORDER
-              .filter(cat => byBrand[brand][cat]?.length > 0)
-              .map(cat => (
-                <div key={cat} className="mb-4 last:mb-0">
-                  <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
-                    {CATEGORY_LABELS[cat]}
-                  </div>
-                  <div className="space-y-2">
-                    {byBrand[brand][cat].map((product) => {
-                      const selected = selectedProducts.find((sp) => sp.product.id === product.id)
-                      return (
-                        <div
-                          key={product.id}
-                          className={`flex items-center gap-4 p-3 rounded-lg border transition-colors ${
-                            selected
-                              ? 'border-red-200 bg-red-50'
-                              : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50'
-                          }`}
-                        >
-                          <div className="flex-1 min-w-0">
-                            <div className="text-sm font-medium text-gray-800">{product.name}</div>
-                            {product.powerWp && (
-                              <div className="text-xs text-gray-500">
-                                {product.powerWp >= 1000
-                                  ? `${(product.powerWp / 1000).toFixed(1)} kW`
-                                  : `${product.powerWp} Wp`}
-                              </div>
-                            )}
-                          </div>
-                          <div className="text-sm tabular-nums font-mono text-gray-600 w-24 text-right">
-                            CHF {(product.costRappen / 100).toLocaleString('fr-CH', { minimumFractionDigits: 2 })}
-                          </div>
-                          {selected ? (
-                            <div className="flex items-center gap-1">
-                              <button
-                                onClick={() => setQuantity(product.id, selected.quantity - 1)}
-                                className="w-7 h-7 flex items-center justify-center rounded border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 text-sm"
-                                aria-label="Diminuer quantité"
-                              >
-                                −
-                              </button>
-                              <input
-                                type="number"
-                                min={1}
-                                max={99}
-                                value={selected.quantity}
-                                onChange={(e) => setQuantity(product.id, parseInt(e.target.value) || 1)}
-                                className="w-12 text-center text-sm border border-gray-200 rounded py-1 tabular-nums"
-                              />
-                              <button
-                                onClick={() => setQuantity(product.id, selected.quantity + 1)}
-                                className="w-7 h-7 flex items-center justify-center rounded border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 text-sm"
-                                aria-label="Augmenter quantité"
-                              >
-                                +
-                              </button>
+        {/* Product selection — category tabs */}
+        <div className="card-padded">
+          {/* Tab strip */}
+          <div className="flex gap-1 mb-5 border-b border-gray-100 -mx-5 px-5">
+            {availableCategories.map((cat) => {
+              const selectedCount = selectedProducts.filter(sp => sp.product.category === cat).reduce((s, sp) => s + sp.quantity, 0)
+              const isActive = activeCategory === cat
+              return (
+                <button
+                  key={cat}
+                  onClick={() => setActiveCategory(cat)}
+                  className={`flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium rounded-t transition-colors relative -mb-px border-b-2 ${
+                    isActive
+                      ? 'text-red-600 border-red-500 bg-white'
+                      : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-200'
+                  }`}
+                >
+                  {CATEGORY_LABELS[cat]}
+                  {selectedCount > 0 && (
+                    <span className={`inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-xs font-semibold ${
+                      isActive ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      {selectedCount}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Active category — products grouped by brand */}
+          <div className="space-y-5">
+            {Object.keys(byCategory[activeCategory] ?? {}).sort().map((brand) => (
+              <div key={brand}>
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">{brand}</div>
+                <div className="space-y-2">
+                  {byCategory[activeCategory][brand].map((product) => {
+                    const selected = selectedProducts.find((sp) => sp.product.id === product.id)
+                    return (
+                      <div
+                        key={product.id}
+                        className={`flex items-center gap-4 p-3 rounded-lg border transition-colors ${
+                          selected
+                            ? 'border-red-200 bg-red-50'
+                            : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-gray-800">{product.name}</div>
+                          {product.powerWp && (
+                            <div className="text-xs text-gray-500">
+                              {product.powerWp >= 1000
+                                ? `${(product.powerWp / 1000).toFixed(1)} kW`
+                                : `${product.powerWp} Wp`}
                             </div>
-                          ) : (
-                            <button
-                              onClick={() => addProduct(product)}
-                              className="btn-secondary text-xs px-3 py-1.5"
-                            >
-                              {t('calc_add')}
-                            </button>
                           )}
                         </div>
-                      )
-                    })}
-                  </div>
+                        <div className="text-sm tabular-nums font-mono text-gray-600 w-24 text-right">
+                          CHF {(product.costRappen / 100).toLocaleString('fr-CH', { minimumFractionDigits: 2 })}
+                        </div>
+                        {selected ? (
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => setQuantity(product.id, selected.quantity - 1)}
+                              className="w-7 h-7 flex items-center justify-center rounded border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 text-sm"
+                              aria-label="Diminuer quantité"
+                            >
+                              −
+                            </button>
+                            <input
+                              type="number"
+                              min={1}
+                              max={99}
+                              value={selected.quantity}
+                              onChange={(e) => setQuantity(product.id, parseInt(e.target.value) || 1)}
+                              className="w-12 text-center text-sm border border-gray-200 rounded py-1 tabular-nums"
+                            />
+                            <button
+                              onClick={() => setQuantity(product.id, selected.quantity + 1)}
+                              className="w-7 h-7 flex items-center justify-center rounded border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 text-sm"
+                              aria-label="Augmenter quantité"
+                            >
+                              +
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => addProduct(product)}
+                            className="btn-secondary text-xs px-3 py-1.5"
+                          >
+                            {t('calc_add')}
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
-              ))
-            }
+              </div>
+            ))}
           </div>
-        ))}
+        </div>
 
         {/* Cost options */}
         {costOptions.length > 0 && (
