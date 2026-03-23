@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.3.0] - 2026-03-24
+
+### Added
+- **Address-driven electricity rate + solar yield** — selecting an address via autocomplete now automatically fetches the ElCom H4 tariff (ct/kWh) and PVGIS annual yield (kWh/kWp/year) for that location, displayed inline below the address field; no separate NPA field needed
+- **`/api/site-info` proxy route** — server-side endpoint (`GET /api/site-info?zip=XXXX&lat=Y&lon=Z`) that fetches ElCom tariff and PVGIS yield in parallel with proper `Referer`/`Origin` headers required by the ElCom API
+- **NPA extraction from address autocomplete** — `AddressSearch` now parses the Swiss postal code from the swisstopo label (e.g. `<b>1185 Mont-sur-Rolle</b>`) and passes it to the selection handler
+
+### Fixed
+- **ElCom API returning empty results** — added required `Referer: https://www.prix-electricite.elcom.admin.ch/` and `Origin` headers to all ElCom GraphQL requests; the API silently returns empty data without these headers
+
+### Changed
+- ROI and annual yield calculations now use the live address-derived rate and yield, falling back to server-side props (quote restoration via `?zip=` param)
+- `yieldKwhPerKwp` in saved quote scenarios now reflects the address-derived PVGIS value when available
+
 ## [0.1.2.0] - 2026-03-19
 
 ### Added
