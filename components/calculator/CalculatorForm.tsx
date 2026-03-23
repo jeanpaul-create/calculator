@@ -34,6 +34,7 @@ interface CalculatorFormProps {
   rateRappenPerKwh?: number
   /** PVGIS yield factor for the install location (kWh/kWp/year) */
   yieldKwhPerKwp?: number
+  customerZip?: string
   quoteId?: string
   onSaved?: (quoteId: string) => void
 }
@@ -45,6 +46,7 @@ export default function CalculatorForm({
   ionCoefficients,
   rateRappenPerKwh,
   yieldKwhPerKwp,
+  customerZip,
   quoteId,
   onSaved,
 }: CalculatorFormProps) {
@@ -240,6 +242,7 @@ export default function CalculatorForm({
           customerName: projectInfo.customerName || undefined,
           customerEmail: projectInfo.customerEmail || undefined,
           customerPhone: projectInfo.customerPhone || undefined,
+          customerZip: customerZip || undefined,
           siteAddress: projectInfo.siteAddress || undefined,
           notes: projectInfo.notes || undefined,
         }),

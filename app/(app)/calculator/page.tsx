@@ -156,6 +156,7 @@ export default async function CalculatorPage({
         ionCoefficients={ionCoefficients}
         rateRappenPerKwh={rateRow?.rateRappenPerKwh}
         yieldKwhPerKwp={yieldKwhPerKwp}
+        customerZip={searchParams.zip}
         quoteId={searchParams.quoteId}
       />
     </div>
