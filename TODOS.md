@@ -22,6 +22,28 @@
 **Context:** `QuoteStatus` enum in Prisma schema already has DRAFT, SENT, ACCEPTED, DECLINED, EXPIRED. The detail page (`app/(app)/quotes/[id]/page.tsx`) is the right place for these buttons. The quotes list page already shows `QuoteStatusBadge`.
 **Effort:** S
 
+## Design / UX
+
+**Mobile navigation: hamburger menu for small screens**
+**Priority:** P3
+**What:** Add a hamburger button (e.g. in a top bar on mobile) that toggles sidebar visibility on screens < 768px.
+**Why:** After FINDING-001 fix, the sidebar is now `hidden md:flex` — mobile users can see content but have no way to navigate between pages.
+**Pros:** Completes mobile UX; very common pattern.
+**Cons:** Requires a thin `<header>` bar on mobile to hold the button, adding a layout layer.
+**Context:** Found by /design-review on 2026-03-24. The sidebar (`components/layout/Sidebar.tsx`) is already self-contained. `AppShell.tsx` would need a `useState` toggle and a mobile header row. No backend work needed.
+**Effort:** S
+
+---
+
+**Cookie-based language for server components**
+**Priority:** P3
+**What:** Store the active language in a cookie (in addition to localStorage) so Next.js server components can read it via `cookies()` and render in the correct language.
+**Why:** Server-rendered pages (quotes list, quote detail, status badge) currently can't access the client-side `LanguageContext`. They were fixed to French in this PR, but switching to DE will not affect those strings.
+**Pros:** True bilingual app — all strings respond to language toggle.
+**Cons:** Requires reading the cookie server-side (minor architecture change to `LanguageContext` and page components).
+**Context:** Found by /design-review on 2026-03-24. Fixed as FINDING-002 by hardcoding French. The i18n translations already exist in `lib/i18n.ts` for both FR and DE. Need to set `lang` cookie on `setLang()` in `LanguageContext.tsx`, then read via `cookies()` in server components.
+**Effort:** M
+
 ## Completed
 
 <!-- Items completed in future PRs will be moved here -->
