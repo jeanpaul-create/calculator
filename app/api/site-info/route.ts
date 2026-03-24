@@ -1,89 +1,27 @@
 import { NextRequest } from 'next/server'
+import { prisma } from '@/lib/db'
 
 // Fetches ElCom electricity rate + PVGIS solar yield for a given location.
 // Called client-side when address autocomplete selection fires.
-// GET /api/site-info?zip=1185&lat=46.42&lon=6.35
+// GET /api/site-info?zip=1185&lat=46.42&lon=6.35&commune=Rolle
 
-const ELCOM_GQL = 'https://www.prix-electricite.elcom.admin.ch/api/graphql'
-const ELCOM_HEADERS = {
-  'Content-Type': 'application/json',
-  Referer: 'https://www.prix-electricite.elcom.admin.ch/',
-  Origin: 'https://www.prix-electricite.elcom.admin.ch',
-}
-
-async function fetchElcomRate(
+// Rate lookup: uses the SwissRate table (seeded from ElCom canton-level data).
+// Falls back gracefully when commune name is unavailable.
+async function fetchRateFromDb(
   zip: string,
-  communeOverride?: string
-): Promise<{ rateCtPerKwh: number; operatorName: string; communeName: string } | null> {
+  commune?: string
+): Promise<{ rateCtPerKwh: number; communeName: string } | null> {
   try {
-    let communeName: string
-
-    if (communeOverride) {
-      // Use the commune name passed from the client (extracted from swisstopo autocomplete label)
-      communeName = communeOverride
-    } else {
-      // Fallback: resolve NPA → commune name via swisstopo server-side
-      const geoRes = await fetch(
-        `https://api3.geo.admin.ch/rest/services/ech/SearchServer?type=locations&searchText=${encodeURIComponent(zip)}&lang=fr&limit=1`,
-        { signal: AbortSignal.timeout(4000) }
-      )
-      if (!geoRes.ok) return null
-      const geoData = await geoRes.json()
-      const rawLabel: string = geoData.results?.[0]?.attrs?.label ?? ''
-      communeName = rawLabel.replace(/<[^>]*>/g, '').replace(/^\d{4}\s*[-–]\s*/, '').trim()
-      if (!communeName) return null
+    const zipPrefix = zip.slice(0, 2)
+    const row = await prisma.swissRate.findFirst({
+      where: { zipPrefix },
+      select: { rateRappenPerKwh: true },
+    })
+    if (!row) return null
+    return {
+      rateCtPerKwh: row.rateRappenPerKwh, // already stored as ct/kWh (rappen = centimes)
+      communeName: commune ?? '',
     }
-
-    // 2. Find ElCom municipality ID by commune name
-    const searchRes = await fetch(ELCOM_GQL, {
-      method: 'POST',
-      headers: ELCOM_HEADERS,
-      body: JSON.stringify({ query: `{ search(locale: "fr", query: ${JSON.stringify(communeName)}) { id name } }` }),
-      signal: AbortSignal.timeout(5000),
-    })
-    if (!searchRes.ok) return null
-    const searchData = await searchRes.json()
-    const municipality: { id: string; name: string } | undefined =
-      (searchData.data?.search ?? []).find((m: { id: string; name: string }) => m.name === communeName)
-    if (!municipality) return null
-
-    // 3. Get operator IDs for this municipality via ElCom SSR data endpoint
-    // The ElCom website's SSR endpoint returns operator IDs for a municipality.
-    // We extract the Next.js build ID from the HTML first.
-    const htmlRes = await fetch('https://www.prix-electricite.elcom.admin.ch/', {
-      signal: AbortSignal.timeout(4000),
-    })
-    const html = await htmlRes.text()
-    const buildIdMatch = html.match(/"buildId":"([^"]+)"/)
-    const buildId = buildIdMatch?.[1]
-    if (!buildId) return null
-
-    const ssrRes = await fetch(
-      `https://www.prix-electricite.elcom.admin.ch/_next/data/${buildId}/fr/municipality/${municipality.id}.json?id=${municipality.id}`,
-      { signal: AbortSignal.timeout(4000) }
-    )
-    if (!ssrRes.ok) return null
-    const ssrData = await ssrRes.json()
-    const operatorId: string | undefined = ssrData?.pageProps?.operators?.[0]?.id
-    if (!operatorId) return null
-
-    // 4. H4 standard total rate for the current year, using operator + municipality filters
-    const year = new Date().getFullYear().toString()
-    const rateRes = await fetch(ELCOM_GQL, {
-      method: 'POST',
-      headers: ELCOM_HEADERS,
-      body: JSON.stringify({
-        query: `{ observations(locale: "fr", filters: { operator: [${JSON.stringify(operatorId)}], municipality: [${JSON.stringify(municipality.id)}], category: "H4", product: "standard", period: [${JSON.stringify(year)}] }, observationKind: Municipality) { value(priceComponent: total) operatorLabel } }`,
-      }),
-      signal: AbortSignal.timeout(5000),
-    })
-    if (!rateRes.ok) return null
-    const rateData = await rateRes.json()
-    const obs = rateData.data?.observations?.[0]
-    const rate: unknown = obs?.value
-    return typeof rate === 'number'
-      ? { rateCtPerKwh: rate, operatorName: obs.operatorLabel ?? '', communeName }
-      : null
   } catch {
     return null
   }
@@ -115,15 +53,15 @@ export async function GET(req: NextRequest) {
     return Response.json({ error: 'Invalid zip' }, { status: 400 })
   }
 
-  const [elcom, pvgis] = await Promise.all([
-    fetchElcomRate(zip, commune),
+  const [rate, pvgis] = await Promise.all([
+    fetchRateFromDb(zip, commune),
     !isNaN(lat) && !isNaN(lon) ? fetchPvgisYield(lat, lon) : Promise.resolve(null),
   ])
 
   return Response.json({
-    rateCtPerKwh: elcom?.rateCtPerKwh ?? null,
-    operatorName: elcom?.operatorName ?? null,
-    communeName: elcom?.communeName ?? null,
+    rateCtPerKwh: rate?.rateCtPerKwh ?? null,
+    operatorName: null,
+    communeName: rate?.communeName ?? null,
     yieldKwhPerKwp: pvgis,
   })
 }
