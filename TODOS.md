@@ -44,6 +44,19 @@
 **Context:** Found by /design-review on 2026-03-24. Fixed as FINDING-002 by hardcoding French. The i18n translations already exist in `lib/i18n.ts` for both FR and DE. Need to set `lang` cookie on `setLang()` in `LanguageContext.tsx`, then read via `cookies()` in server components.
 **Effort:** M
 
+## Performance / Infrastructure
+
+**Cache PVGIS solar yield API responses**
+**Priority:** P3
+**What:** Cache responses from the PVGIS EU API in `fetchPvgisYield()` (keyed by lat/lon rounded to 2 decimal places), using Next.js `unstable_cache` or a `PvgisCache` DB table with a long TTL.
+**Why:** PVGIS data is historical irradiance — it doesn't change. Every calculator interaction currently hits the live API with a 6-second timeout. Under flaky connectivity this stalls the save flow.
+**Pros:** Eliminates redundant API calls; makes the calculator feel instant on repeat locations; reduces PVGIS API load.
+**Cons:** Adds a caching layer to manage; minor stale-data risk if PVGIS dataset is re-published (rare, ~annually).
+**Context:** Found by /plan-eng-review on 2026-03-24. `fetchPvgisYield()` is in `app/api/site-info/route.ts`. At current B2B usage volume this isn't causing pain, but worth addressing before scaling to more reps.
+**Effort:** S
+
+---
+
 ## Completed
 
 <!-- Items completed in future PRs will be moved here -->

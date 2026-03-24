@@ -7,6 +7,11 @@ import {
   sumInstalledKwp,
   formatChf,
   formatPct,
+  calculateIonPrice,
+  calculatePronovoSubsidy,
+  estimateTaxSavings,
+  buildIonCoefficientsFromSettings,
+  DEFAULT_ION_COEFFICIENTS,
 } from '@/lib/pricing'
 
 // ─── calculatePrice ───────────────────────────────────────────────────────────
@@ -308,5 +313,209 @@ describe('formatPct', () => {
     expect(formatPct(810)).toBe('8.10%')
     expect(formatPct(0)).toBe('0.00%')
     expect(formatPct(10000)).toBe('100.00%')
+  })
+})
+
+// ─── calculatePronovoSubsidy ──────────────────────────────────────────────────
+
+describe('calculatePronovoSubsidy', () => {
+  it('returns 0 for systems below 2 kWp', () => {
+    expect(calculatePronovoSubsidy(0)).toBe(0)
+    expect(calculatePronovoSubsidy(1.9)).toBe(0)
+  })
+
+  it('applies 360 CHF/kWp for the first tier (2–30 kWp)', () => {
+    // 10 kWp × 36000 Rappen = 360000 Rappen = CHF 3600
+    expect(calculatePronovoSubsidy(10)).toBe(360000)
+  })
+
+  it('applies 260 CHF/kWp for the second tier (30–100 kWp)', () => {
+    // 30 kWp: all in first tier → 30 × 36000 = 1080000
+    expect(calculatePronovoSubsidy(30)).toBe(1080000)
+    // 31 kWp: 30 × 36000 + 1 × 26000 = 1106000
+    expect(calculatePronovoSubsidy(31)).toBe(1106000)
+  })
+
+  it('applies correct split at the 30 kWp tier boundary', () => {
+    // 40 kWp: 30 × 36000 + 10 × 26000 = 1080000 + 260000 = 1340000
+    expect(calculatePronovoSubsidy(40)).toBe(1340000)
+  })
+
+  it('caps at 100 kWp', () => {
+    const at100 = calculatePronovoSubsidy(100)
+    const at120 = calculatePronovoSubsidy(120)
+    // 100 kWp: 30 × 36000 + 70 × 26000 = 1080000 + 1820000 = 2900000
+    expect(at100).toBe(2900000)
+    expect(at120).toBe(at100) // capped — same as 100 kWp
+  })
+})
+
+// ─── estimateTaxSavings ───────────────────────────────────────────────────────
+
+describe('estimateTaxSavings', () => {
+  it('calculates 20% tax savings correctly (default rate)', () => {
+    // CHF 20,000 ex-VAT = 2,000,000 Rappen, 20% → 400,000 Rappen = CHF 4,000
+    expect(estimateTaxSavings(2000000)).toBe(400000)
+  })
+
+  it('respects a custom marginal tax rate', () => {
+    // CHF 10,000 = 1,000,000 Rappen, 30% → 300,000 Rappen
+    expect(estimateTaxSavings(1000000, 3000)).toBe(300000)
+  })
+
+  it('returns 0 for zero investment', () => {
+    expect(estimateTaxSavings(0)).toBe(0)
+  })
+})
+
+// ─── calculateIonPrice ───────────────────────────────────────────────────────
+
+describe('calculateIonPrice', () => {
+  const C = DEFAULT_ION_COEFFICIENTS
+
+  it('produces a positive price for a basic PV-only system', () => {
+    const result = calculateIonPrice(
+      [{ category: 'PANEL', costRappen: 44000, quantity: 10 }],
+      [],
+      C,
+      'tuile',
+      'simple'
+    )
+    expect(result.sellingPriceExVatRappen).toBeGreaterThan(0)
+    expect(result.sellingPriceIncVatRappen).toBeGreaterThan(result.sellingPriceExVatRappen)
+  })
+
+  it('includes VAT at the configured rate', () => {
+    const result = calculateIonPrice(
+      [{ category: 'PANEL', costRappen: 44000, quantity: 10 }],
+      [],
+      C,
+      'tuile',
+      'simple'
+    )
+    const expectedVat = Math.round(result.sellingPriceExVatRappen * C.vatBasisPts / 10000)
+    expect(result.vatRappen).toBe(expectedVat)
+    expect(result.sellingPriceIncVatRappen).toBe(result.sellingPriceExVatRappen + result.vatRappen)
+  })
+
+  it('adds fixed installation costs when PV products are present', () => {
+    const withPv = calculateIonPrice(
+      [{ category: 'PANEL', costRappen: 44000, quantity: 1 }],
+      [], C, 'tuile', 'simple'
+    )
+    // fixed labor = raccordement + pm + admin
+    const expectedFixedLabor =
+      C.pv_raccordement_labor_rappen + C.pv_pm_fixed_rappen + C.pv_admin_fixed_rappen
+    expect(withPv.fixedLaborRappen).toBe(expectedFixedLabor)
+  })
+
+  it('adds no fixed installation costs for battery-only system', () => {
+    const batOnly = calculateIonPrice(
+      [{ category: 'BATTERY', costRappen: 500000, quantity: 1 }],
+      [], C, 'tuile', 'simple'
+    )
+    expect(batOnly.fixedLaborRappen).toBe(0)
+    expect(batOnly.fixedApproRappen).toBe(0)
+    expect(batOnly.pvLaborRappen).toBe(0)
+  })
+
+  it('increases price for steeper roof slope', () => {
+    const simple = calculateIonPrice(
+      [{ category: 'PANEL', costRappen: 44000, quantity: 10 }],
+      [], C, 'tuile', 'simple'
+    )
+    const complexe = calculateIonPrice(
+      [{ category: 'PANEL', costRappen: 44000, quantity: 10 }],
+      [], C, 'tuile', 'complexe'
+    )
+    expect(complexe.sellingPriceExVatRappen).toBeGreaterThan(simple.sellingPriceExVatRappen)
+  })
+
+  it('uses the correct mount cost for each roof type', () => {
+    const tuile = calculateIonPrice(
+      [{ category: 'PANEL', costRappen: 44000, quantity: 10 }],
+      [], C, 'tuile', 'simple'
+    )
+    const plat = calculateIonPrice(
+      [{ category: 'PANEL', costRappen: 44000, quantity: 10 }],
+      [], C, 'plat', 'simple'
+    )
+    // plat mount (14000/panel) > tuile (10000/panel) → plat should cost more
+    expect(plat.pvApproRappen).toBeGreaterThan(tuile.pvApproRappen)
+  })
+
+  it('returns zero price for empty products and options', () => {
+    const result = calculateIonPrice([], [], C, 'tuile', 'simple')
+    expect(result.sellingPriceExVatRappen).toBe(0)
+    expect(result.sellingPriceIncVatRappen).toBe(0)
+    expect(result.rawCostRappen).toBe(0)
+  })
+
+  it('adds inverter labor cost per inverter', () => {
+    const withInverter = calculateIonPrice(
+      [
+        { category: 'PANEL', costRappen: 44000, quantity: 10 },
+        { category: 'INVERTER', costRappen: 185000, quantity: 1 },
+      ],
+      [], C, 'tuile', 'simple'
+    )
+    const withoutInverter = calculateIonPrice(
+      [{ category: 'PANEL', costRappen: 44000, quantity: 10 }],
+      [], C, 'tuile', 'simple'
+    )
+    // inverter adds labor + appro → higher PV cost
+    expect(withInverter.pvLaborRappen).toBeGreaterThan(withoutInverter.pvLaborRappen)
+  })
+})
+
+// ─── buildIonCoefficientsFromSettings ────────────────────────────────────────
+
+describe('buildIonCoefficientsFromSettings', () => {
+  it('returns DEFAULT_ION_COEFFICIENTS when map is empty', () => {
+    const result = buildIonCoefficientsFromSettings({}, 810)
+    const { vatBasisPts: _vat, ...defaults } = DEFAULT_ION_COEFFICIENTS
+    for (const [key, value] of Object.entries(defaults)) {
+      expect(result[key as keyof typeof defaults]).toBe(value)
+    }
+    expect(result.vatBasisPts).toBe(810)
+  })
+
+  it('uses map values when all keys are present', () => {
+    const map: Record<string, number> = {
+      pv_accessories_bps: 999,
+      pv_frais_supp_bps: 888,
+      pv_transport_bps: 777,
+      pv_labor_panel_rappen: 7000,
+      pv_labor_inverter_rappen: 20000,
+      pv_raccordement_mat_rappen: 55000,
+      pv_raccordement_labor_rappen: 160000,
+      pv_pm_fixed_rappen: 130000,
+      pv_admin_fixed_rappen: 95000,
+      pv_sales_overhead_bps: 1600,
+      pv_profit_appro_bps: 2600,
+      pv_profit_constr_bps: 2600,
+      bat_pm_bps: 800,
+      bat_admin_bps: 700,
+      bat_profit_bps: 2000,
+      mount_tuile_rappen: 11000,
+      mount_ardoise_rappen: 12500,
+      mount_bac_acier_rappen: 9500,
+      mount_plat_rappen: 15000,
+      mount_slope_medium_bps: 1600,
+      mount_slope_steep_bps: 3100,
+    }
+    const result = buildIonCoefficientsFromSettings(map, 810)
+    expect(result.pv_accessories_bps).toBe(999)
+    expect(result.mount_tuile_rappen).toBe(11000)
+    expect(result.bat_profit_bps).toBe(2000)
+    expect(result.vatBasisPts).toBe(810)
+  })
+
+  it('falls back to defaults for individual missing keys', () => {
+    const result = buildIonCoefficientsFromSettings({ pv_accessories_bps: 500 }, 810)
+    expect(result.pv_accessories_bps).toBe(500)
+    // All others should be defaults
+    expect(result.pv_frais_supp_bps).toBe(DEFAULT_ION_COEFFICIENTS.pv_frais_supp_bps)
+    expect(result.mount_tuile_rappen).toBe(DEFAULT_ION_COEFFICIENTS.mount_tuile_rappen)
   })
 })
