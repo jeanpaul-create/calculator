@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
-import { calculateIonPrice, calculateRoi, estimateAnnualYield, sumInstalledKwp, calculatePronovoSubsidy, estimateTaxSavings, IonPricingCoefficients, RoofType, RoofSlope } from '@/lib/pricing'
+import { calculateIonPrice, calculateRoi, estimateAnnualYield, estimateSelfConsumptionRate, sumInstalledKwp, calculatePronovoSubsidy, estimateTaxSavings, IonPricingCoefficients, RoofType, RoofSlope } from '@/lib/pricing'
 import PriceSummaryCard from './PriceSummaryCard'
 import { useLanguage } from '@/context/LanguageContext'
 import AddressSearch from './AddressSearch'
@@ -71,6 +71,9 @@ export default function CalculatorForm({
   })
   const [roofType, setRoofType] = useState<RoofType>('tuile')
   const [roofSlope, setRoofSlope] = useState<RoofSlope>('simple')
+  const [annualConsumptionKwh, setAnnualConsumptionKwh] = useState<string>('')
+  /** Feed-in tariff in ct/kWh — editable, default Swiss average */
+  const [feedInRateCtKwh, setFeedInRateCtKwh] = useState<number>(8)
   const [mapState, setMapState] = useState<{ lat: number; lon: number; zoom: number } | null>(null)
   const [siteInfo, setSiteInfo] = useState<{
     rateCtPerKwh: number | null
@@ -105,11 +108,22 @@ export default function CalculatorForm({
   const activeRate = siteInfo?.rateCtPerKwh ?? rateRappenPerKwh
   const annualYield = installedKwp > 0 ? estimateAnnualYield(installedKwp, activeYield ?? 950) : null
 
+  const hasBattery = selectedProducts.some(sp => sp.product.category === 'BATTERY')
+  const consumptionKwh = annualConsumptionKwh ? parseFloat(annualConsumptionKwh) : NaN
+  const selfConsumptionRate =
+    annualYield && !isNaN(consumptionKwh) && consumptionKwh > 0
+      ? estimateSelfConsumptionRate(annualYield, consumptionKwh, hasBattery)
+      : annualYield
+        ? estimateSelfConsumptionRate(annualYield, annualYield, hasBattery) // assume balanced when unknown
+        : undefined
+
   const roi =
-    annualYield && activeRate && pricing
+    annualYield && activeRate && pricing && selfConsumptionRate != null
       ? calculateRoi({
           annualKwhYield: annualYield,
           rateRappenPerKwh: activeRate,
+          feedInRateRappenPerKwh: feedInRateCtKwh,
+          selfConsumptionRate,
           investmentRappen: pricing.sellingPriceIncVatRappen,
         })
       : null
@@ -370,6 +384,18 @@ export default function CalculatorForm({
                 value={projectInfo.customerPhone}
                 onChange={e => setProjectInfo(p => ({...p, customerPhone: e.target.value}))} />
             </div>
+            <div>
+              <label className="label">Consommation annuelle (kWh/an)</label>
+              <input
+                type="number"
+                min={0}
+                step={100}
+                className="input"
+                placeholder="ex: 4500 (cf. facture)"
+                value={annualConsumptionKwh}
+                onChange={e => setAnnualConsumptionKwh(e.target.value)}
+              />
+            </div>
             <div className="col-span-2">
               <label className="label">Notes</label>
               <textarea className="input resize-none" rows={2} placeholder="Notes internes..."
@@ -598,6 +624,13 @@ export default function CalculatorForm({
             vatBasisPts={vatBasisPts}
             annualSavingsRappen={roi?.annualSavingsRappen}
             paybackYears={roi?.paybackYears}
+            selfConsumedKwh={roi?.selfConsumedKwh}
+            exportedKwh={roi?.exportedKwh}
+            selfConsumptionRate={roi?.selfConsumptionRate}
+            selfConsumptionSavingsRappen={roi?.selfConsumptionSavingsRappen}
+            exportRevenueRappen={roi?.exportRevenueRappen}
+            feedInRateCtKwh={feedInRateCtKwh}
+            onFeedInRateChange={setFeedInRateCtKwh}
             pronovoSubsidyRappen={pronovoSubsidyRappen}
             taxSavingsRappen={taxSavingsRappen}
             effectiveInvestmentRappen={effectiveInvestmentRappen}

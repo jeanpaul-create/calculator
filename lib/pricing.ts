@@ -51,18 +51,40 @@ export interface PricingResult {
 export interface RoiInput {
   /** Total system output in kWh per year */
   annualKwhYield: number
-  /** Electricity rate in Rappen per kWh */
+  /** Retail electricity rate (consumption tariff) in Rappen per kWh */
   rateRappenPerKwh: number
+  /**
+   * Feed-in tariff (injection / Rückspeisetarif) in Rappen per kWh.
+   * What the utility pays for exported solar. Swiss average ≈ 8 ct/kWh.
+   * Defaults to 0 when omitted (legacy: all production valued at retail rate).
+   */
+  feedInRateRappenPerKwh?: number
+  /**
+   * Fraction of PV production consumed on-site (0–1).
+   * Defaults to 1.0 when omitted (legacy behaviour: 100% valued at retail rate).
+   * Use estimateSelfConsumptionRate() to derive this from annual consumption.
+   */
+  selfConsumptionRate?: number
   /** Total investment (selling price inc. VAT) in Rappen */
   investmentRappen: number
 }
 
 export interface RoiResult {
-  /** Annual savings in Rappen */
+  /** kWh consumed on-site (avoided grid purchases) */
+  selfConsumedKwh: number
+  /** kWh exported to the grid */
+  exportedKwh: number
+  /** Effective self-consumption rate used (0–1) */
+  selfConsumptionRate: number
+  /** Value of avoided grid purchases (selfConsumedKwh × retailRate) */
+  selfConsumptionSavingsRappen: number
+  /** Revenue from grid export (exportedKwh × feedInRate) */
+  exportRevenueRappen: number
+  /** Total annual value = selfConsumptionSavings + exportRevenue */
   annualSavingsRappen: number
   /** Simple payback period in years (to one decimal) */
   paybackYears: number
-  /** Savings over 25 years in Rappen */
+  /** Total value over 25 years in Rappen */
   savings25YearsRappen: number
 }
 
@@ -126,13 +148,55 @@ export function calculatePrice(input: PricingInput): PricingResult {
 }
 
 /**
- * Simple ROI / payback calculation.
- * Uses a flat annual yield — does not model degradation or rate inflation.
+ * Estimate the self-consumption rate for a residential PV system.
+ *
+ * Uses the empirical model (Luthander et al. / Swiss SFOE methodology):
+ *   SCR = 0.4 × (Econs / Epv)^0.4
+ *
+ * Typical values:
+ *   Epv/Econs = 0.5  → SCR ≈ 53%   (small system relative to consumption)
+ *   Epv/Econs = 1.0  → SCR ≈ 40%   (balanced system)
+ *   Epv/Econs = 2.0  → SCR ≈ 30%   (oversized system)
+ *
+ * @param annualPvKwh - Annual PV production in kWh
+ * @param annualConsumptionKwh - Annual household consumption in kWh
+ * @param hasBattery - Whether a battery is installed (increases SCR ≈ ×1.8)
+ * @returns Self-consumption rate clamped to [0.15, 0.85]
+ */
+export function estimateSelfConsumptionRate(
+  annualPvKwh: number,
+  annualConsumptionKwh: number,
+  hasBattery = false
+): number {
+  if (annualPvKwh <= 0 || annualConsumptionKwh <= 0) return hasBattery ? 0.6 : 0.3
+  const ratio = annualConsumptionKwh / annualPvKwh
+  const base = Math.min(0.85, Math.max(0.15, 0.4 * Math.pow(ratio, 0.4)))
+  return hasBattery ? Math.min(0.85, base * 1.8) : base
+}
+
+/**
+ * ROI / payback calculation with self-consumption split.
+ *
+ * Annual value = (selfConsumedKwh × retailRate) + (exportedKwh × feedInRate)
+ *
+ * Backward-compatible: when selfConsumptionRate and feedInRateRappenPerKwh are
+ * omitted, defaults to the legacy behaviour (100% at retail rate).
  */
 export function calculateRoi(input: RoiInput): RoiResult {
-  const { annualKwhYield, rateRappenPerKwh, investmentRappen } = input
+  const {
+    annualKwhYield,
+    rateRappenPerKwh,
+    feedInRateRappenPerKwh = 0,
+    selfConsumptionRate = 1,
+    investmentRappen,
+  } = input
 
-  const annualSavingsRappen = Math.round(annualKwhYield * rateRappenPerKwh)
+  const selfConsumedKwh = Math.round(annualKwhYield * selfConsumptionRate)
+  const exportedKwh = annualKwhYield - selfConsumedKwh
+
+  const selfConsumptionSavingsRappen = Math.round(selfConsumedKwh * rateRappenPerKwh)
+  const exportRevenueRappen = Math.round(exportedKwh * feedInRateRappenPerKwh)
+  const annualSavingsRappen = selfConsumptionSavingsRappen + exportRevenueRappen
 
   const paybackYears =
     annualSavingsRappen === 0
@@ -142,6 +206,11 @@ export function calculateRoi(input: RoiInput): RoiResult {
   const savings25YearsRappen = annualSavingsRappen * 25
 
   return {
+    selfConsumedKwh,
+    exportedKwh,
+    selfConsumptionRate,
+    selfConsumptionSavingsRappen,
+    exportRevenueRappen,
     annualSavingsRappen,
     paybackYears,
     savings25YearsRappen,

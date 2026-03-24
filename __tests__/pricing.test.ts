@@ -3,6 +3,7 @@ import {
   calculatePrice,
   calculateRoi,
   estimateAnnualYield,
+  estimateSelfConsumptionRate,
   sumInstalledKwp,
   formatChf,
   formatPct,
@@ -161,6 +162,79 @@ describe('calculateRoi', () => {
     })
     // savings = 250000, payback = 1333333 / 250000 = 5.333 → 5.3
     expect(result.paybackYears).toBe(5.3)
+  })
+})
+
+// ─── calculateRoi with self-consumption split ─────────────────────────────────
+
+describe('calculateRoi with selfConsumptionRate', () => {
+  it('splits production into self-consumed and exported correctly', () => {
+    // 10,000 kWh/year, 40% self-consumed, 60% exported
+    // selfConsumed: 4,000 kWh × 30 ct = 120,000 Rappen
+    // exported:     6,000 kWh × 8 ct  =  48,000 Rappen
+    // total:                             168,000 Rappen
+    const result = calculateRoi({
+      annualKwhYield: 10000,
+      rateRappenPerKwh: 30,
+      feedInRateRappenPerKwh: 8,
+      selfConsumptionRate: 0.4,
+      investmentRappen: 2000000,
+    })
+    expect(result.selfConsumedKwh).toBe(4000)
+    expect(result.exportedKwh).toBe(6000)
+    expect(result.selfConsumptionSavingsRappen).toBe(120000)
+    expect(result.exportRevenueRappen).toBe(48000)
+    expect(result.annualSavingsRappen).toBe(168000)
+  })
+
+  it('legacy mode: omitting selfConsumptionRate defaults to 100% at retail rate', () => {
+    const result = calculateRoi({
+      annualKwhYield: 8000,
+      rateRappenPerKwh: 26,
+      investmentRappen: 1800000,
+    })
+    expect(result.selfConsumedKwh).toBe(8000)
+    expect(result.exportedKwh).toBe(0)
+    expect(result.annualSavingsRappen).toBe(208000)
+  })
+})
+
+// ─── estimateSelfConsumptionRate ─────────────────────────────────────────────
+
+describe('estimateSelfConsumptionRate', () => {
+  it('returns ~40% for a balanced system (Epv ≈ Econs)', () => {
+    // ratio = 1.0 → 0.4 × 1^0.4 = 0.4
+    const scr = estimateSelfConsumptionRate(5000, 5000)
+    expect(scr).toBeCloseTo(0.4, 2)
+  })
+
+  it('returns higher SCR for small system (Epv << Econs)', () => {
+    // ratio = 0.5 → 0.4 × 2^0.4 ≈ 0.53
+    const scr = estimateSelfConsumptionRate(2500, 5000)
+    expect(scr).toBeGreaterThan(0.45)
+  })
+
+  it('returns lower SCR for oversized system (Epv >> Econs)', () => {
+    // ratio = 2.0 → 0.4 × 0.5^0.4 ≈ 0.30
+    const scr = estimateSelfConsumptionRate(10000, 5000)
+    expect(scr).toBeLessThan(0.35)
+  })
+
+  it('increases SCR with battery', () => {
+    const scrNoBat = estimateSelfConsumptionRate(5000, 5000, false)
+    const scrBat = estimateSelfConsumptionRate(5000, 5000, true)
+    expect(scrBat).toBeGreaterThan(scrNoBat)
+    expect(scrBat).toBeLessThanOrEqual(0.85)
+  })
+
+  it('clamps to [0.15, 0.85]', () => {
+    expect(estimateSelfConsumptionRate(100000, 1000)).toBeGreaterThanOrEqual(0.15)
+    expect(estimateSelfConsumptionRate(100, 100000)).toBeLessThanOrEqual(0.85)
+  })
+
+  it('returns safe default when inputs are zero', () => {
+    expect(estimateSelfConsumptionRate(0, 5000)).toBe(0.3)
+    expect(estimateSelfConsumptionRate(5000, 0)).toBe(0.3)
   })
 })
 

@@ -42,6 +42,7 @@ const mockScenario: PricedScenario = {
   panelCount: 10,
   panelPowerWp: 440,
   annualKwhYield: 4400,
+  rateRappenPerKwh: 30,
   annualSavingsRappen: 174000,
   paybackYears: 9.2,
   pronovoSubsidyRappen: 158400,

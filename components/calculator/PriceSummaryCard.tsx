@@ -12,6 +12,14 @@ interface PriceSummaryCardProps {
   vatBasisPts: number
   annualSavingsRappen?: number
   paybackYears?: number
+  // ROI breakdown
+  selfConsumedKwh?: number
+  exportedKwh?: number
+  selfConsumptionRate?: number
+  selfConsumptionSavingsRappen?: number
+  exportRevenueRappen?: number
+  feedInRateCtKwh?: number
+  onFeedInRateChange?: (rate: number) => void
   pronovoSubsidyRappen?: number
   taxSavingsRappen?: number
   effectiveInvestmentRappen?: number
@@ -36,6 +44,13 @@ export default function PriceSummaryCard({
   vatBasisPts,
   annualSavingsRappen,
   paybackYears,
+  selfConsumedKwh,
+  exportedKwh,
+  selfConsumptionRate,
+  selfConsumptionSavingsRappen,
+  exportRevenueRappen,
+  feedInRateCtKwh,
+  onFeedInRateChange,
   pronovoSubsidyRappen,
   taxSavingsRappen,
   effectiveInvestmentRappen,
@@ -103,23 +118,65 @@ export default function PriceSummaryCard({
               accent={paybackYears !== Infinity && paybackYears <= 12}
             />
           </div>
-          {/* Tariff + yield context */}
-          {(rateRappenPerKwh != null || yieldKwhPerKwp != null) && (
-            <div className="space-y-0.5 pt-2 border-t border-green-100">
-              {rateRappenPerKwh != null && (
-                <div className="flex justify-between text-xs text-gray-500">
-                  <span>Tarif ElCom</span>
-                  <span className="font-mono tabular-nums">{rateRappenPerKwh.toFixed(2)} ct/kWh</span>
-                </div>
-              )}
-              {yieldKwhPerKwp != null && (
-                <div className="flex justify-between text-xs text-gray-500">
-                  <span>Production PVGIS</span>
-                  <span className="font-mono tabular-nums">{yieldKwhPerKwp} kWh/kWp/an</span>
-                </div>
-              )}
+
+          {/* Self-consumption breakdown */}
+          {selfConsumedKwh != null && exportedKwh != null && selfConsumptionRate != null && (
+            <div className="space-y-1 mb-3 text-xs">
+              <div className="flex justify-between text-gray-600">
+                <span>Autoconsommation ({Math.round(selfConsumptionRate * 100)}%)</span>
+                <span className="font-mono tabular-nums">
+                  {selfConsumedKwh.toLocaleString('fr-CH')} kWh
+                  {selfConsumptionSavingsRappen != null && (
+                    <span className="text-gray-500"> · {formatChf(selfConsumptionSavingsRappen)}</span>
+                  )}
+                </span>
+              </div>
+              <div className="flex justify-between text-gray-600">
+                <span>Injection réseau ({Math.round((1 - selfConsumptionRate) * 100)}%)</span>
+                <span className="font-mono tabular-nums">
+                  {exportedKwh.toLocaleString('fr-CH')} kWh
+                  {exportRevenueRappen != null && (
+                    <span className="text-gray-500"> · {formatChf(exportRevenueRappen)}</span>
+                  )}
+                </span>
+              </div>
             </div>
           )}
+
+          {/* Tariff context */}
+          <div className="space-y-1 pt-2 border-t border-green-100">
+            {rateRappenPerKwh != null && (
+              <div className="flex justify-between text-xs text-gray-500">
+                <span>Tarif consommation (ElCom)</span>
+                <span className="font-mono tabular-nums">{rateRappenPerKwh.toFixed(2)} ct/kWh</span>
+              </div>
+            )}
+            <div className="flex justify-between items-center text-xs text-gray-500">
+              <span>Tarif injection (rachat)</span>
+              {onFeedInRateChange ? (
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    min={0}
+                    max={30}
+                    step={0.5}
+                    value={feedInRateCtKwh ?? 8}
+                    onChange={e => onFeedInRateChange(parseFloat(e.target.value) || 0)}
+                    className="w-14 text-right text-xs border border-green-200 rounded px-1 py-0.5 bg-white font-mono tabular-nums"
+                  />
+                  <span>ct/kWh</span>
+                </div>
+              ) : (
+                <span className="font-mono tabular-nums">{(feedInRateCtKwh ?? 8).toFixed(2)} ct/kWh</span>
+              )}
+            </div>
+            {yieldKwhPerKwp != null && (
+              <div className="flex justify-between text-xs text-gray-500">
+                <span>Production PVGIS</span>
+                <span className="font-mono tabular-nums">{yieldKwhPerKwp} kWh/kWp/an</span>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
