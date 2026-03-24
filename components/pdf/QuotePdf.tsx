@@ -7,6 +7,7 @@
  */
 
 import React from 'react'
+import path from 'path'
 import {
   Document,
   Page,
@@ -15,6 +16,8 @@ import {
   StyleSheet,
   Image,
 } from '@react-pdf/renderer'
+
+const LOGO_PATH = path.join(process.cwd(), 'public', 'logo.png')
 import { formatChf, formatPct } from '@/lib/pricing'
 import type { FullQuote, PricedScenario } from '@/lib/quote-pdf'
 
@@ -58,12 +61,11 @@ const s = StyleSheet.create({
     backgroundColor: RED,
     marginBottom: 20,
   },
-  headerCompany: {
-    fontSize: 18,
-    fontFamily: 'Helvetica-Bold',
-    color: WHITE,
-    letterSpacing: 0.5,
-    marginBottom: 3,
+  headerLogo: {
+    height: 38,
+    width: 140,
+    objectFit: 'contain',
+    marginBottom: 6,
   },
   headerSubtitle: {
     fontSize: 9,
@@ -339,7 +341,7 @@ export default function QuotePdf({ quote, scenarios, mapImageDataUrl }: Props) {
         {/* ── Header band ── */}
         <View style={s.headerBand} fixed>
           <View>
-            <Text style={s.headerCompany}>I.ON ENERGY SERVICES</Text>
+            <Image src={LOGO_PATH} style={s.headerLogo} />
             <Text style={s.headerSubtitle}>Offre commerciale — Installation photovoltaïque</Text>
           </View>
           <View style={s.headerRight}>
