@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
 import { useLanguage } from '@/context/LanguageContext'
@@ -20,13 +21,8 @@ export default function Sidebar({ userName, role }: SidebarProps) {
   return (
     <aside className="hidden md:flex w-56 flex-shrink-0 bg-gray-800 flex-col h-full">
       {/* Logo */}
-      <div className="flex items-center gap-2 px-4 py-5 border-b border-gray-700">
-        <div className="w-7 h-7 bg-red-500 rounded flex items-center justify-center">
-          <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-          </svg>
-        </div>
-        <span className="text-white font-semibold text-sm">I.ON Energy</span>
+      <div className="flex items-center px-4 py-5 border-b border-gray-700">
+        <Image src="/logo.png" alt="I.ON Energy" width={120} height={36} style={{ objectFit: 'contain' }} />
       </div>
 
       {/* Main nav */}
