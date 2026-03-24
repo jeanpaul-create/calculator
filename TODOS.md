@@ -40,6 +40,9 @@
 
 ## Completed
 
+**App sidebar: replace SVG placeholder with I.ON Energy logo**
+**Completed:** 2026-03-24 — SVG icon + "I.ON Energy" text replaced with `<Image src="/logo.png">` in `Sidebar.tsx` using Next.js `next/image`.
+
 **PDF: Add I.ON Energy logo to PDF header**
 **Completed:** 2026-03-24 — Logo added to `public/logo.png`, `QuotePdf.tsx` updated to use `<Image>` in the dark header band.
 

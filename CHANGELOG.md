@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.5.0] - 2026-03-24
+
+### Added
+- **I.ON Energy logo in PDF header** — company logo replaces bold-text placeholder in the dark header band of all generated PDFs
+- **I.ON Energy logo in sidebar** — actual logo image replaces the SVG placeholder icon + text in the app navigation sidebar
+- **Quote status management UI** — detail page now shows Accepté / Refusé / Expiré action buttons when a quote is in SENT status; each requires inline confirmation before applying; powered by new `PATCH /api/quotes/[id]/status` route
+- **`buildIonCoefficientsFromSettings()` utility** — extracted DRY helper in `lib/pricing.ts` consolidating the 22-key settings→IonPricingCoefficients mapping from 3 duplicate call sites
+- **Pricing unit tests** — 27 new test cases covering `calculateIonPrice`, `calculatePronovoSubsidy`, `estimateTaxSavings`, and `buildIonCoefficientsFromSettings` (51 tests total)
+
+### Changed
+- Sidebar hidden on mobile (`hidden md:flex`) — content remains accessible without navigation bar on small screens
+- Quotes list and status badge hardcoded to French (server components cannot read client-side language context)
+- `lib/quote-pdf.ts` and `app/(app)/calculator/page.tsx` updated to use shared `buildIonCoefficientsFromSettings()`
+
+### Fixed
+- Removed dead `marginBasisPts` field from `SaveScenarioSchema` — margin is always server-authoritative, was validated but never used
+
 ## [0.1.3.0] - 2026-03-24
 
 ### Added
