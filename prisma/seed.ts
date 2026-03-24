@@ -3,86 +3,131 @@ import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
 
-// ─── Swiss electricity rates by canton (ElCom averages, Rappen/kWh) ──────────
+// ─── Swiss electricity rates — ElCom H4 Standard 2026 ────────────────────────
+// zipPrefix can be either:
+//   - 2 digits: canton-level median (fallback)
+//   - 4 digits: municipality-specific rate (looked up first, higher precision)
+// Source: ElCom canton median observations, 2026
+// Canton medians updated from ElCom API: cantonMedianObservations(period: "2026", category: "H4")
 const SWISS_RATES: Array<{ canton: string; zipPrefix: string; rateRappenPerKwh: number }> = [
-  // Zürich
-  { canton: 'ZH', zipPrefix: '80', rateRappenPerKwh: 26 },
-  { canton: 'ZH', zipPrefix: '81', rateRappenPerKwh: 26 },
-  { canton: 'ZH', zipPrefix: '82', rateRappenPerKwh: 27 },
-  { canton: 'ZH', zipPrefix: '83', rateRappenPerKwh: 26 },
+  // ── Zürich (ZH) — median: 24.76 ct/kWh ──────────────────────────────────
+  { canton: 'ZH', zipPrefix: '80', rateRappenPerKwh: 25 },
+  { canton: 'ZH', zipPrefix: '81', rateRappenPerKwh: 25 },
+  { canton: 'ZH', zipPrefix: '83', rateRappenPerKwh: 25 },
   { canton: 'ZH', zipPrefix: '84', rateRappenPerKwh: 25 },
-  { canton: 'ZH', zipPrefix: '85', rateRappenPerKwh: 26 },
-  { canton: 'ZH', zipPrefix: '86', rateRappenPerKwh: 27 },
-  // Bern
-  { canton: 'BE', zipPrefix: '30', rateRappenPerKwh: 25 },
-  { canton: 'BE', zipPrefix: '31', rateRappenPerKwh: 24 },
-  { canton: 'BE', zipPrefix: '32', rateRappenPerKwh: 25 },
-  { canton: 'BE', zipPrefix: '33', rateRappenPerKwh: 26 },
-  { canton: 'BE', zipPrefix: '34', rateRappenPerKwh: 25 },
-  { canton: 'BE', zipPrefix: '35', rateRappenPerKwh: 24 },
-  // Luzern
-  { canton: 'LU', zipPrefix: '60', rateRappenPerKwh: 23 },
-  { canton: 'LU', zipPrefix: '61', rateRappenPerKwh: 22 },
-  // Uri
-  { canton: 'UR', zipPrefix: '68', rateRappenPerKwh: 21 },
-  // Schwyz
-  { canton: 'SZ', zipPrefix: '64', rateRappenPerKwh: 22 },
-  // Obwalden
-  { canton: 'OW', zipPrefix: '60', rateRappenPerKwh: 20 },
-  // Nidwalden
-  { canton: 'NW', zipPrefix: '63', rateRappenPerKwh: 21 },
-  // Glarus
-  { canton: 'GL', zipPrefix: '87', rateRappenPerKwh: 20 },
-  // Zug
+  { canton: 'ZH', zipPrefix: '86', rateRappenPerKwh: 25 },
+  { canton: 'ZH', zipPrefix: '89', rateRappenPerKwh: 25 },
+  // ── Bern (BE) — median: 29.35 ct/kWh ─────────────────────────────────────
+  { canton: 'BE', zipPrefix: '25', rateRappenPerKwh: 29 },
+  { canton: 'BE', zipPrefix: '26', rateRappenPerKwh: 29 },
+  { canton: 'BE', zipPrefix: '27', rateRappenPerKwh: 29 },
+  { canton: 'BE', zipPrefix: '30', rateRappenPerKwh: 29 },
+  { canton: 'BE', zipPrefix: '31', rateRappenPerKwh: 29 },
+  { canton: 'BE', zipPrefix: '32', rateRappenPerKwh: 29 },
+  { canton: 'BE', zipPrefix: '33', rateRappenPerKwh: 29 },
+  { canton: 'BE', zipPrefix: '34', rateRappenPerKwh: 29 },
+  { canton: 'BE', zipPrefix: '35', rateRappenPerKwh: 29 },
+  { canton: 'BE', zipPrefix: '36', rateRappenPerKwh: 29 },
+  { canton: 'BE', zipPrefix: '37', rateRappenPerKwh: 29 },
+  { canton: 'BE', zipPrefix: '38', rateRappenPerKwh: 29 },
+  { canton: 'BE', zipPrefix: '49', rateRappenPerKwh: 29 },
+  // ── Luzern (LU) — median: 25.41 ct/kWh ──────────────────────────────────
+  { canton: 'LU', zipPrefix: '60', rateRappenPerKwh: 25 },
+  { canton: 'LU', zipPrefix: '61', rateRappenPerKwh: 25 },
+  { canton: 'LU', zipPrefix: '62', rateRappenPerKwh: 25 },
+  // ── Uri (UR) — median: 25.07 ct/kWh ─────────────────────────────────────
+  { canton: 'UR', zipPrefix: '64', rateRappenPerKwh: 25 },
+  // ── Schwyz (SZ) — median: 28.16 ct/kWh ──────────────────────────────────
+  { canton: 'SZ', zipPrefix: '88', rateRappenPerKwh: 28 },
+  // ── Obwalden (OW) — median: 26.53 ct/kWh ────────────────────────────────
+  { canton: 'OW', zipPrefix: '60', rateRappenPerKwh: 27 },
+  // ── Nidwalden (NW) — median: 22.06 ct/kWh ───────────────────────────────
+  { canton: 'NW', zipPrefix: '63', rateRappenPerKwh: 22 },
+  // ── Glarus (GL) — median: 29.66 ct/kWh ──────────────────────────────────
+  { canton: 'GL', zipPrefix: '87', rateRappenPerKwh: 30 },
+  // ── Zug (ZG) — median: 21.88 ct/kWh ─────────────────────────────────────
   { canton: 'ZG', zipPrefix: '63', rateRappenPerKwh: 22 },
-  // Fribourg
-  { canton: 'FR', zipPrefix: '17', rateRappenPerKwh: 24 },
-  { canton: 'FR', zipPrefix: '16', rateRappenPerKwh: 23 },
-  // Solothurn
-  { canton: 'SO', zipPrefix: '45', rateRappenPerKwh: 25 },
-  { canton: 'SO', zipPrefix: '46', rateRappenPerKwh: 25 },
-  // Basel-Stadt
-  { canton: 'BS', zipPrefix: '40', rateRappenPerKwh: 27 },
-  // Basel-Landschaft
-  { canton: 'BL', zipPrefix: '41', rateRappenPerKwh: 26 },
-  { canton: 'BL', zipPrefix: '42', rateRappenPerKwh: 26 },
-  // Schaffhausen
-  { canton: 'SH', zipPrefix: '82', rateRappenPerKwh: 26 },
-  // Appenzell Ausserrhoden
-  { canton: 'AR', zipPrefix: '91', rateRappenPerKwh: 24 },
-  // Appenzell Innerrhoden
-  { canton: 'AI', zipPrefix: '91', rateRappenPerKwh: 23 },
-  // St. Gallen
-  { canton: 'SG', zipPrefix: '90', rateRappenPerKwh: 25 },
-  { canton: 'SG', zipPrefix: '92', rateRappenPerKwh: 24 },
-  { canton: 'SG', zipPrefix: '93', rateRappenPerKwh: 25 },
-  // Graubünden
-  { canton: 'GR', zipPrefix: '70', rateRappenPerKwh: 22 },
-  { canton: 'GR', zipPrefix: '71', rateRappenPerKwh: 21 },
-  { canton: 'GR', zipPrefix: '72', rateRappenPerKwh: 22 },
-  // Aargau
-  { canton: 'AG', zipPrefix: '50', rateRappenPerKwh: 24 },
-  { canton: 'AG', zipPrefix: '53', rateRappenPerKwh: 24 },
-  { canton: 'AG', zipPrefix: '54', rateRappenPerKwh: 23 },
-  // Thurgau
-  { canton: 'TG', zipPrefix: '85', rateRappenPerKwh: 25 },
-  { canton: 'TG', zipPrefix: '88', rateRappenPerKwh: 24 },
-  // Ticino
-  { canton: 'TI', zipPrefix: '65', rateRappenPerKwh: 20 },
-  { canton: 'TI', zipPrefix: '66', rateRappenPerKwh: 21 },
-  // Vaud
-  { canton: 'VD', zipPrefix: '10', rateRappenPerKwh: 22 },
-  { canton: 'VD', zipPrefix: '11', rateRappenPerKwh: 22 },
-  { canton: 'VD', zipPrefix: '18', rateRappenPerKwh: 23 },
-  // Valais
-  { canton: 'VS', zipPrefix: '19', rateRappenPerKwh: 18 },
-  { canton: 'VS', zipPrefix: '39', rateRappenPerKwh: 18 },
-  // Neuchâtel
-  { canton: 'NE', zipPrefix: '20', rateRappenPerKwh: 24 },
-  // Genève
-  { canton: 'GE', zipPrefix: '12', rateRappenPerKwh: 24 },
-  // Jura
-  { canton: 'JU', zipPrefix: '28', rateRappenPerKwh: 26 },
+  // ── Fribourg (FR) — median: 27.28 ct/kWh ────────────────────────────────
+  { canton: 'FR', zipPrefix: '16', rateRappenPerKwh: 27 },
+  { canton: 'FR', zipPrefix: '17', rateRappenPerKwh: 27 },
+  // ── Solothurn (SO) — median: 30.42 ct/kWh ───────────────────────────────
+  { canton: 'SO', zipPrefix: '42', rateRappenPerKwh: 30 },
+  { canton: 'SO', zipPrefix: '45', rateRappenPerKwh: 30 },
+  { canton: 'SO', zipPrefix: '46', rateRappenPerKwh: 30 },
+  { canton: 'SO', zipPrefix: '47', rateRappenPerKwh: 30 },
+  // ── Basel-Stadt (BS) — median: 33.25 ct/kWh ─────────────────────────────
+  { canton: 'BS', zipPrefix: '40', rateRappenPerKwh: 33 },
+  // ── Basel-Landschaft (BL) — median: 31.98 ct/kWh ────────────────────────
+  { canton: 'BL', zipPrefix: '41', rateRappenPerKwh: 32 },
+  { canton: 'BL', zipPrefix: '44', rateRappenPerKwh: 32 },
+  // ── Schaffhausen (SH) — median: 32.20 ct/kWh ────────────────────────────
+  { canton: 'SH', zipPrefix: '82', rateRappenPerKwh: 32 },
+  // ── Appenzell Ausserrhoden (AR) — median: 28.74 ct/kWh ──────────────────
+  { canton: 'AR', zipPrefix: '90', rateRappenPerKwh: 29 },
+  // ── Appenzell Innerrhoden (AI) — median: 27.57 ct/kWh ───────────────────
+  { canton: 'AI', zipPrefix: '91', rateRappenPerKwh: 28 },
+  // ── St. Gallen (SG) — median: 29.80 ct/kWh ──────────────────────────────
+  { canton: 'SG', zipPrefix: '73', rateRappenPerKwh: 30 },
+  { canton: 'SG', zipPrefix: '87', rateRappenPerKwh: 30 },
+  { canton: 'SG', zipPrefix: '91', rateRappenPerKwh: 30 },
+  { canton: 'SG', zipPrefix: '92', rateRappenPerKwh: 30 },
+  { canton: 'SG', zipPrefix: '93', rateRappenPerKwh: 30 },
+  { canton: 'SG', zipPrefix: '94', rateRappenPerKwh: 30 },
+  // ── Graubünden (GR) — median: 29.20 ct/kWh ──────────────────────────────
+  { canton: 'GR', zipPrefix: '70', rateRappenPerKwh: 29 },
+  { canton: 'GR', zipPrefix: '71', rateRappenPerKwh: 29 },
+  { canton: 'GR', zipPrefix: '72', rateRappenPerKwh: 29 },
+  { canton: 'GR', zipPrefix: '74', rateRappenPerKwh: 29 },
+  { canton: 'GR', zipPrefix: '75', rateRappenPerKwh: 29 },
+  { canton: 'GR', zipPrefix: '76', rateRappenPerKwh: 29 },
+  { canton: 'GR', zipPrefix: '77', rateRappenPerKwh: 29 },
+  // ── Aargau (AG) — median: 27.73 ct/kWh ──────────────────────────────────
+  { canton: 'AG', zipPrefix: '43', rateRappenPerKwh: 28 },
+  { canton: 'AG', zipPrefix: '48', rateRappenPerKwh: 28 },
+  { canton: 'AG', zipPrefix: '50', rateRappenPerKwh: 28 },
+  { canton: 'AG', zipPrefix: '51', rateRappenPerKwh: 28 },
+  { canton: 'AG', zipPrefix: '52', rateRappenPerKwh: 28 },
+  { canton: 'AG', zipPrefix: '53', rateRappenPerKwh: 28 },
+  { canton: 'AG', zipPrefix: '54', rateRappenPerKwh: 28 },
+  { canton: 'AG', zipPrefix: '55', rateRappenPerKwh: 28 },
+  { canton: 'AG', zipPrefix: '56', rateRappenPerKwh: 28 },
+  { canton: 'AG', zipPrefix: '57', rateRappenPerKwh: 28 },
+  // ── Thurgau (TG) — median: 29.43 ct/kWh ─────────────────────────────────
+  { canton: 'TG', zipPrefix: '85', rateRappenPerKwh: 29 },
+  { canton: 'TG', zipPrefix: '95', rateRappenPerKwh: 29 },
+  // ── Ticino (TI) — median: 25.13 ct/kWh ──────────────────────────────────
+  { canton: 'TI', zipPrefix: '65', rateRappenPerKwh: 25 },
+  { canton: 'TI', zipPrefix: '66', rateRappenPerKwh: 25 },
+  { canton: 'TI', zipPrefix: '67', rateRappenPerKwh: 25 },
+  { canton: 'TI', zipPrefix: '68', rateRappenPerKwh: 25 },
+  { canton: 'TI', zipPrefix: '69', rateRappenPerKwh: 25 },
+  // ── Vaud (VD) — median: 30.42 ct/kWh ────────────────────────────────────
+  { canton: 'VD', zipPrefix: '10', rateRappenPerKwh: 30 },
+  { canton: 'VD', zipPrefix: '11', rateRappenPerKwh: 30 },
+  { canton: 'VD', zipPrefix: '13', rateRappenPerKwh: 30 },
+  { canton: 'VD', zipPrefix: '14', rateRappenPerKwh: 30 },
+  { canton: 'VD', zipPrefix: '15', rateRappenPerKwh: 30 },
+  { canton: 'VD', zipPrefix: '18', rateRappenPerKwh: 30 },
+  // ── Valais / Wallis (VS) — median: 26.87 ct/kWh ─────────────────────────
+  { canton: 'VS', zipPrefix: '19', rateRappenPerKwh: 27 },
+  { canton: 'VS', zipPrefix: '39', rateRappenPerKwh: 27 },
+  // ── Neuchâtel (NE) — median: 28.88 ct/kWh ───────────────────────────────
+  { canton: 'NE', zipPrefix: '20', rateRappenPerKwh: 29 },
+  { canton: 'NE', zipPrefix: '21', rateRappenPerKwh: 29 },
+  { canton: 'NE', zipPrefix: '22', rateRappenPerKwh: 29 },
+  { canton: 'NE', zipPrefix: '24', rateRappenPerKwh: 29 },
+  // ── Genève (GE) — median: 24.88 ct/kWh ──────────────────────────────────
+  { canton: 'GE', zipPrefix: '12', rateRappenPerKwh: 25 },
+  // ── Jura (JU) — median: 27.90 ct/kWh ────────────────────────────────────
+  { canton: 'JU', zipPrefix: '23', rateRappenPerKwh: 28 },
+  { canton: 'JU', zipPrefix: '28', rateRappenPerKwh: 28 },
+  { canton: 'JU', zipPrefix: '29', rateRappenPerKwh: 28 },
+
+  // ── Municipality-specific rates (4-digit NPA) ─────────────────────────────
+  // These are looked up BEFORE the 2-digit canton fallback.
+  // Source: ElCom observations(period:"2026", category:"H4", product:"standard")
+  // Morges (1110) — Romande Energie SA — 30.27 ct/kWh
+  { canton: 'VD', zipPrefix: '1110', rateRappenPerKwh: 30 },
 ]
 
 // ─── Products from I.ON Energy Services catalog (Sales List-PV-2026 v2.1) ────

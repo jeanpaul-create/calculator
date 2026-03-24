@@ -12,11 +12,18 @@ async function fetchRateFromDb(
   commune?: string
 ): Promise<{ rateCtPerKwh: number; communeName: string } | null> {
   try {
-    const zipPrefix = zip.slice(0, 2)
-    const row = await prisma.swissRate.findFirst({
-      where: { zipPrefix },
+    // Try exact 4-digit zip first (municipality-specific rate)
+    let row = await prisma.swissRate.findFirst({
+      where: { zipPrefix: zip },
       select: { rateRappenPerKwh: true },
     })
+    // Fall back to 2-digit canton prefix
+    if (!row) {
+      row = await prisma.swissRate.findFirst({
+        where: { zipPrefix: zip.slice(0, 2) },
+        select: { rateRappenPerKwh: true },
+      })
+    }
     if (!row) return null
     return {
       rateCtPerKwh: row.rateRappenPerKwh, // already stored as ct/kWh (rappen = centimes)
