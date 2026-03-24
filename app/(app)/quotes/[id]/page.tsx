@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db'
 import { QuoteStatus } from '@prisma/client'
 import QuoteStatusBadge from '@/components/ui/QuoteStatusBadge'
 import EmailButton from './EmailButton'
+import QuoteStatusActions from './QuoteStatusActions'
 import { getFullQuoteForPdf, buildPricedScenarios } from '@/lib/quote-pdf'
 
 export const dynamic = 'force-dynamic'
@@ -121,6 +122,11 @@ export default async function QuoteDetailPage({ params }: Props) {
               Ajoutez un e-mail client pour envoyer le PDF par e-mail.
             </p>
           )}
+
+          <QuoteStatusActions
+            quoteId={quote.id}
+            currentStatus={quote.status as 'DRAFT' | 'SENT' | 'ACCEPTED' | 'DECLINED' | 'EXPIRED'}
+          />
         </div>
       </div>
 
