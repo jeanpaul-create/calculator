@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { requireOwnerOrAdmin } from '@/lib/auth'
-import { calculateIonPrice, DEFAULT_ION_COEFFICIENTS, IonPricingCoefficients, RoofType, RoofSlope } from '@/lib/pricing'
+import { calculateIonPrice, buildIonCoefficientsFromSettings, RoofType, RoofSlope } from '@/lib/pricing'
 import { z } from 'zod'
 
 const ScenarioItemSchema = z.object({
@@ -15,7 +15,6 @@ const ScenarioOptionSchema = z.object({
 
 const SaveScenarioSchema = z.object({
   name: z.string().min(1).optional(),
-  marginBasisPts: z.number().int().min(0).max(9999),
   items: z.array(ScenarioItemSchema),
   options: z.array(ScenarioOptionSchema).optional(),
   roofType: z.enum(['tuile', 'ardoise', 'bac_acier', 'plat']).optional(),
@@ -144,30 +143,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
     }
 
     // Build pricing coefficients from settings (fall back to defaults if not set)
-    const ionCoefficients: IonPricingCoefficients = {
-      pv_accessories_bps: settingsMap['pv_accessories_bps'] ?? DEFAULT_ION_COEFFICIENTS.pv_accessories_bps,
-      pv_frais_supp_bps: settingsMap['pv_frais_supp_bps'] ?? DEFAULT_ION_COEFFICIENTS.pv_frais_supp_bps,
-      pv_transport_bps: settingsMap['pv_transport_bps'] ?? DEFAULT_ION_COEFFICIENTS.pv_transport_bps,
-      pv_labor_panel_rappen: settingsMap['pv_labor_panel_rappen'] ?? DEFAULT_ION_COEFFICIENTS.pv_labor_panel_rappen,
-      pv_labor_inverter_rappen: settingsMap['pv_labor_inverter_rappen'] ?? DEFAULT_ION_COEFFICIENTS.pv_labor_inverter_rappen,
-      pv_raccordement_mat_rappen: settingsMap['pv_raccordement_mat_rappen'] ?? DEFAULT_ION_COEFFICIENTS.pv_raccordement_mat_rappen,
-      pv_raccordement_labor_rappen: settingsMap['pv_raccordement_labor_rappen'] ?? DEFAULT_ION_COEFFICIENTS.pv_raccordement_labor_rappen,
-      pv_pm_fixed_rappen: settingsMap['pv_pm_fixed_rappen'] ?? DEFAULT_ION_COEFFICIENTS.pv_pm_fixed_rappen,
-      pv_admin_fixed_rappen: settingsMap['pv_admin_fixed_rappen'] ?? DEFAULT_ION_COEFFICIENTS.pv_admin_fixed_rappen,
-      pv_sales_overhead_bps: settingsMap['pv_sales_overhead_bps'] ?? DEFAULT_ION_COEFFICIENTS.pv_sales_overhead_bps,
-      pv_profit_appro_bps: settingsMap['pv_profit_appro_bps'] ?? DEFAULT_ION_COEFFICIENTS.pv_profit_appro_bps,
-      pv_profit_constr_bps: settingsMap['pv_profit_constr_bps'] ?? DEFAULT_ION_COEFFICIENTS.pv_profit_constr_bps,
-      bat_pm_bps: settingsMap['bat_pm_bps'] ?? DEFAULT_ION_COEFFICIENTS.bat_pm_bps,
-      bat_admin_bps: settingsMap['bat_admin_bps'] ?? DEFAULT_ION_COEFFICIENTS.bat_admin_bps,
-      bat_profit_bps: settingsMap['bat_profit_bps'] ?? DEFAULT_ION_COEFFICIENTS.bat_profit_bps,
-      mount_tuile_rappen: settingsMap['mount_tuile_rappen'] ?? DEFAULT_ION_COEFFICIENTS.mount_tuile_rappen,
-      mount_ardoise_rappen: settingsMap['mount_ardoise_rappen'] ?? DEFAULT_ION_COEFFICIENTS.mount_ardoise_rappen,
-      mount_bac_acier_rappen: settingsMap['mount_bac_acier_rappen'] ?? DEFAULT_ION_COEFFICIENTS.mount_bac_acier_rappen,
-      mount_plat_rappen: settingsMap['mount_plat_rappen'] ?? DEFAULT_ION_COEFFICIENTS.mount_plat_rappen,
-      mount_slope_medium_bps: settingsMap['mount_slope_medium_bps'] ?? DEFAULT_ION_COEFFICIENTS.mount_slope_medium_bps,
-      mount_slope_steep_bps: settingsMap['mount_slope_steep_bps'] ?? DEFAULT_ION_COEFFICIENTS.mount_slope_steep_bps,
-      vatBasisPts,
-    }
+    const ionCoefficients = buildIonCoefficientsFromSettings(settingsMap, vatBasisPts)
 
     // Resolve product costs and categories for snapshot
     const productIds = data.items.map((i) => i.productId)

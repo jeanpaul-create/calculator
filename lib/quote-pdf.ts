@@ -25,8 +25,7 @@ import {
   sumInstalledKwp,
   calculatePronovoSubsidy,
   estimateTaxSavings,
-  DEFAULT_ION_COEFFICIENTS,
-  IonPricingCoefficients,
+  buildIonCoefficientsFromSettings,
   RoofType,
   RoofSlope,
 } from '@/lib/pricing'
@@ -140,7 +139,7 @@ export async function getFullQuoteForPdf(id: string) {
 
 // ─── Settings fetch (used only for NULL-price fallback on old quotes) ─────────
 
-async function fetchIonCoefficients(): Promise<IonPricingCoefficients & { vatBasisPts: number }> {
+async function fetchIonCoefficients() {
   const settings = await prisma.setting.findMany({
     where: {
       key: {
@@ -159,31 +158,8 @@ async function fetchIonCoefficients(): Promise<IonPricingCoefficients & { vatBas
     },
   })
   const m = Object.fromEntries(settings.map((s) => [s.key, parseInt(s.value)]))
-  const D = DEFAULT_ION_COEFFICIENTS
-  return {
-    vatBasisPts: m['vat_pct_basis_pts'] ?? 810,
-    pv_accessories_bps:          m['pv_accessories_bps']          ?? D.pv_accessories_bps,
-    pv_frais_supp_bps:           m['pv_frais_supp_bps']           ?? D.pv_frais_supp_bps,
-    pv_transport_bps:            m['pv_transport_bps']            ?? D.pv_transport_bps,
-    pv_labor_panel_rappen:       m['pv_labor_panel_rappen']       ?? D.pv_labor_panel_rappen,
-    pv_labor_inverter_rappen:    m['pv_labor_inverter_rappen']    ?? D.pv_labor_inverter_rappen,
-    pv_raccordement_mat_rappen:  m['pv_raccordement_mat_rappen']  ?? D.pv_raccordement_mat_rappen,
-    pv_raccordement_labor_rappen:m['pv_raccordement_labor_rappen']?? D.pv_raccordement_labor_rappen,
-    pv_pm_fixed_rappen:          m['pv_pm_fixed_rappen']          ?? D.pv_pm_fixed_rappen,
-    pv_admin_fixed_rappen:       m['pv_admin_fixed_rappen']       ?? D.pv_admin_fixed_rappen,
-    pv_sales_overhead_bps:       m['pv_sales_overhead_bps']       ?? D.pv_sales_overhead_bps,
-    pv_profit_appro_bps:         m['pv_profit_appro_bps']         ?? D.pv_profit_appro_bps,
-    pv_profit_constr_bps:        m['pv_profit_constr_bps']        ?? D.pv_profit_constr_bps,
-    bat_pm_bps:                  m['bat_pm_bps']                  ?? D.bat_pm_bps,
-    bat_admin_bps:               m['bat_admin_bps']               ?? D.bat_admin_bps,
-    bat_profit_bps:              m['bat_profit_bps']              ?? D.bat_profit_bps,
-    mount_tuile_rappen:          m['mount_tuile_rappen']          ?? D.mount_tuile_rappen,
-    mount_ardoise_rappen:        m['mount_ardoise_rappen']        ?? D.mount_ardoise_rappen,
-    mount_bac_acier_rappen:      m['mount_bac_acier_rappen']      ?? D.mount_bac_acier_rappen,
-    mount_plat_rappen:           m['mount_plat_rappen']           ?? D.mount_plat_rappen,
-    mount_slope_medium_bps:      m['mount_slope_medium_bps']      ?? D.mount_slope_medium_bps,
-    mount_slope_steep_bps:       m['mount_slope_steep_bps']       ?? D.mount_slope_steep_bps,
-  }
+  const vatBasisPts = m['vat_pct_basis_pts'] ?? 810
+  return buildIonCoefficientsFromSettings(m, vatBasisPts)
 }
 
 // ─── Price computation ────────────────────────────────────────────────────────
