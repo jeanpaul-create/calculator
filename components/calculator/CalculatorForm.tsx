@@ -35,10 +35,6 @@ interface CalculatorFormProps {
   costOptions: CostOption[]
   vatBasisPts: number
   ionCoefficients: IonPricingCoefficients
-  rateRappenPerKwh?: number
-  /** PVGIS yield factor for the install location (kWh/kWp/year) */
-  yieldKwhPerKwp?: number
-  customerZip?: string
   quoteId?: string
   onSaved?: (quoteId: string) => void
 }
@@ -48,9 +44,6 @@ export default function CalculatorForm({
   costOptions,
   vatBasisPts,
   ionCoefficients,
-  rateRappenPerKwh,
-  yieldKwhPerKwp,
-  customerZip,
   quoteId,
   onSaved,
 }: CalculatorFormProps) {
@@ -103,9 +96,8 @@ export default function CalculatorForm({
     .map((sp) => ({ powerWp: sp.product.powerWp!, quantity: sp.quantity }))
 
   const installedKwp = sumInstalledKwp(panels)
-  // Prefer live site-info values over server-side props
-  const activeYield = siteInfo?.yieldKwhPerKwp ?? yieldKwhPerKwp
-  const activeRate = siteInfo?.rateCtPerKwh ?? rateRappenPerKwh
+  const activeYield = siteInfo?.yieldKwhPerKwp ?? undefined
+  const activeRate = siteInfo?.rateCtPerKwh ?? undefined
   const annualYield = installedKwp > 0 ? estimateAnnualYield(installedKwp, activeYield ?? 950) : null
 
   const hasBattery = selectedProducts.some(sp => sp.product.category === 'BATTERY')
@@ -277,7 +269,6 @@ export default function CalculatorForm({
           customerName: projectInfo.customerName || undefined,
           customerEmail: projectInfo.customerEmail || undefined,
           customerPhone: projectInfo.customerPhone || undefined,
-          customerZip: customerZip || undefined,
           siteAddress: projectInfo.siteAddress || undefined,
           notes: projectInfo.notes || undefined,
           mapLat: mapState?.lat,
@@ -638,8 +629,8 @@ export default function CalculatorForm({
             taxSavingsRappen={taxSavingsRappen}
             effectiveInvestmentRappen={effectiveInvestmentRappen}
             paybackYearsWithSubsidy={paybackYearsWithSubsidy}
-            rateRappenPerKwh={activeRate ?? undefined}
-            yieldKwhPerKwp={activeYield ?? undefined}
+            rateRappenPerKwh={activeRate}
+            yieldKwhPerKwp={activeYield}
             isDirty={isDirty}
             isSaving={isSaving}
             onSave={quoteId ? handleSave : undefined}

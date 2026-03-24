@@ -4,101 +4,12 @@ import { auth } from '@/lib/auth'
 import CalculatorForm from '@/components/calculator/CalculatorForm'
 import { DEFAULT_ION_COEFFICIENTS, IonPricingCoefficients } from '@/lib/pricing'
 
-// ─── PVGIS helpers ────────────────────────────────────────────────────────────
-
-async function geocodeZip(zip: string): Promise<{ lat: number; lon: number } | null> {
-  try {
-    const res = await fetch(
-      `https://api3.geo.admin.ch/rest/services/ech/SearchServer?type=locations&searchText=${zip}&lang=fr&limit=1`,
-      { next: { revalidate: 86400 }, signal: AbortSignal.timeout(4000) }
-    )
-    if (!res.ok) return null
-    const data = await res.json()
-    const attrs = data.results?.[0]?.attrs
-    if (!attrs?.lat || !attrs?.lon) return null
-    return { lat: attrs.lat, lon: attrs.lon }
-  } catch {
-    return null
-  }
-}
-
-// ─── ElCom electricity rate ───────────────────────────────────────────────────
-// Fetches the current-year H4 standard total rate (ct/kWh) for a given NPA
-// via the ElCom GraphQL API. Returns null on any failure.
-
-async function fetchElcomRate(zip: string): Promise<{ rateCtPerKwh: number; communeName: string } | null> {
-  try {
-    // 1. Resolve NPA → commune name via swisstopo (label: "<b>1180 - Rolle</b>")
-    const geoRes = await fetch(
-      `https://api3.geo.admin.ch/rest/services/ech/SearchServer?type=locations&searchText=${encodeURIComponent(zip)}&lang=fr&limit=1`,
-      { next: { revalidate: 86400 }, signal: AbortSignal.timeout(4000) }
-    )
-    if (!geoRes.ok) return null
-    const geoData = await geoRes.json()
-    const rawLabel: string = geoData.results?.[0]?.attrs?.label ?? ''
-    const communeName = rawLabel.replace(/<[^>]*>/g, '').replace(/^\d{4}\s*[-–]\s*/, '').trim()
-    if (!communeName) return null
-
-    // 2. Find ElCom municipality ID by commune name
-    const ELCOM_HEADERS = {
-      'Content-Type': 'application/json',
-      Referer: 'https://www.prix-electricite.elcom.admin.ch/',
-      Origin: 'https://www.prix-electricite.elcom.admin.ch',
-    }
-    const searchRes = await fetch('https://www.prix-electricite.elcom.admin.ch/api/graphql', {
-      method: 'POST',
-      headers: ELCOM_HEADERS,
-      body: JSON.stringify({ query: `{ search(locale: "fr", query: ${JSON.stringify(communeName)}) { id name } }` }),
-      next: { revalidate: 86400 },
-      signal: AbortSignal.timeout(5000),
-    } as RequestInit)
-    if (!searchRes.ok) return null
-    const searchData = await searchRes.json()
-    const municipality: { id: string; name: string } | undefined =
-      (searchData.data?.search ?? []).find((m: { id: string; name: string }) => m.name === communeName)
-    if (!municipality) return null
-
-    // 3. Query H4 standard total rate for the current period
-    const currentYear = new Date().getFullYear().toString()
-    const rateRes = await fetch('https://www.prix-electricite.elcom.admin.ch/api/graphql', {
-      method: 'POST',
-      headers: ELCOM_HEADERS,
-      body: JSON.stringify({
-        query: `{ observations(locale: "fr", filters: { municipality: [${JSON.stringify(municipality.id)}], category: "H4", product: "standard", period: [${JSON.stringify(currentYear)}] }, observationKind: Municipality) { value(priceComponent: total) } }`,
-      }),
-      next: { revalidate: 86400 },
-      signal: AbortSignal.timeout(5000),
-    } as RequestInit)
-    if (!rateRes.ok) return null
-    const rateData = await rateRes.json()
-    const rate: unknown = rateData.data?.observations?.[0]?.value
-    return typeof rate === 'number' ? { rateCtPerKwh: rate, communeName } : null
-  } catch {
-    return null
-  }
-}
-
-async function fetchPvgisYield(lat: number, lon: number): Promise<number> {
-  try {
-    const res = await fetch(
-      `https://re.jrc.ec.europa.eu/api/v5_3/PVcalc?lat=${lat}&lon=${lon}&peakpower=1&loss=14&outputformat=json`,
-      { next: { revalidate: 86400 }, signal: AbortSignal.timeout(6000) }
-    )
-    if (!res.ok) return 950
-    const data = await res.json()
-    const ey = data?.outputs?.totals?.fixed?.E_y
-    return typeof ey === 'number' && ey > 0 ? Math.round(ey) : 950
-  } catch {
-    return 950
-  }
-}
-
 export const metadata = { title: 'Calculateur' }
 
 export default async function CalculatorPage({
   searchParams,
 }: {
-  searchParams: { zip?: string; quoteId?: string }
+  searchParams: { quoteId?: string }
 }) {
   const session = await auth()
   if (!session) redirect('/login')
@@ -145,20 +56,6 @@ export default async function CalculatorPage({
     }),
   ])
 
-  // ElCom rate + PVGIS yield + geolocation (all run in parallel)
-  let yieldKwhPerKwp: number | undefined
-  let zipCoords: { lat: number; lon: number } | null = null
-  let elcomRate: { rateCtPerKwh: number; communeName: string } | null = null
-  if (searchParams.zip) {
-    ;[zipCoords, elcomRate] = await Promise.all([
-      geocodeZip(searchParams.zip),
-      fetchElcomRate(searchParams.zip),
-    ])
-    if (zipCoords) {
-      yieldKwhPerKwp = await fetchPvgisYield(zipCoords.lat, zipCoords.lon)
-    }
-  }
-
   const settingsMap = Object.fromEntries(settings.map((s) => [s.key, parseInt(s.value)]))
   const vatBasisPts = settingsMap['vat_pct_basis_pts'] ?? 810
 
@@ -196,76 +93,13 @@ export default async function CalculatorPage({
         </p>
       </div>
 
-      <ZipBar
-        currentZip={searchParams.zip}
-        communeName={elcomRate?.communeName}
-        rateCtPerKwh={elcomRate?.rateCtPerKwh}
-        yieldKwhPerKwp={yieldKwhPerKwp}
-        quoteId={searchParams.quoteId}
-      />
-
       <CalculatorForm
         products={products}
         costOptions={costOptions}
         vatBasisPts={vatBasisPts}
         ionCoefficients={ionCoefficients}
-        rateRappenPerKwh={elcomRate?.rateCtPerKwh}
-        yieldKwhPerKwp={yieldKwhPerKwp}
-        customerZip={searchParams.zip}
         quoteId={searchParams.quoteId}
       />
-    </div>
-  )
-}
-
-function ZipBar({
-  currentZip,
-  communeName,
-  rateCtPerKwh,
-  yieldKwhPerKwp,
-  quoteId,
-}: {
-  currentZip?: string
-  communeName?: string
-  rateCtPerKwh?: number
-  yieldKwhPerKwp?: number
-  quoteId?: string
-}) {
-  return (
-    <div className="flex items-center gap-4 mb-6 p-4 card">
-      <form className="flex items-end gap-3">
-        <div>
-          <label className="label">NPA (pour tarif &amp; amortissement)</label>
-          <input
-            name="zip"
-            type="text"
-            pattern="[0-9]{4}"
-            maxLength={4}
-            defaultValue={currentZip ?? ''}
-            placeholder="ex. 1180"
-            className="input w-28"
-          />
-        </div>
-        {quoteId && <input type="hidden" name="quoteId" value={quoteId} />}
-        <button type="submit" className="btn-secondary">
-          Charger tarif
-        </button>
-      </form>
-
-      {rateCtPerKwh != null && (
-        <div className="text-sm text-gray-600 space-y-0.5">
-          <div>
-            {communeName && <><strong>{communeName}</strong> · </>}
-            <span className="tabular-nums font-mono">{rateCtPerKwh.toFixed(2)} ct/kWh</span>
-            {' '}<span className="text-gray-400 text-xs">(ElCom {new Date().getFullYear()})</span>
-          </div>
-          {yieldKwhPerKwp && (
-            <div className="text-xs text-gray-500">
-              ☀ Production estimée : <span className="font-mono tabular-nums font-medium text-gray-700">{yieldKwhPerKwp} kWh/kWp/an</span> <span className="text-gray-400">(PVGIS)</span>
-            </div>
-          )}
-        </div>
-      )}
     </div>
   )
 }
