@@ -400,6 +400,47 @@ export const DEFAULT_ION_COEFFICIENTS: IonPricingCoefficients = {
   vatBasisPts: 810,
 }
 
+/**
+ * Build IonPricingCoefficients from a DB settings map.
+ * Falls back to DEFAULT_ION_COEFFICIENTS for any missing key.
+ *
+ * Single source of truth for the settings key → coefficient mapping.
+ * Used by the API route, calculator page, and PDF builder.
+ *
+ * @param settingsMap - key→integer map from prisma.setting.findMany()
+ * @param vatBasisPts - VAT in basis points (read separately as 'vat_pct_basis_pts')
+ */
+export function buildIonCoefficientsFromSettings(
+  settingsMap: Record<string, number>,
+  vatBasisPts: number
+): IonPricingCoefficients {
+  const D = DEFAULT_ION_COEFFICIENTS
+  return {
+    pv_accessories_bps:           settingsMap['pv_accessories_bps']           ?? D.pv_accessories_bps,
+    pv_frais_supp_bps:            settingsMap['pv_frais_supp_bps']            ?? D.pv_frais_supp_bps,
+    pv_transport_bps:             settingsMap['pv_transport_bps']             ?? D.pv_transport_bps,
+    pv_labor_panel_rappen:        settingsMap['pv_labor_panel_rappen']        ?? D.pv_labor_panel_rappen,
+    pv_labor_inverter_rappen:     settingsMap['pv_labor_inverter_rappen']     ?? D.pv_labor_inverter_rappen,
+    pv_raccordement_mat_rappen:   settingsMap['pv_raccordement_mat_rappen']   ?? D.pv_raccordement_mat_rappen,
+    pv_raccordement_labor_rappen: settingsMap['pv_raccordement_labor_rappen'] ?? D.pv_raccordement_labor_rappen,
+    pv_pm_fixed_rappen:           settingsMap['pv_pm_fixed_rappen']           ?? D.pv_pm_fixed_rappen,
+    pv_admin_fixed_rappen:        settingsMap['pv_admin_fixed_rappen']        ?? D.pv_admin_fixed_rappen,
+    pv_sales_overhead_bps:        settingsMap['pv_sales_overhead_bps']        ?? D.pv_sales_overhead_bps,
+    pv_profit_appro_bps:          settingsMap['pv_profit_appro_bps']          ?? D.pv_profit_appro_bps,
+    pv_profit_constr_bps:         settingsMap['pv_profit_constr_bps']         ?? D.pv_profit_constr_bps,
+    bat_pm_bps:                   settingsMap['bat_pm_bps']                   ?? D.bat_pm_bps,
+    bat_admin_bps:                settingsMap['bat_admin_bps']                ?? D.bat_admin_bps,
+    bat_profit_bps:               settingsMap['bat_profit_bps']               ?? D.bat_profit_bps,
+    mount_tuile_rappen:           settingsMap['mount_tuile_rappen']           ?? D.mount_tuile_rappen,
+    mount_ardoise_rappen:         settingsMap['mount_ardoise_rappen']         ?? D.mount_ardoise_rappen,
+    mount_bac_acier_rappen:       settingsMap['mount_bac_acier_rappen']       ?? D.mount_bac_acier_rappen,
+    mount_plat_rappen:            settingsMap['mount_plat_rappen']            ?? D.mount_plat_rappen,
+    mount_slope_medium_bps:       settingsMap['mount_slope_medium_bps']       ?? D.mount_slope_medium_bps,
+    mount_slope_steep_bps:        settingsMap['mount_slope_steep_bps']        ?? D.mount_slope_steep_bps,
+    vatBasisPts,
+  }
+}
+
 export type RoofType = 'tuile' | 'ardoise' | 'bac_acier' | 'plat'
 export type RoofSlope = 'simple' | 'moyen' | 'complexe'
 
