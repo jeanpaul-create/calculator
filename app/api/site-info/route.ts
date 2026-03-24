@@ -47,13 +47,33 @@ async function fetchElcomRate(
       (searchData.data?.search ?? []).find((m: { id: string; name: string }) => m.name === communeName)
     if (!municipality) return null
 
-    // 3. H4 standard total rate for the current year
+    // 3. Get operator IDs for this municipality via ElCom SSR data endpoint
+    // The ElCom website's SSR endpoint returns operator IDs for a municipality.
+    // We extract the Next.js build ID from the HTML first.
+    const htmlRes = await fetch('https://www.prix-electricite.elcom.admin.ch/', {
+      signal: AbortSignal.timeout(4000),
+    })
+    const html = await htmlRes.text()
+    const buildIdMatch = html.match(/"buildId":"([^"]+)"/)
+    const buildId = buildIdMatch?.[1]
+    if (!buildId) return null
+
+    const ssrRes = await fetch(
+      `https://www.prix-electricite.elcom.admin.ch/_next/data/${buildId}/fr/municipality/${municipality.id}.json?id=${municipality.id}`,
+      { signal: AbortSignal.timeout(4000) }
+    )
+    if (!ssrRes.ok) return null
+    const ssrData = await ssrRes.json()
+    const operatorId: string | undefined = ssrData?.pageProps?.operators?.[0]?.id
+    if (!operatorId) return null
+
+    // 4. H4 standard total rate for the current year, using operator + municipality filters
     const year = new Date().getFullYear().toString()
     const rateRes = await fetch(ELCOM_GQL, {
       method: 'POST',
       headers: ELCOM_HEADERS,
       body: JSON.stringify({
-        query: `{ observations(locale: "fr", filters: { municipality: [${JSON.stringify(municipality.id)}], category: "H4", product: "standard", period: [${JSON.stringify(year)}] }, observationKind: Municipality) { value(priceComponent: total) operatorLabel } }`,
+        query: `{ observations(locale: "fr", filters: { operator: [${JSON.stringify(operatorId)}], municipality: [${JSON.stringify(municipality.id)}], category: "H4", product: "standard", period: [${JSON.stringify(year)}] }, observationKind: Municipality) { value(priceComponent: total) operatorLabel } }`,
       }),
       signal: AbortSignal.timeout(5000),
     })
