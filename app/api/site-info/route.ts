@@ -12,19 +12,27 @@ const ELCOM_HEADERS = {
 }
 
 async function fetchElcomRate(
-  zip: string
+  zip: string,
+  communeOverride?: string
 ): Promise<{ rateCtPerKwh: number; operatorName: string; communeName: string } | null> {
   try {
-    // 1. Resolve NPA → commune name via swisstopo
-    const geoRes = await fetch(
-      `https://api3.geo.admin.ch/rest/services/ech/SearchServer?type=locations&searchText=${encodeURIComponent(zip)}&lang=fr&limit=1`,
-      { signal: AbortSignal.timeout(4000) }
-    )
-    if (!geoRes.ok) return null
-    const geoData = await geoRes.json()
-    const rawLabel: string = geoData.results?.[0]?.attrs?.label ?? ''
-    const communeName = rawLabel.replace(/<[^>]*>/g, '').replace(/^\d{4}\s*[-–]\s*/, '').trim()
-    if (!communeName) return null
+    let communeName: string
+
+    if (communeOverride) {
+      // Use the commune name passed from the client (extracted from swisstopo autocomplete label)
+      communeName = communeOverride
+    } else {
+      // Fallback: resolve NPA → commune name via swisstopo server-side
+      const geoRes = await fetch(
+        `https://api3.geo.admin.ch/rest/services/ech/SearchServer?type=locations&searchText=${encodeURIComponent(zip)}&lang=fr&limit=1`,
+        { signal: AbortSignal.timeout(4000) }
+      )
+      if (!geoRes.ok) return null
+      const geoData = await geoRes.json()
+      const rawLabel: string = geoData.results?.[0]?.attrs?.label ?? ''
+      communeName = rawLabel.replace(/<[^>]*>/g, '').replace(/^\d{4}\s*[-–]\s*/, '').trim()
+      if (!communeName) return null
+    }
 
     // 2. Find ElCom municipality ID by commune name
     const searchRes = await fetch(ELCOM_GQL, {
@@ -81,13 +89,14 @@ export async function GET(req: NextRequest) {
   const zip = searchParams.get('zip') ?? ''
   const lat = parseFloat(searchParams.get('lat') ?? '')
   const lon = parseFloat(searchParams.get('lon') ?? '')
+  const commune = searchParams.get('commune') ?? undefined
 
   if (!zip || !/^\d{4}$/.test(zip)) {
     return Response.json({ error: 'Invalid zip' }, { status: 400 })
   }
 
   const [elcom, pvgis] = await Promise.all([
-    fetchElcomRate(zip),
+    fetchElcomRate(zip, commune),
     !isNaN(lat) && !isNaN(lon) ? fetchPvgisYield(lat, lon) : Promise.resolve(null),
   ])
 

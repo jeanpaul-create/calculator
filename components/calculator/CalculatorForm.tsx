@@ -317,13 +317,15 @@ export default function CalculatorForm({
               <AddressSearch
                 value={projectInfo.siteAddress}
                 onChange={val => setProjectInfo(p => ({...p, siteAddress: val}))}
-                onSelect={(address, lat, lon, zip) => {
+                onSelect={(address, lat, lon, zip, commune) => {
                   setProjectInfo(p => ({...p, siteAddress: address}))
                   setMapState(prev => ({ lat, lon, zoom: prev?.zoom ?? 17 }))
                   if (zip) {
                     setSiteInfo(null)
                     setFetchingSiteInfo(true)
-                    fetch(`/api/site-info?zip=${zip}&lat=${lat}&lon=${lon}`)
+                    const params = new URLSearchParams({ zip, lat: String(lat), lon: String(lon) })
+                    if (commune) params.set('commune', commune)
+                    fetch(`/api/site-info?${params}`)
                       .then(r => r.ok ? r.json() : null)
                       .then(d => d && setSiteInfo({
                         rateCtPerKwh: d.rateCtPerKwh,
@@ -339,14 +341,16 @@ export default function CalculatorForm({
               {fetchingSiteInfo && (
                 <p className="text-xs text-gray-400 mt-1">Chargement tarif &amp; production…</p>
               )}
-              {!fetchingSiteInfo && siteInfo?.rateCtPerKwh != null && (
+              {!fetchingSiteInfo && siteInfo != null && (siteInfo.rateCtPerKwh != null || siteInfo.yieldKwhPerKwp != null) && (
                 <div className="mt-1.5 text-xs text-gray-600 space-y-0.5">
-                  <div>
-                    {siteInfo.communeName && <><strong>{siteInfo.communeName}</strong> · </>}
-                    <span className="font-mono tabular-nums">{siteInfo.rateCtPerKwh.toFixed(2)} ct/kWh</span>
-                    {' '}<span className="text-gray-400">(ElCom {new Date().getFullYear()})</span>
-                  </div>
-                  {siteInfo.yieldKwhPerKwp && (
+                  {siteInfo.rateCtPerKwh != null && (
+                    <div>
+                      {siteInfo.communeName && <><strong>{siteInfo.communeName}</strong> · </>}
+                      <span className="font-mono tabular-nums">{siteInfo.rateCtPerKwh.toFixed(2)} ct/kWh</span>
+                      {' '}<span className="text-gray-400">(ElCom {new Date().getFullYear()})</span>
+                    </div>
+                  )}
+                  {siteInfo.yieldKwhPerKwp != null && (
                     <div className="text-gray-500">
                       ☀ <span className="font-mono tabular-nums font-medium text-gray-700">{siteInfo.yieldKwhPerKwp} kWh/kWp/an</span> <span className="text-gray-400">(PVGIS)</span>
                     </div>
