@@ -21,6 +21,7 @@ import {
   calculateIonPrice,
   calculateRoi,
   estimateAnnualYield,
+  estimateSelfConsumptionRate,
   sumInstalledKwp,
   calculatePronovoSubsidy,
   estimateTaxSavings,
@@ -52,6 +53,14 @@ export interface PricedScenario {
   /** null if ROI cannot be computed */
   annualSavingsRappen: number | null
   paybackYears: number | null
+  // ROI split breakdown
+  selfConsumptionRatePct: number | null
+  selfConsumedKwh: number | null
+  exportedKwh: number | null
+  selfConsumptionSavingsRappen: number | null
+  exportRevenueRappen: number | null
+  feedInRateRappenPerKwh: number | null
+  annualConsumptionKwh: number | null
   /** Pronovo PRU federal subsidy in Rappen (null if < 2 kWp) */
   pronovoSubsidyRappen: number | null
   /** Estimated income tax savings from deducting installation cost */
@@ -242,18 +251,44 @@ export async function buildPricedScenarios(quote: FullQuote): Promise<PricedScen
     const yieldFactor = scenario.yieldKwhPerKwp ?? 950
     const annualKwhYield = installedKwp != null ? estimateAnnualYield(installedKwp, yieldFactor) : null
     const rateRappenPerKwh = scenario.rateRappenPerKwh
+    const storedFeedInRate = scenario.feedInRateRappenPerKwh
+    const storedConsumption = scenario.annualConsumptionKwh
+
+    // Resolve self-consumption rate: use stored value, or derive from consumption, or default
+    let selfConsumptionRate: number | null = null
+    if (scenario.selfConsumptionRatePct != null) {
+      selfConsumptionRate = scenario.selfConsumptionRatePct / 100
+    } else if (annualKwhYield) {
+      // Legacy fallback: no stored SCR — estimate from consumption if available, else balanced assumption
+      const hasBattery = items.some(i => i.category === 'BATTERY')
+      selfConsumptionRate = estimateSelfConsumptionRate(
+        annualKwhYield,
+        storedConsumption ?? annualKwhYield, // balanced assumption if unknown
+        hasBattery
+      )
+    }
 
     let annualSavingsRappen: number | null = null
     let paybackYears: number | null = null
+    let selfConsumedKwh: number | null = null
+    let exportedKwh: number | null = null
+    let selfConsumptionSavingsRappen: number | null = null
+    let exportRevenueRappen: number | null = null
 
-    if (annualKwhYield && rateRappenPerKwh && sellingPriceIncVatRappen > 0) {
+    if (annualKwhYield && rateRappenPerKwh && selfConsumptionRate != null && sellingPriceIncVatRappen > 0) {
       const roi = calculateRoi({
         annualKwhYield,
         rateRappenPerKwh,
+        feedInRateRappenPerKwh: storedFeedInRate ?? 8,
+        selfConsumptionRate,
         investmentRappen: sellingPriceIncVatRappen,
       })
       annualSavingsRappen = roi.annualSavingsRappen
       paybackYears = roi.paybackYears
+      selfConsumedKwh = roi.selfConsumedKwh
+      exportedKwh = roi.exportedKwh
+      selfConsumptionSavingsRappen = roi.selfConsumptionSavingsRappen
+      exportRevenueRappen = roi.exportRevenueRappen
     }
 
     // Financial incentives
@@ -289,6 +324,13 @@ export async function buildPricedScenarios(quote: FullQuote): Promise<PricedScen
       annualKwhYield,
       annualSavingsRappen,
       paybackYears,
+      selfConsumptionRatePct: selfConsumptionRate != null ? Math.round(selfConsumptionRate * 100) : null,
+      selfConsumedKwh,
+      exportedKwh,
+      selfConsumptionSavingsRappen,
+      exportRevenueRappen,
+      feedInRateRappenPerKwh: storedFeedInRate ?? (rateRappenPerKwh ? 8 : null),
+      annualConsumptionKwh: storedConsumption ?? null,
       pronovoSubsidyRappen,
       taxSavingsRappen,
       effectiveInvestmentRappen,

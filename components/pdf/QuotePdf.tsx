@@ -542,12 +542,6 @@ function ScenarioSection({
         {/* ROI */}
         <View style={s.roiBox}>
           <Text style={s.roiTitle}>Rentabilité estimée</Text>
-          {scenario.rateRappenPerKwh != null ? (
-            <View style={s.roiRow}>
-              <Text style={s.roiLabel}>Tarif électricité (ElCom)</Text>
-              <Text style={s.roiValue}>{scenario.rateRappenPerKwh.toFixed(2)} ct/kWh</Text>
-            </View>
-          ) : null}
           {scenario.annualKwhYield != null ? (
             <View style={s.roiRow}>
               <Text style={s.roiLabel}>Production annuelle</Text>
@@ -556,16 +550,54 @@ function ScenarioSection({
               </Text>
             </View>
           ) : null}
-          {scenario.annualSavingsRappen != null ? (
+
+          {/* Self-consumption split */}
+          {scenario.selfConsumedKwh != null && scenario.selfConsumptionRatePct != null ? (
             <View style={s.roiRow}>
-              <Text style={s.roiLabel}>Économies annuelles</Text>
-              <Text style={s.roiValue}>{formatChf(scenario.annualSavingsRappen)}</Text>
+              <Text style={s.roiLabel}>
+                Autoconsommation ({scenario.selfConsumptionRatePct}%)
+              </Text>
+              <Text style={s.roiValue}>
+                {scenario.selfConsumedKwh.toLocaleString('fr-CH')} kWh
+                {scenario.selfConsumptionSavingsRappen != null ? `  ·  ${formatChf(scenario.selfConsumptionSavingsRappen)}` : ''}
+              </Text>
+            </View>
+          ) : null}
+          {scenario.exportedKwh != null && scenario.selfConsumptionRatePct != null ? (
+            <View style={s.roiRow}>
+              <Text style={s.roiLabel}>
+                Injection réseau ({100 - scenario.selfConsumptionRatePct}%)
+                {scenario.feedInRateRappenPerKwh != null ? `  @  ${scenario.feedInRateRappenPerKwh} ct/kWh` : ''}
+              </Text>
+              <Text style={s.roiValue}>
+                {scenario.exportedKwh.toLocaleString('fr-CH')} kWh
+                {scenario.exportRevenueRappen != null ? `  ·  ${formatChf(scenario.exportRevenueRappen)}` : ''}
+              </Text>
+            </View>
+          ) : null}
+
+          {scenario.annualSavingsRappen != null ? (
+            <View style={[s.roiRow, { borderTopWidth: 0.5, borderTopColor: '#bbf7d0', marginTop: 3, paddingTop: 3 }]}>
+              <Text style={[s.roiLabel, { fontFamily: 'Helvetica-Bold' }]}>Valeur annuelle totale</Text>
+              <Text style={[s.roiValue, { fontFamily: 'Helvetica-Bold' }]}>{formatChf(scenario.annualSavingsRappen)}</Text>
             </View>
           ) : null}
           {scenario.paybackYears != null ? (
             <View style={s.roiRow}>
               <Text style={s.roiLabel}>Amortissement brut</Text>
               <Text style={s.roiValue}>{scenario.paybackYears.toFixed(1)} ans</Text>
+            </View>
+          ) : null}
+
+          {/* Rate context */}
+          {(scenario.rateRappenPerKwh != null || scenario.feedInRateRappenPerKwh != null) ? (
+            <View style={{ marginTop: 4, paddingTop: 4, borderTopWidth: 0.5, borderTopColor: '#bbf7d0' }}>
+              {scenario.rateRappenPerKwh != null ? (
+                <View style={s.roiRow}>
+                  <Text style={[s.roiLabel, { color: '#6b7280' }]}>Tarif consommation (ElCom)</Text>
+                  <Text style={[s.roiValue, { color: '#6b7280' }]}>{scenario.rateRappenPerKwh.toFixed(2)} ct/kWh</Text>
+                </View>
+              ) : null}
             </View>
           ) : null}
 

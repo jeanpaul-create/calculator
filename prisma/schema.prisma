@@ -184,6 +184,13 @@ model QuoteScenario {
   // PVGIS yield factor snapshotted at save time (kWh/kWp/year).
   // NULL = falls back to 950 (Swiss average).
   yieldKwhPerKwp           Int?
+  // ROI split: self-consumption vs. grid export
+  // selfConsumptionRatePct: integer percentage (e.g. 40 = 40%). NULL = legacy (100% at retail).
+  selfConsumptionRatePct   Int?
+  // Feed-in tariff paid by utility for exported solar (Rappen/kWh). NULL = legacy.
+  feedInRateRappenPerKwh   Int?
+  // Annual household consumption used to derive SCR (kWh/year). NULL = not provided.
+  annualConsumptionKwh     Int?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db'
 import { QuoteStatus } from '@prisma/client'
 import QuoteStatusBadge from '@/components/ui/QuoteStatusBadge'
 import EmailButton from './EmailButton'
+import { getFullQuoteForPdf, buildPricedScenarios } from '@/lib/quote-pdf'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,6 +47,10 @@ export default async function QuoteDetailPage({ params }: Props) {
 
   // Authorization: rep can only see their own quotes
   if (!isAdmin && quote.repId !== session.user.id) notFound()
+
+  // Load priced scenarios for ROI breakdown (uses stored SCR + feed-in rate)
+  const fullQuote = await getFullQuoteForPdf(params.id)
+  const pricedScenarios = fullQuote ? await buildPricedScenarios(fullQuote) : null
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
@@ -165,7 +170,7 @@ export default async function QuoteDetailPage({ params }: Props) {
                 ))}
               </div>
 
-              {/* Price + tariff summary */}
+              {/* Price + ROI summary */}
               <div className="border-t border-gray-100 pt-2 space-y-1">
                 {scenario.sellingPriceIncVatRappen != null && (
                   <div className="text-sm flex justify-between">
@@ -178,19 +183,64 @@ export default async function QuoteDetailPage({ params }: Props) {
                     </span>
                   </div>
                 )}
-                {scenario.rateRappenPerKwh != null && (
-                  <div className="text-xs flex justify-between text-gray-500">
-                    <span>Tarif ElCom</span>
-                    <span className="font-mono tabular-nums">{scenario.rateRappenPerKwh} ct/kWh</span>
-                  </div>
-                )}
-                {scenario.yieldKwhPerKwp != null && (
-                  <div className="text-xs flex justify-between text-gray-500">
-                    <span>Production PVGIS</span>
-                    <span className="font-mono tabular-nums">{scenario.yieldKwhPerKwp} kWh/kWp/an</span>
-                  </div>
-                )}
               </div>
+
+              {/* ROI breakdown — only shown if ROI was computed */}
+              {(scenario.rateRappenPerKwh != null || scenario.yieldKwhPerKwp != null) && (() => {
+                const pricedScenario = pricedScenarios?.find(s => s.id === scenario.id)
+                return (
+                  <div className="mt-2 border-t border-gray-100 pt-2 space-y-1">
+                    {pricedScenario?.annualSavingsRappen != null && (
+                      <div className="text-sm flex justify-between font-medium">
+                        <span className="text-gray-700">Valeur annuelle</span>
+                        <span className="tabular-nums text-green-700">
+                          CHF {(pricedScenario.annualSavingsRappen / 100).toLocaleString('fr-CH', { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    )}
+                    {pricedScenario?.selfConsumedKwh != null && pricedScenario.selfConsumptionRatePct != null && (
+                      <div className="text-xs flex justify-between text-gray-500">
+                        <span>Autoconsommation ({pricedScenario.selfConsumptionRatePct}%)</span>
+                        <span className="font-mono tabular-nums">
+                          {pricedScenario.selfConsumedKwh.toLocaleString('fr-CH')} kWh
+                        </span>
+                      </div>
+                    )}
+                    {pricedScenario?.exportedKwh != null && pricedScenario.selfConsumptionRatePct != null && (
+                      <div className="text-xs flex justify-between text-gray-500">
+                        <span>Injection réseau ({100 - pricedScenario.selfConsumptionRatePct}%)</span>
+                        <span className="font-mono tabular-nums">
+                          {pricedScenario.exportedKwh.toLocaleString('fr-CH')} kWh
+                        </span>
+                      </div>
+                    )}
+                    {pricedScenario?.paybackYears != null && (
+                      <div className="text-xs flex justify-between text-gray-500">
+                        <span>Amortissement</span>
+                        <span className="font-mono tabular-nums">{pricedScenario.paybackYears} ans</span>
+                      </div>
+                    )}
+                    {scenario.rateRappenPerKwh != null && (
+                      <div className="text-xs flex justify-between text-gray-400">
+                        <span>Tarif consommation</span>
+                        <span className="font-mono tabular-nums">{scenario.rateRappenPerKwh} ct/kWh</span>
+                      </div>
+                    )}
+                    {pricedScenario?.feedInRateRappenPerKwh != null && (
+                      <div className="text-xs flex justify-between text-gray-400">
+                        <span>Tarif injection</span>
+                        <span className="font-mono tabular-nums">{pricedScenario.feedInRateRappenPerKwh} ct/kWh</span>
+                      </div>
+                    )}
+                    {scenario.yieldKwhPerKwp != null && (
+                      <div className="text-xs flex justify-between text-gray-400">
+                        <span>Production PVGIS</span>
+                        <span className="font-mono tabular-nums">{scenario.yieldKwhPerKwp} kWh/kWp/an</span>
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
             </div>
           ))}
         </div>

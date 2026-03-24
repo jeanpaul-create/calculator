@@ -22,6 +22,10 @@ const SaveScenarioSchema = z.object({
   roofSlope: z.enum(['simple', 'moyen', 'complexe']).optional(),
   yieldKwhPerKwp: z.number().int().min(500).max(2000).optional(),
   rateRappenPerKwh: z.number().min(0).max(500).optional(),
+  // ROI split fields
+  selfConsumptionRatePct: z.number().int().min(0).max(100).optional(),
+  feedInRateRappenPerKwh: z.number().int().min(0).max(200).optional(),
+  annualConsumptionKwh: z.number().int().min(0).max(1000000).optional(),
   // Optional project info update
   customerName: z.string().optional(),
   customerEmail: z.string().email().optional().or(z.literal('')),
@@ -245,6 +249,9 @@ export async function PUT(req: NextRequest, { params }: Params) {
           sellingPriceExVatRappen: pricing.sellingPriceExVatRappen,
           sellingPriceIncVatRappen: pricing.sellingPriceIncVatRappen,
           yieldKwhPerKwp: data.yieldKwhPerKwp ?? null,
+          selfConsumptionRatePct: data.selfConsumptionRatePct ?? null,
+          feedInRateRappenPerKwh: data.feedInRateRappenPerKwh ?? null,
+          annualConsumptionKwh: data.annualConsumptionKwh ?? null,
           items: {
             create: data.items.map((item) => ({
               productId: item.productId,
