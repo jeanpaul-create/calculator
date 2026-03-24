@@ -18,7 +18,7 @@ export default function Sidebar({ userName, role }: SidebarProps) {
     pathname === href || pathname.startsWith(href + '/')
 
   return (
-    <aside className="w-56 flex-shrink-0 bg-gray-800 flex flex-col h-full">
+    <aside className="hidden md:flex w-56 flex-shrink-0 bg-gray-800 flex-col h-full">
       {/* Logo */}
       <div className="flex items-center gap-2 px-4 py-5 border-b border-gray-700">
         <div className="w-7 h-7 bg-red-500 rounded flex items-center justify-center">
