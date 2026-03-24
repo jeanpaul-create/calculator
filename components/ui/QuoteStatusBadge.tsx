@@ -1,9 +1,9 @@
 const STATUS_CONFIG = {
-  DRAFT:    { label: 'Entwurf',    cls: 'badge-gray'  },
-  SENT:     { label: 'Versendet',  cls: 'badge-blue'  },
-  ACCEPTED: { label: 'Angenommen', cls: 'badge-green' },
-  DECLINED: { label: 'Abgelehnt', cls: 'badge-red'   },
-  EXPIRED:  { label: 'Abgelaufen', cls: 'badge-amber' },
+  DRAFT:    { label: 'Brouillon',  cls: 'badge-gray'  },
+  SENT:     { label: 'Envoyé',     cls: 'badge-blue'  },
+  ACCEPTED: { label: 'Accepté',   cls: 'badge-green' },
+  DECLINED: { label: 'Refusé',    cls: 'badge-red'   },
+  EXPIRED:  { label: 'Expiré',    cls: 'badge-amber' },
 } as const
 
 type Status = keyof typeof STATUS_CONFIG

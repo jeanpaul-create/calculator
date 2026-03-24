@@ -5,7 +5,7 @@ import Link from 'next/link'
 import QuoteStatusBadge from '@/components/ui/QuoteStatusBadge'
 import { QuoteStatus } from '@prisma/client'
 
-export const metadata = { title: 'Offerten' }
+export const metadata = { title: 'Offres' }
 
 export default async function QuotesPage() {
   const session = await auth()
@@ -28,7 +28,7 @@ export default async function QuotesPage() {
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="page-title">Offerten</h1>
+        <h1 className="page-title">Offres</h1>
         <NewQuoteButton />
       </div>
 
@@ -39,7 +39,7 @@ export default async function QuotesPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
           </div>
-          <p className="text-gray-500 text-sm mb-4">Noch keine Offerten vorhanden.</p>
+          <p className="text-gray-500 text-sm mb-4">Aucune offre pour le moment.</p>
           <NewQuoteButton />
         </div>
       ) : (
@@ -47,12 +47,12 @@ export default async function QuotesPage() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Nummer</th>
-                <th>Kunde</th>
-                <th>PLZ / Kanton</th>
-                {isAdmin && <th>Verkäufer</th>}
-                <th>Status</th>
-                <th className="text-right">Datum</th>
+                <th>N°</th>
+                <th>Client</th>
+                <th>NPA / Canton</th>
+                {isAdmin && <th>Conseiller</th>}
+                <th>Statut</th>
+                <th className="text-right">Date</th>
               </tr>
             </thead>
             <tbody>
@@ -68,7 +68,7 @@ export default async function QuotesPage() {
                   </td>
                   <td>
                     <div className="font-medium text-gray-800">
-                      {quote.customerName ?? <span className="text-gray-400 italic">kein Name</span>}
+                      {quote.customerName ?? <span className="text-gray-400 italic">sans nom</span>}
                     </div>
                     {quote.customerEmail && (
                       <div className="text-xs text-gray-500">{quote.customerEmail}</div>
@@ -87,7 +87,7 @@ export default async function QuotesPage() {
                     <QuoteStatusBadge status={quote.status as QuoteStatus} />
                   </td>
                   <td className="text-right tabular-nums text-sm text-gray-500">
-                    {new Date(quote.createdAt).toLocaleDateString('de-CH')}
+                    {new Date(quote.createdAt).toLocaleDateString('fr-CH')}
                   </td>
                 </tr>
               ))}
@@ -102,7 +102,7 @@ export default async function QuotesPage() {
 function NewQuoteButton() {
   return (
     <Link href="/calculator" className="btn-primary">
-      + Neue Offerte
+      + Nouvelle offre
     </Link>
   )
 }

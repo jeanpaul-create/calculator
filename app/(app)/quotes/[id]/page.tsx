@@ -56,7 +56,7 @@ export default async function QuoteDetailPage({ params }: Props) {
     <div className="p-6 max-w-4xl mx-auto">
       {/* Back link */}
       <Link href="/quotes" className="text-sm text-gray-500 hover:text-gray-700 mb-4 inline-flex items-center gap-1">
-        ← Alle Offerten
+        ← Toutes les offres
       </Link>
 
       {/* Header */}
@@ -68,9 +68,9 @@ export default async function QuoteDetailPage({ params }: Props) {
           </div>
         </div>
         <div className="text-sm text-gray-500 text-right">
-          <div>Erstellt: {new Date(quote.createdAt).toLocaleDateString('de-CH')}</div>
+          <div>Créé: {new Date(quote.createdAt).toLocaleDateString('fr-CH')}</div>
           {isAdmin && quote.rep && (
-            <div className="mt-0.5">Verkäufer: {quote.rep.name ?? quote.rep.email}</div>
+            <div className="mt-0.5">Conseiller: {quote.rep.name ?? quote.rep.email}</div>
           )}
         </div>
       </div>
@@ -82,7 +82,7 @@ export default async function QuoteDetailPage({ params }: Props) {
           {quote.customerName ? (
             <p className="font-semibold text-gray-900">{quote.customerName}</p>
           ) : (
-            <p className="text-gray-400 italic text-sm">Kein Name</p>
+            <p className="text-gray-400 italic text-sm">Sans nom</p>
           )}
           {quote.customerEmail && (
             <p className="text-sm text-gray-600 mt-0.5">{quote.customerEmail}</p>
@@ -118,7 +118,7 @@ export default async function QuoteDetailPage({ params }: Props) {
 
           {!quote.customerEmail && (
             <p className="text-xs text-gray-400">
-              Fügen Sie eine Kunden-E-Mail hinzu, um das PDF per E-Mail zu senden.
+              Ajoutez un e-mail client pour envoyer le PDF par e-mail.
             </p>
           )}
         </div>
@@ -127,15 +127,15 @@ export default async function QuoteDetailPage({ params }: Props) {
       {/* Scenarios */}
       {quote.scenarios.length === 0 ? (
         <div className="card-padded text-center py-8">
-          <p className="text-gray-500 text-sm">Kein Szenario gespeichert.</p>
+          <p className="text-gray-500 text-sm">Aucun scénario enregistré.</p>
           <Link href={`/calculator?quoteId=${quote.id}`} className="btn-primary mt-4 inline-block">
-            Szenario erfassen
+            Saisir un scénario
           </Link>
         </div>
       ) : (
         <div className="space-y-4">
           <h2 className="text-sm font-semibold text-gray-700">
-            {quote.scenarios.length === 1 ? 'Szenario' : `${quote.scenarios.length} Szenarien`}
+            {quote.scenarios.length === 1 ? 'Scénario' : `${quote.scenarios.length} Scénarios`}
           </h2>
           {quote.scenarios.map((scenario, idx) => (
             <div key={scenario.id} className="card-padded">
