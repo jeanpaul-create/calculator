@@ -147,7 +147,7 @@
   }
 
   .nav-item-active {
-    @apply nav-item bg-gray-700 text-white;
+    @apply nav-item bg-red-500/10 text-white border-l-[3px] border-l-red-500;
   }
 
   /* ─── Section headings ────────────────────────────────────────────── */
