@@ -307,13 +307,13 @@ export default function CalculatorForm({
   }, [pricing, selectedProducts, selectedOptions, onSaved, router])
 
   return (
-    <div className="flex gap-6">
+    <div className="flex flex-col lg:flex-row gap-6">
       {/* Left: form */}
       <div className="flex-1 space-y-6 min-w-0">
         {/* Project Information */}
         <div className="card-padded">
           <div className="section-title mb-4">Informations du projet</div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="label">Client</label>
               <input type="text" className="input" placeholder="Nom du client"
@@ -390,7 +390,7 @@ export default function CalculatorForm({
                 onChange={e => setAnnualConsumptionKwh(e.target.value)}
               />
             </div>
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <label className="label">Notes</label>
               <textarea className="input resize-none" rows={2} placeholder="Notes internes..."
                 value={projectInfo.notes}
@@ -402,7 +402,7 @@ export default function CalculatorForm({
         {/* Installation Configuration */}
         <div className="card-padded">
           <div className="section-title mb-4">Configuration de l&apos;installation</div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="label">Type de toiture</label>
               <select className="input" value={roofType} onChange={e => { setRoofType(e.target.value as RoofType); setIsDirty(true) }}>
@@ -607,7 +607,7 @@ export default function CalculatorForm({
       </div>
 
       {/* Right: price summary */}
-      <div className="w-72 flex-shrink-0">
+      <div className="w-full lg:w-72 lg:flex-shrink-0">
         {pricing ? (
           <PriceSummaryCard
             rawCostRappen={pricing.rawCostRappen}
