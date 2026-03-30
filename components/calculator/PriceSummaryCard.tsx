@@ -72,7 +72,7 @@ export default function PriceSummaryCard({
         <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
           {t('price_selling')}
         </div>
-        <div className="text-3xl font-semibold text-gray-900 tabular-nums">
+        <div className="text-5xl font-semibold text-gray-900 tabular-nums leading-none">
           {formatChf(sellingPriceIncVatRappen)}
         </div>
         <div className="text-xs text-gray-500 mt-0.5">
