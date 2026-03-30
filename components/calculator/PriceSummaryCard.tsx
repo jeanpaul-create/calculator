@@ -66,7 +66,7 @@ export default function PriceSummaryCard({
   const { t } = useLanguage()
 
   return (
-    <div className="card sticky top-6">
+    <div className="card sticky top-6 border-l-4 border-l-red-500">
       {/* Header */}
       <div className="px-5 py-4 border-b border-gray-100">
         <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
