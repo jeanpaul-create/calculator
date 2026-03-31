@@ -16,7 +16,10 @@ export default async function CalculatorPage({
 
   const [products, costOptions, settings] = await Promise.all([
     prisma.product.findMany({
-      where: { active: true },
+      where: {
+        active: true,
+        category: { in: ['PANEL', 'INVERTER', 'BATTERY', 'MOUNTING', 'ACCESSORY', 'EV_CHARGER'] },
+      },
       orderBy: [{ category: 'asc' }, { name: 'asc' }],
     }),
     prisma.costOption.findMany({
@@ -71,7 +74,8 @@ export default async function CalculatorPage({
       </div>
 
       <CalculatorForm
-        products={products}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        products={products as any}
         costOptions={costOptions}
         vatBasisPts={vatBasisPts}
         ionCoefficients={ionCoefficients}

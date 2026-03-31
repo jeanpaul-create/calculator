@@ -4,7 +4,22 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatChf } from '@/lib/pricing'
 
-type Category = 'PANEL' | 'INVERTER' | 'BATTERY' | 'MOUNTING' | 'ACCESSORY' | 'EV_CHARGER'
+type Category =
+  | 'PANEL'
+  | 'INVERTER'
+  | 'BATTERY'
+  | 'MOUNTING'
+  | 'ACCESSORY'
+  | 'EV_CHARGER'
+  | 'PAC_MACHINE'
+  | 'PAC_ACCESSORY'
+  | 'PAC_ELECTRICITE'
+  | 'PAC_MACONNERIE'
+  | 'PAC_ISOLATION'
+  | 'PAC_CITERNE'
+  | 'PAC_CONDUITE'
+  | 'PAC_MONTAGE'
+  | 'PAC_ADMIN'
 
 interface Product {
   id: string
@@ -13,6 +28,7 @@ interface Product {
   category: Category
   costRappen: number
   powerWp: number | null
+  laborRappen: number | null
   active: boolean
 }
 
@@ -37,9 +53,34 @@ const CATEGORY_LABELS: Record<Category, string> = {
   MOUNTING: 'Montage',
   ACCESSORY: 'Accessoires',
   EV_CHARGER: 'Borne VE',
+  PAC_MACHINE: 'PAC – Machine',
+  PAC_ACCESSORY: 'PAC – Accessoires',
+  PAC_ELECTRICITE: 'PAC – Électricité',
+  PAC_MACONNERIE: 'PAC – Maçonnerie',
+  PAC_ISOLATION: 'PAC – Isolation',
+  PAC_CITERNE: 'PAC – Citerne',
+  PAC_CONDUITE: 'PAC – Conduite',
+  PAC_MONTAGE: 'PAC – Montage',
+  PAC_ADMIN: 'PAC – Administratif',
 }
 
-const CATEGORIES: Category[] = ['PANEL', 'INVERTER', 'BATTERY', 'MOUNTING', 'ACCESSORY', 'EV_CHARGER']
+const CATEGORIES: Category[] = [
+  'PANEL',
+  'INVERTER',
+  'BATTERY',
+  'MOUNTING',
+  'ACCESSORY',
+  'EV_CHARGER',
+  'PAC_MACHINE',
+  'PAC_ACCESSORY',
+  'PAC_ELECTRICITE',
+  'PAC_MACONNERIE',
+  'PAC_ISOLATION',
+  'PAC_CITERNE',
+  'PAC_CONDUITE',
+  'PAC_MONTAGE',
+  'PAC_ADMIN',
+]
 
 // ─── Product Row ──────────────────────────────────────────────────────────────
 
