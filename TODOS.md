@@ -56,13 +56,8 @@
 ## Design / UX
 
 **Mobile navigation: hamburger menu for small screens**
-**Priority:** P3
-**What:** Add a hamburger button (e.g. in a top bar on mobile) that toggles sidebar visibility on screens < 768px.
-**Why:** After FINDING-001 fix, the sidebar is now `hidden md:flex` — mobile users can see content but have no way to navigate between pages.
-**Pros:** Completes mobile UX; very common pattern.
-**Cons:** Requires a thin `<header>` bar on mobile to hold the button, adding a layout layer.
-**Context:** Found by /design-review on 2026-03-24. The sidebar (`components/layout/Sidebar.tsx`) is already self-contained. `AppShell.tsx` would need a `useState` toggle and a mobile header row. No backend work needed.
-**Effort:** S
+~~**Priority:** P3~~
+**Completed:** 2026-03-31 — Fixed by /design-review (FINDING-004). `AppShell.tsx` now manages `mobileOpen` state with a dark mobile top bar (hamburger ☰, brand mark, "I.ON Energy" text). `Sidebar.tsx` refactored to `fixed md:relative`, icon-only 48px at tablet (`md:w-12`), full 224px at desktop (`lg:w-56`). Text labels use `md:hidden lg:inline` breakpoints.
 
 ---
 
