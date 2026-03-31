@@ -76,6 +76,16 @@ enum ProductCategory {
   MOUNTING
   ACCESSORY
   EV_CHARGER
+  // PAC (Pompe à Chaleur / Heat Pump) — mirrors the 9 Excel quote sections
+  PAC_MACHINE      // heat pump unit (BUDERUS, VAILLANT)
+  PAC_ACCESSORY    // vase d'expansion, vanne, robinets
+  PAC_ELECTRICITE  // résistance, câblage
+  PAC_MACONNERIE   // carrotage, tranchée, démolition
+  PAC_ISOLATION    // tube standard
+  PAC_CITERNE      // old oil tank removal
+  PAC_CONDUITE     // piping (DN42, frigo, suppérieur)
+  PAC_MONTAGE      // montage et mise en service (labor days)
+  PAC_ADMIN        // démarche administrative, permits
 }
 
 model Product {
@@ -85,8 +95,11 @@ model Product {
   category    ProductCategory
   // Cost in Rappen (CHF cents) — integer, never float
   costRappen  Int
-  // Watt-peak for panels, VA for inverters, Wh for batteries; null for accessories
+  // Watt-peak for panels, VA for inverters, Wh for batteries; null for other categories
   powerWp     Int?
+  // Labor cost in Rappen per unit — used for PAC products where labor is itemized separately
+  // from material (e.g. machine installation, piping labor per meter). Null = no labor.
+  laborRappen Int?
   active      Boolean         @default(true)
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
@@ -167,6 +180,9 @@ model QuoteScenario {
   id      String @id @default(cuid())
   quoteId String
   name    String @default("Szenario 1")
+  // Discriminates PV (photovoltaic) vs PAC (pompe à chaleur / heat pump) scenarios.
+  // Determines which pricing engine and UI are used.
+  scenarioType String @default("PV")
   // Margin the rep set (basis points, e.g. 2500 = 25.00%)
   marginBasisPts Int
   // VAT snapshotted at save time (basis points, e.g. 810 = 8.10%)
@@ -206,8 +222,10 @@ model QuoteItem {
   scenarioId String
   productId  String
   quantity   Int    @default(1)
-  // Cost snapshotted at save time (Rappen) — protects history if catalog changes
+  // Material cost snapshotted at save time (Rappen) — protects history if catalog changes
   costRappenSnapshot Int
+  // Labor cost snapshotted at save time (Rappen) — PAC only; null for PV items
+  laborRappenSnapshot Int?
 
   scenario QuoteScenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
   product  Product       @relation(fields: [productId], references: [id])
