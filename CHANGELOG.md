@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.6.0] - 2026-03-31
+
+### Added
+- **Mobile hamburger navigation** — dark top bar with ☰ button appears on screens < 768px; tapping it slides in a full-width sidebar drawer with overlay dismiss; `AppShell.tsx` manages `mobileOpen` state
+- **Tablet icon-only sidebar** — at 768–1023px the sidebar collapses to 48px wide showing only icons with `title` tooltips; text labels use `md:hidden lg:inline` so they return at desktop widths
+
+### Changed
+- **Active nav item** now uses brand-red accent (`bg-red-500/10` + `border-l-[3px] border-l-red-500`) instead of generic `bg-gray-700`; matches DESIGN.md spec
+- **PriceSummaryCard** gains `border-l-4 border-l-red-500` left accent border — visual anchor matching the design system's intentional red accent treatment
+- **Price total display size** increased from `text-3xl` (30 px) to `text-5xl` (48 px) with `leading-none` — closer to the DESIGN.md display-scale spec for the hero price figure
+- **Calculator form layout** — outer flex container changes to `flex-col lg:flex-row` so form and price card stack vertically on mobile/tablet; project info and installation config grids change to `grid-cols-1 sm:grid-cols-2` with `sm:col-span-2` on Notes
+
+### Fixed
+- Calculator price card no longer overflows or compresses on mobile viewports (was always `flex` side-by-side regardless of screen width)
+- Mobile users blocked from navigation — resolved by hamburger drawer (was `hidden md:flex` with no fallback)
+
 ## [0.1.5.0] - 2026-03-24
 
 ### Added
