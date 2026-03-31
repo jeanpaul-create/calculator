@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { requireOwnerOrAdmin } from '@/lib/auth'
-import { calculateIonPrice, buildIonCoefficientsFromSettings, RoofType, RoofSlope } from '@/lib/pricing'
+import {
+  calculateIonPrice, buildIonCoefficientsFromSettings, RoofType, RoofSlope,
+  calculatePacPrice, buildPacCoefficientsFromSettings, PAC_SETTING_KEYS,
+} from '@/lib/pricing'
 import { z } from 'zod'
 
 const ScenarioItemSchema = z.object({
@@ -15,6 +18,7 @@ const ScenarioOptionSchema = z.object({
 
 const SaveScenarioSchema = z.object({
   name: z.string().min(1).optional(),
+  scenarioType: z.enum(['PV', 'PAC']).optional(),
   items: z.array(ScenarioItemSchema),
   options: z.array(ScenarioOptionSchema).optional(),
   roofType: z.enum(['tuile', 'ardoise', 'bac_acier', 'plat']).optional(),
@@ -99,7 +103,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
     const body = await req.json()
     const data = SaveScenarioSchema.parse(body)
 
-    // Fetch all app settings including pricing coefficients
+    // Fetch all app settings including PV and PAC pricing coefficients
     const settings = await prisma.setting.findMany({
       where: {
         key: {
@@ -127,6 +131,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
             'mount_plat_rappen',
             'mount_slope_medium_bps',
             'mount_slope_steep_bps',
+            ...PAC_SETTING_KEYS,
           ],
         },
       },
@@ -145,13 +150,14 @@ export async function PUT(req: NextRequest, { params }: Params) {
     // Build pricing coefficients from settings (fall back to defaults if not set)
     const ionCoefficients = buildIonCoefficientsFromSettings(settingsMap, vatBasisPts)
 
-    // Resolve product costs and categories for snapshot
+    // Resolve product costs, labor, and categories for snapshot
     const productIds = data.items.map((i) => i.productId)
     const products = await prisma.product.findMany({
       where: { id: { in: productIds }, active: true },
-      select: { id: true, costRappen: true, category: true },
+      select: { id: true, costRappen: true, laborRappen: true, category: true },
     })
     const productCostMap = Object.fromEntries(products.map((p) => [p.id, p.costRappen]))
+    const productLaborMap = Object.fromEntries(products.map((p) => [p.id, p.laborRappen ?? 0]))
     const productCategoryMap = Object.fromEntries(products.map((p) => [p.id, p.category]))
 
     // Verify all products exist and are active
@@ -195,19 +201,34 @@ export async function PUT(req: NextRequest, { params }: Params) {
       rateRappenPerKwh = rate?.rateRappenPerKwh ?? null
     }
 
-    // Compute pricing using the I.ON Energy model (before saving — we need effectiveMarginBasisPts)
-    type ProductCategory = 'PANEL' | 'INVERTER' | 'BATTERY' | 'MOUNTING' | 'ACCESSORY' | 'EV_CHARGER'
-    const ionProducts = data.items.map((item) => ({
-      category: productCategoryMap[item.productId] as ProductCategory,
-      costRappen: productCostMap[item.productId],
-      quantity: item.quantity,
-    }))
-    const ionOptions = (data.options ?? []).map((opt) => ({
-      costRappen: optionCostMap[opt.optionId],
-    }))
-    const pricing = calculateIonPrice(ionProducts, ionOptions, ionCoefficients,
-      (data.roofType ?? 'tuile') as RoofType,
-      (data.roofSlope ?? 'simple') as RoofSlope)
+    // Compute pricing using the appropriate engine based on scenario type
+    const scenarioType = data.scenarioType ?? 'PV'
+
+    type IonProductCategory = 'PANEL' | 'INVERTER' | 'BATTERY' | 'MOUNTING' | 'ACCESSORY' | 'EV_CHARGER'
+
+    let pricing: { sellingPriceExVatRappen: number; sellingPriceIncVatRappen: number; effectiveMarginBasisPts: number }
+
+    if (scenarioType === 'PAC') {
+      const pacCoefficients = buildPacCoefficientsFromSettings(settingsMap, vatBasisPts)
+      const pacProducts = data.items.map((item) => ({
+        costRappen: productCostMap[item.productId],
+        laborRappen: productLaborMap[item.productId],
+        quantity: item.quantity,
+      }))
+      pricing = calculatePacPrice(pacProducts, pacCoefficients)
+    } else {
+      const ionProducts = data.items.map((item) => ({
+        category: productCategoryMap[item.productId] as IonProductCategory,
+        costRappen: productCostMap[item.productId],
+        quantity: item.quantity,
+      }))
+      const ionOptions = (data.options ?? []).map((opt) => ({
+        costRappen: optionCostMap[opt.optionId],
+      }))
+      pricing = calculateIonPrice(ionProducts, ionOptions, ionCoefficients,
+        (data.roofType ?? 'tuile') as RoofType,
+        (data.roofSlope ?? 'simple') as RoofSlope)
+    }
 
     // Atomically replace the scenario (delete old + create new in one transaction)
     // In Phase 2 multi-scenario: create/update by scenario ID
@@ -217,6 +238,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
         data: {
           quoteId: params.id,
           name: data.name ?? 'Scénario 1',
+          scenarioType,
           marginBasisPts: pricing.effectiveMarginBasisPts,
           vatPctBasisPts: vatBasisPts,
           rateRappenPerKwh,
@@ -233,6 +255,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
               productId: item.productId,
               quantity: item.quantity,
               costRappenSnapshot: productCostMap[item.productId],
+              laborRappenSnapshot: productLaborMap[item.productId] || null,
             })),
           },
           options: {
