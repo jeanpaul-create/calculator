@@ -1,5 +1,6 @@
 /**
  * QuotePdf — react-pdf template for I.ON Energy quotes.
+ * Design: Variant D — Bold Proposal × Swiss Precision
  *
  * IMPORTANT: This component must only be imported in server-side code
  * (API routes, Server Components). Never import in Client Components —
@@ -23,15 +24,21 @@ import type { FullQuote, PricedScenario } from '@/lib/quote-pdf'
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
 
-const RED       = '#d92127'
-const RED_LIGHT = '#fef2f2'
-const DARK      = '#111827'
-const MID       = '#6b7280'
-const LIGHT_BG  = '#f9fafb'
-const BORDER    = '#e5e7eb'
-const WHITE     = '#ffffff'
-const GREEN     = '#15803d'
-const GREEN_BG  = '#f0fdf4'
+const RED        = '#d92127'
+const DARK       = '#1c1917'
+const MID        = '#6b7280'
+const WARM_MID   = '#78716c'
+const LIGHT_BG   = '#fafaf9'
+const BORDER     = '#e7e5e4'
+const BORDER_MID = '#d6d3d1'
+const WHITE      = '#ffffff'
+const GREEN      = '#16a34a'
+const GREEN_BG   = '#f0fdf4'
+const GREEN_BDR  = '#d1fae5'
+const GREEN_LINE = '#bbf7d0'
+const BLUE       = '#1d4ed8'
+const BLUE_BG    = '#eff6ff'
+const BLUE_BDR   = '#dbeafe'
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
@@ -40,78 +47,127 @@ const s = StyleSheet.create({
     fontFamily: 'Helvetica',
     fontSize: 10,
     color: DARK,
-    paddingTop: 0,
+    backgroundColor: WHITE,
     paddingBottom: 48,
     paddingHorizontal: 0,
   },
 
-  // ── Header band ──
-  headerBand: {
-    backgroundColor: DARK,
+  // ── White header ──
+  header: {
+    backgroundColor: WHITE,
     paddingHorizontal: 40,
-    paddingTop: 28,
-    paddingBottom: 22,
+    paddingTop: 26,
+    paddingBottom: 20,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-end',
-    marginBottom: 0,
-  },
-  headerAccent: {
-    height: 4,
-    backgroundColor: RED,
-    marginBottom: 20,
   },
   headerLogo: {
-    height: 38,
-    width: 140,
+    height: 34,
+    width: 130,
     objectFit: 'contain',
-    marginBottom: 6,
-  },
-  headerSubtitle: {
-    fontSize: 9,
-    color: '#9ca3af',
-    letterSpacing: 0.3,
   },
   headerRight: { alignItems: 'flex-end' },
-  headerQuoteNum: {
-    fontSize: 14,
-    fontFamily: 'Helvetica-Bold',
-    color: RED,
+  headerTag: {
+    fontSize: 7.5,
+    color: '#9ca3af',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
     marginBottom: 3,
   },
-  headerDate: { fontSize: 9, color: '#9ca3af' },
+  headerQuoteNum: {
+    fontSize: 13,
+    fontFamily: 'Helvetica-Bold',
+    color: RED,
+  },
+  headerDate: { fontSize: 9, color: '#9ca3af', marginTop: 2 },
+  redRule: { height: 2, backgroundColor: RED },
 
-  // ── Page body padding ──
+  // ── Price hero ──
+  priceHero: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+    paddingVertical: 18,
+    backgroundColor: LIGHT_BG,
+    borderBottomWidth: 1,
+    borderBottomColor: BORDER,
+  },
+  priceMain: {
+    fontSize: 34,
+    fontFamily: 'Helvetica-Bold',
+    color: RED,
+  },
+  priceMeta: { fontSize: 9, color: WARM_MID, marginTop: 4 },
+  priceDivider: {
+    width: 1,
+    height: 44,
+    backgroundColor: BORDER,
+    marginHorizontal: 28,
+  },
+  priceDescTitle: { fontSize: 11, fontFamily: 'Helvetica-Bold', color: DARK },
+  priceDescSub: { fontSize: 9, color: '#9ca3af', marginTop: 3 },
+
+  // ── Body ──
   body: { paddingHorizontal: 40 },
 
-  // ── Customer box ──
+  // ── KPI cards ──
+  kpiRow: {
+    flexDirection: 'row',
+    marginTop: 18,
+    marginBottom: 16,
+    gap: 8,
+  },
+  kpiCard: {
+    flex: 1,
+    backgroundColor: WHITE,
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderTopWidth: 3,
+    borderTopColor: RED,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  kpiValue: { fontSize: 15, fontFamily: 'Helvetica-Bold', color: DARK },
+  kpiLabel: {
+    fontSize: 7,
+    color: WARM_MID,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginTop: 4,
+    textAlign: 'center',
+  },
+
+  // ── Customer + validity ──
   customerRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginTop: 20,
-    marginBottom: 20,
+    gap: 14,
+    marginBottom: 18,
   },
   customerBox: {
     flex: 1,
     backgroundColor: LIGHT_BG,
-    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: BORDER,
     borderLeftWidth: 3,
     borderLeftColor: RED,
-    padding: 12,
-    marginRight: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
   validityBox: {
-    width: 140,
-    backgroundColor: RED_LIGHT,
-    borderRadius: 4,
-    padding: 12,
+    width: 148,
+    backgroundColor: LIGHT_BG,
+    borderWidth: 1,
+    borderColor: BORDER,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
     alignItems: 'center',
   },
   sectionLabel: {
     fontSize: 7,
     fontFamily: 'Helvetica-Bold',
-    color: MID,
+    color: WARM_MID,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
     marginBottom: 6,
@@ -123,19 +179,25 @@ const s = StyleSheet.create({
     marginBottom: 3,
   },
   customerDetail: { fontSize: 9, color: MID, marginBottom: 2 },
-  validityLabel: { fontSize: 7, fontFamily: 'Helvetica-Bold', color: RED, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4 },
-  validityValue: { fontSize: 10, fontFamily: 'Helvetica-Bold', color: DARK, textAlign: 'center' },
-  validityNote: { fontSize: 8, color: MID, marginTop: 2, textAlign: 'center' },
+  validityLabel: {
+    fontSize: 7,
+    fontFamily: 'Helvetica-Bold',
+    color: RED,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 4,
+  },
+  validityValue: { fontSize: 13, fontFamily: 'Helvetica-Bold', color: DARK, textAlign: 'center' },
+  validityNote: { fontSize: 8, color: '#9ca3af', marginTop: 3, textAlign: 'center' },
 
   // ── Scenario ──
-  scenarioWrap: { marginBottom: 24 },
-  scenarioHeader: {
+  scenarioWrap: { marginBottom: 20 },
+  scenarioBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: DARK,
-    borderRadius: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    backgroundColor: '#292524',
+    paddingHorizontal: 14,
+    paddingVertical: 9,
     marginBottom: 12,
   },
   scenarioBadge: {
@@ -143,104 +205,81 @@ const s = StyleSheet.create({
     color: WHITE,
     fontSize: 8,
     fontFamily: 'Helvetica-Bold',
-    paddingHorizontal: 7,
+    paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 3,
     marginRight: 10,
   },
-  scenarioName: { fontSize: 12, fontFamily: 'Helvetica-Bold', color: WHITE },
-
-  // ── KPI cards ──
-  kpiRow: {
-    flexDirection: 'row',
-    marginBottom: 14,
-    gap: 8,
-  },
-  kpiCard: {
-    flex: 1,
-    backgroundColor: LIGHT_BG,
-    borderRadius: 4,
-    borderTopWidth: 3,
-    borderTopColor: RED,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    alignItems: 'center',
-  },
-  kpiValue: {
-    fontSize: 15,
-    fontFamily: 'Helvetica-Bold',
-    color: DARK,
-    marginBottom: 2,
-  },
-  kpiLabel: { fontSize: 7, color: MID, textAlign: 'center' },
-
-  // ── System size line ──
-  systemLine: {
-    fontSize: 9,
-    color: MID,
-    marginBottom: 10,
-  },
-  systemBold: { fontFamily: 'Helvetica-Bold', color: DARK },
-
-  // ── Roof line ──
-  roofLine: { fontSize: 8, color: MID, marginBottom: 10 },
+  scenarioName: { fontSize: 11, fontFamily: 'Helvetica-Bold', color: WHITE },
 
   // ── Equipment table ──
   tableHeader: {
     flexDirection: 'row',
-    paddingVertical: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
     borderBottomWidth: 1,
-    borderBottomColor: BORDER,
-    marginBottom: 2,
+    borderBottomColor: BORDER_MID,
   },
-  tableHeaderText: { fontSize: 7, fontFamily: 'Helvetica-Bold', color: MID, textTransform: 'uppercase', letterSpacing: 0.5 },
+  tableHeaderText: {
+    fontSize: 7,
+    fontFamily: 'Helvetica-Bold',
+    color: WARM_MID,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
   tableRow: {
     flexDirection: 'row',
-    paddingVertical: 5,
+    paddingVertical: 7,
+    paddingHorizontal: 8,
     borderBottomWidth: 0.5,
     borderBottomColor: BORDER,
   },
   tableRowAlt: { backgroundColor: LIGHT_BG },
-  tableQty: { width: 28, fontSize: 9, fontFamily: 'Helvetica-Bold', color: RED, textAlign: 'right', marginRight: 8 },
-  tableName: { flex: 1, fontSize: 9, color: DARK },
-  tableCategory: { width: 68, fontSize: 8, color: MID, textAlign: 'right' },
-
-  // ── Pricing ──
-  pricingWrap: {
-    flexDirection: 'row',
-    marginTop: 12,
-    gap: 8,
+  tableQty: {
+    width: 32,
+    fontSize: 9,
+    fontFamily: 'Helvetica-Bold',
+    color: RED,
   },
-  pricingBox: {
+  tableName: { flex: 1, fontSize: 9, color: DARK },
+  tableCategory: { width: 80, fontSize: 8, color: WARM_MID, textAlign: 'right' },
+
+  // ── Financial + ROI ──
+  finWrap: {
+    flexDirection: 'row',
+    marginTop: 14,
+    gap: 14,
+  },
+  finBox: {
     flex: 1,
     backgroundColor: LIGHT_BG,
-    borderRadius: 4,
-    padding: 12,
+    borderWidth: 1,
+    borderColor: BORDER,
+    padding: 14,
   },
-  pricingRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
-  pricingLabel: { fontSize: 9, color: MID },
-  pricingValue: { fontSize: 9, color: DARK },
-  pricingDivider: { borderTopWidth: 0.5, borderTopColor: BORDER, marginVertical: 6 },
-  pricingTotalRow: {
+  finRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 },
+  finLabel: { fontSize: 9, color: MID },
+  finValue: { fontSize: 9, color: DARK },
+  finDivider: { borderTopWidth: 0.5, borderTopColor: BORDER, marginVertical: 8 },
+  finTotalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     backgroundColor: RED,
-    borderRadius: 3,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    marginTop: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    marginTop: 6,
   },
-  pricingTotalLabel: { fontSize: 11, fontFamily: 'Helvetica-Bold', color: WHITE },
-  pricingTotalValue: { fontSize: 11, fontFamily: 'Helvetica-Bold', color: WHITE },
+  finTotalLabel: { fontSize: 11, fontFamily: 'Helvetica-Bold', color: WHITE },
+  finTotalValue: { fontSize: 11, fontFamily: 'Helvetica-Bold', color: WHITE },
 
   // ── ROI box ──
   roiBox: {
     flex: 1,
     backgroundColor: GREEN_BG,
-    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: GREEN_BDR,
     borderLeftWidth: 3,
     borderLeftColor: GREEN,
-    padding: 12,
+    padding: 14,
   },
   roiTitle: {
     fontSize: 7,
@@ -255,11 +294,41 @@ const s = StyleSheet.create({
   roiValue: { fontSize: 9, fontFamily: 'Helvetica-Bold', color: DARK },
   roiUnavailable: { fontSize: 8, color: MID, fontFamily: 'Helvetica-Oblique', marginTop: 4 },
 
+  // ── Subsidy strip ──
+  subsidyStrip: {
+    flexDirection: 'row',
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: BLUE_BDR,
+  },
+  subsidyItem: {
+    flex: 1,
+    backgroundColor: BLUE_BG,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRightWidth: 1,
+    borderRightColor: BLUE_BDR,
+  },
+  subsidyItemLast: {
+    borderRightWidth: 0,
+  },
+  subsidyLabel: {
+    fontSize: 7,
+    color: MID,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginBottom: 3,
+  },
+  subsidyValue: { fontSize: 10, fontFamily: 'Helvetica-Bold', color: BLUE },
+  subsidyValueNeutral: { fontSize: 10, fontFamily: 'Helvetica-Bold', color: DARK },
+  subsidyNote: { fontSize: 7, color: '#93c5fd', marginTop: 2 },
+
   // ── Notes ──
   notesBox: {
     marginTop: 16,
     backgroundColor: LIGHT_BG,
-    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: BORDER,
     padding: 12,
   },
   notesText: { fontSize: 9, color: MID },
@@ -276,7 +345,7 @@ const s = StyleSheet.create({
     borderTopColor: BORDER,
     paddingTop: 6,
   },
-  footerText: { fontSize: 8, color: MID },
+  footerText: { fontSize: 8, color: '#9ca3af' },
 })
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -288,19 +357,6 @@ const CATEGORY_FR: Record<string, string> = {
   MOUNTING: 'Fixation',
   ACCESSORY: 'Accessoire',
   EV_CHARGER: 'Borne EV',
-}
-
-const ROOF_TYPE_FR: Record<string, string> = {
-  tuile: 'Tuile',
-  ardoise: 'Ardoise',
-  bac_acier: 'Bac acier',
-  plat: 'Plat',
-}
-
-const ROOF_SLOPE_FR: Record<string, string> = {
-  simple: 'Pente simple',
-  moyen: 'Pente moyenne',
-  complexe: 'Pente complexe',
 }
 
 function formatDate(d: Date | string) {
@@ -330,6 +386,7 @@ interface Props {
 export default function QuotePdf({ quote, scenarios, mapImageDataUrl }: Props) {
   const generatedDate = formatDate(new Date())
   const validUntil = addDays(new Date(), 30)
+  const firstScenario = scenarios[0] ?? null
 
   return (
     <Document
@@ -338,19 +395,75 @@ export default function QuotePdf({ quote, scenarios, mapImageDataUrl }: Props) {
       subject="Offre commerciale installation photovoltaïque"
     >
       <Page size="A4" style={s.page}>
-        {/* ── Header band ── */}
-        <View style={s.headerBand} fixed>
-          <View>
-            <Image src={LOGO_PATH} style={s.headerLogo} />
-            <Text style={s.headerSubtitle}>Offre commerciale — Installation photovoltaïque</Text>
-          </View>
+
+        {/* ── White header ── */}
+        <View style={s.header} fixed>
+          <Image src={LOGO_PATH} style={s.headerLogo} />
           <View style={s.headerRight}>
+            <Text style={s.headerTag}>Offre commerciale</Text>
             <Text style={s.headerQuoteNum}>{quote.quoteNumber}</Text>
             <Text style={s.headerDate}>{formatDate(quote.createdAt)}</Text>
           </View>
         </View>
+        <View style={s.redRule} fixed />
+
+        {/* ── Price hero ── */}
+        {firstScenario ? (
+          <View style={s.priceHero}>
+            <View>
+              <Text style={s.priceMain}>{formatChf(firstScenario.sellingPriceIncVatRappen)}</Text>
+              <Text style={s.priceMeta}>
+                Total TTC — TVA {formatPct(firstScenario.vatPctBasisPts)} incluse
+              </Text>
+            </View>
+            <View style={s.priceDivider} />
+            <View>
+              <Text style={s.priceDescTitle}>{firstScenario.name}</Text>
+              <Text style={s.priceDescSub}>
+                Offre valable jusqu&apos;au {validUntil} · 30 jours dès émission
+              </Text>
+            </View>
+          </View>
+        ) : null}
 
         <View style={s.body}>
+
+          {/* ── KPI cards (first / only scenario summary) ── */}
+          {firstScenario ? (
+            <View style={s.kpiRow}>
+              {firstScenario.installedKwp != null ? (
+                <View style={s.kpiCard}>
+                  <Text style={s.kpiValue}>{fmtKwp(firstScenario.installedKwp)} kWp</Text>
+                  <Text style={s.kpiLabel}>Puissance installée</Text>
+                </View>
+              ) : null}
+              {firstScenario.annualKwhYield != null ? (
+                <View style={s.kpiCard}>
+                  <Text style={s.kpiValue}>
+                    {Math.round(firstScenario.annualKwhYield).toLocaleString('fr-CH')} kWh
+                  </Text>
+                  <Text style={s.kpiLabel}>Production annuelle</Text>
+                </View>
+              ) : null}
+              <View style={s.kpiCard}>
+                <Text style={s.kpiValue}>
+                  {firstScenario.paybackYears != null
+                    ? `${firstScenario.paybackYears.toFixed(1)} ans`
+                    : '—'}
+                </Text>
+                <Text style={s.kpiLabel}>Retour investissement</Text>
+              </View>
+              {firstScenario.paybackYearsWithSubsidy != null ? (
+                <View style={s.kpiCard}>
+                  <Text style={s.kpiValue}>
+                    {firstScenario.paybackYearsWithSubsidy.toFixed(1)} ans
+                  </Text>
+                  <Text style={s.kpiLabel}>Avec aides &amp; Pronovo</Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+
           {/* ── Customer + validity ── */}
           <View style={s.customerRow}>
             <View style={s.customerBox}>
@@ -403,10 +516,12 @@ export default function QuotePdf({ quote, scenarios, mapImageDataUrl }: Props) {
           {/* ── Aerial site map ── */}
           {mapImageDataUrl ? (
             <View style={{ marginTop: 16 }}>
-              <Text style={[s.sectionLabel, { marginBottom: 6 }]}>Vue aérienne du site d&apos;installation</Text>
+              <Text style={[s.sectionLabel, { marginBottom: 6 }]}>
+                Vue aérienne du site d&apos;installation
+              </Text>
               <Image
                 src={mapImageDataUrl}
-                style={{ width: '100%', height: 220, objectFit: 'cover', borderRadius: 4 }}
+                style={{ width: '100%', height: 220, objectFit: 'cover' }}
               />
               <Text style={{ fontSize: 7, color: MID, marginTop: 3 }}>
                 © swisstopo — Image aérienne à titre indicatif
@@ -421,17 +536,19 @@ export default function QuotePdf({ quote, scenarios, mapImageDataUrl }: Props) {
               <Text style={s.notesText}>{quote.notes}</Text>
             </View>
           ) : null}
+
         </View>
 
         {/* ── Footer ── */}
         <View style={s.footer} fixed>
           <Text style={s.footerText}>I.ON Energy Services</Text>
-          <Text style={s.footerText}>Généré le {generatedDate}</Text>
+          <Text style={s.footerText}>Offre commerciale — Installation photovoltaïque</Text>
           <Text
             style={s.footerText}
             render={({ pageNumber, totalPages }) => `Page ${pageNumber} / ${totalPages}`}
           />
         </View>
+
       </Page>
     </Document>
   )
@@ -452,59 +569,20 @@ function ScenarioSection({
 
   return (
     <View style={s.scenarioWrap} break={index > 0}>
-      {/* Header */}
-      <View style={s.scenarioHeader}>
+
+      {/* Scenario bar */}
+      <View style={s.scenarioBar}>
         {total > 1 ? (
           <Text style={s.scenarioBadge}>Option {index + 1}</Text>
         ) : null}
         <Text style={s.scenarioName}>{scenario.name}</Text>
       </View>
 
-      {/* KPI cards */}
-      <View style={s.kpiRow}>
-        {scenario.installedKwp != null ? (
-          <View style={s.kpiCard}>
-            <Text style={s.kpiValue}>{fmtKwp(scenario.installedKwp)} kWp</Text>
-            <Text style={s.kpiLabel}>
-              {scenario.panelCount > 0 && scenario.panelPowerWp
-                ? `${scenario.panelCount} × ${scenario.panelPowerWp} Wp`
-                : `${scenario.panelCount} panneau${scenario.panelCount > 1 ? 'x' : ''}`}
-            </Text>
-          </View>
-        ) : null}
-        {scenario.annualKwhYield != null ? (
-          <View style={s.kpiCard}>
-            <Text style={s.kpiValue}>
-              {Math.round(scenario.annualKwhYield).toLocaleString('fr-CH')} kWh
-            </Text>
-            <Text style={s.kpiLabel}>Production annuelle estimée</Text>
-          </View>
-        ) : null}
-        {scenario.paybackYears != null ? (
-          <View style={s.kpiCard}>
-            <Text style={s.kpiValue}>{scenario.paybackYears.toFixed(1)} ans</Text>
-            <Text style={s.kpiLabel}>Retour sur investissement</Text>
-          </View>
-        ) : (
-          <View style={s.kpiCard}>
-            <Text style={s.kpiValue}>—</Text>
-            <Text style={s.kpiLabel}>Retour sur investissement{'\n'}(NPA requis)</Text>
-          </View>
-        )}
-      </View>
-
-      {/* Roof info */}
-      <Text style={s.roofLine}>
-        Toiture : {ROOF_TYPE_FR[scenario.roofType] ?? scenario.roofType}
-        {'  ·  '}
-        {ROOF_SLOPE_FR[scenario.roofSlope] ?? scenario.roofSlope}
-      </Text>
-
       {/* Equipment table */}
       <View style={s.tableHeader}>
-        <View style={{ width: 36 }} />
+        <View style={{ width: 40 }} />
         <Text style={[s.tableHeaderText, { flex: 1 }]}>Désignation</Text>
-        <Text style={[s.tableHeaderText, { width: 68, textAlign: 'right' }]}>Catégorie</Text>
+        <Text style={[s.tableHeaderText, { width: 80, textAlign: 'right' }]}>Catégorie</Text>
       </View>
       {scenario.items.map((item, i) => (
         <View key={i} style={[s.tableRow, i % 2 === 1 ? s.tableRowAlt : {}]}>
@@ -514,36 +592,41 @@ function ScenarioSection({
         </View>
       ))}
       {scenario.options.map((opt, i) => (
-        <View key={i} style={[s.tableRow, (scenario.items.length + i) % 2 === 1 ? s.tableRowAlt : {}]}>
+        <View
+          key={i}
+          style={[s.tableRow, (scenario.items.length + i) % 2 === 1 ? s.tableRowAlt : {}]}
+        >
           <Text style={s.tableQty}>1×</Text>
           <Text style={s.tableName}>{opt.name}</Text>
           <Text style={s.tableCategory}>Service</Text>
         </View>
       ))}
 
-      {/* Pricing + ROI side by side */}
-      <View style={s.pricingWrap}>
-        {/* Pricing */}
-        <View style={s.pricingBox}>
+      {/* Financial + ROI side by side */}
+      <View style={s.finWrap}>
+
+        {/* Pricing box */}
+        <View style={s.finBox}>
           <Text style={s.sectionLabel}>Récapitulatif financier</Text>
-          <View style={s.pricingRow}>
-            <Text style={s.pricingLabel}>Prix HT</Text>
-            <Text style={s.pricingValue}>{formatChf(scenario.sellingPriceExVatRappen)}</Text>
+          <View style={s.finRow}>
+            <Text style={s.finLabel}>Prix HT</Text>
+            <Text style={s.finValue}>{formatChf(scenario.sellingPriceExVatRappen)}</Text>
           </View>
-          <View style={s.pricingRow}>
-            <Text style={s.pricingLabel}>TVA ({vatPct})</Text>
-            <Text style={s.pricingValue}>{formatChf(scenario.vatRappen)}</Text>
+          <View style={s.finRow}>
+            <Text style={s.finLabel}>TVA ({vatPct})</Text>
+            <Text style={s.finValue}>{formatChf(scenario.vatRappen)}</Text>
           </View>
-          <View style={s.pricingDivider} />
-          <View style={s.pricingTotalRow}>
-            <Text style={s.pricingTotalLabel}>Total TTC</Text>
-            <Text style={s.pricingTotalValue}>{formatChf(scenario.sellingPriceIncVatRappen)}</Text>
+          <View style={s.finDivider} />
+          <View style={s.finTotalRow}>
+            <Text style={s.finTotalLabel}>Total TTC</Text>
+            <Text style={s.finTotalValue}>{formatChf(scenario.sellingPriceIncVatRappen)}</Text>
           </View>
         </View>
 
-        {/* ROI */}
+        {/* ROI box */}
         <View style={s.roiBox}>
           <Text style={s.roiTitle}>Rentabilité estimée</Text>
+
           {scenario.annualKwhYield != null ? (
             <View style={s.roiRow}>
               <Text style={s.roiLabel}>Production annuelle</Text>
@@ -553,7 +636,6 @@ function ScenarioSection({
             </View>
           ) : null}
 
-          {/* Self-consumption split */}
           {scenario.selfConsumedKwh != null && scenario.selfConsumptionRatePct != null ? (
             <View style={s.roiRow}>
               <Text style={s.roiLabel}>
@@ -561,29 +643,42 @@ function ScenarioSection({
               </Text>
               <Text style={s.roiValue}>
                 {scenario.selfConsumedKwh.toLocaleString('fr-CH')} kWh
-                {scenario.selfConsumptionSavingsRappen != null ? `  ·  ${formatChf(scenario.selfConsumptionSavingsRappen)}` : ''}
+                {scenario.selfConsumptionSavingsRappen != null
+                  ? `  ·  ${formatChf(scenario.selfConsumptionSavingsRappen)}`
+                  : ''}
               </Text>
             </View>
           ) : null}
+
           {scenario.exportedKwh != null && scenario.selfConsumptionRatePct != null ? (
             <View style={s.roiRow}>
               <Text style={s.roiLabel}>
                 Injection réseau ({100 - scenario.selfConsumptionRatePct}%)
-                {scenario.feedInRateRappenPerKwh != null ? `  @  ${scenario.feedInRateRappenPerKwh} ct/kWh` : ''}
+                {scenario.feedInRateRappenPerKwh != null
+                  ? `  @  ${scenario.feedInRateRappenPerKwh} ct/kWh`
+                  : ''}
               </Text>
               <Text style={s.roiValue}>
                 {scenario.exportedKwh.toLocaleString('fr-CH')} kWh
-                {scenario.exportRevenueRappen != null ? `  ·  ${formatChf(scenario.exportRevenueRappen)}` : ''}
+                {scenario.exportRevenueRappen != null
+                  ? `  ·  ${formatChf(scenario.exportRevenueRappen)}`
+                  : ''}
               </Text>
             </View>
           ) : null}
 
           {scenario.annualSavingsRappen != null ? (
-            <View style={[s.roiRow, { borderTopWidth: 0.5, borderTopColor: '#bbf7d0', marginTop: 3, paddingTop: 3 }]}>
+            <View style={[s.roiRow, {
+              borderTopWidth: 0.5, borderTopColor: GREEN_LINE,
+              marginTop: 3, paddingTop: 4,
+            }]}>
               <Text style={[s.roiLabel, { fontFamily: 'Helvetica-Bold' }]}>Valeur annuelle totale</Text>
-              <Text style={[s.roiValue, { fontFamily: 'Helvetica-Bold' }]}>{formatChf(scenario.annualSavingsRappen)}</Text>
+              <Text style={[s.roiValue, { fontFamily: 'Helvetica-Bold' }]}>
+                {formatChf(scenario.annualSavingsRappen)}
+              </Text>
             </View>
           ) : null}
+
           {scenario.paybackYears != null ? (
             <View style={s.roiRow}>
               <Text style={s.roiLabel}>Amortissement brut</Text>
@@ -591,48 +686,14 @@ function ScenarioSection({
             </View>
           ) : null}
 
-          {/* Rate context */}
-          {(scenario.rateRappenPerKwh != null || scenario.feedInRateRappenPerKwh != null) ? (
-            <View style={{ marginTop: 4, paddingTop: 4, borderTopWidth: 0.5, borderTopColor: '#bbf7d0' }}>
-              {scenario.rateRappenPerKwh != null ? (
-                <View style={s.roiRow}>
-                  <Text style={[s.roiLabel, { color: '#6b7280' }]}>Tarif consommation (ElCom)</Text>
-                  <Text style={[s.roiValue, { color: '#6b7280' }]}>{scenario.rateRappenPerKwh.toFixed(2)} ct/kWh</Text>
-                </View>
-              ) : null}
-            </View>
-          ) : null}
-
-          {/* Subsidies */}
-          {(scenario.pronovoSubsidyRappen != null || scenario.taxSavingsRappen != null) ? (
-            <View style={{ marginTop: 6, paddingTop: 6, borderTopWidth: 0.5, borderTopColor: '#bbf7d0' }}>
-              <Text style={[s.roiTitle, { color: '#1d4ed8', marginBottom: 4 }]}>Aides &amp; déductions</Text>
-              {scenario.pronovoSubsidyRappen != null ? (
-                <View style={s.roiRow}>
-                  <Text style={s.roiLabel}>Subvention Pronovo (PRU)</Text>
-                  <Text style={[s.roiValue, { color: '#1d4ed8' }]}>−{formatChf(scenario.pronovoSubsidyRappen)}</Text>
-                </View>
-              ) : null}
-              {scenario.taxSavingsRappen != null ? (
-                <View style={s.roiRow}>
-                  <Text style={s.roiLabel}>Déduction fiscale (est. 20%)</Text>
-                  <Text style={[s.roiValue, { color: '#1d4ed8' }]}>−{formatChf(scenario.taxSavingsRappen)}</Text>
-                </View>
-              ) : null}
-              {scenario.effectiveInvestmentRappen != null ? (
-                <View style={s.roiRow}>
-                  <Text style={[s.roiLabel, { fontFamily: 'Helvetica-Bold' }]}>Investissement net</Text>
-                  <Text style={[s.roiValue, { fontFamily: 'Helvetica-Bold' }]}>{formatChf(scenario.effectiveInvestmentRappen)}</Text>
-                </View>
-              ) : null}
-              {scenario.paybackYearsWithSubsidy != null ? (
-                <View style={s.roiRow}>
-                  <Text style={[s.roiLabel, { fontFamily: 'Helvetica-Bold' }]}>Amortissement avec aides</Text>
-                  <Text style={[s.roiValue, { fontFamily: 'Helvetica-Bold', color: GREEN }]}>{scenario.paybackYearsWithSubsidy.toFixed(1)} ans</Text>
-                </View>
-              ) : null}
-              <Text style={[s.roiUnavailable, { marginTop: 3 }]}>
-                Subvention Pronovo indicative · Déduction fiscale estimée à 20% du HT
+          {scenario.rateRappenPerKwh != null ? (
+            <View style={[s.roiRow, {
+              marginTop: 4, paddingTop: 4,
+              borderTopWidth: 0.5, borderTopColor: GREEN_LINE,
+            }]}>
+              <Text style={[s.roiLabel, { color: WARM_MID }]}>Tarif consommation (ElCom)</Text>
+              <Text style={[s.roiValue, { color: WARM_MID }]}>
+                {scenario.rateRappenPerKwh.toFixed(2)} ct/kWh
               </Text>
             </View>
           ) : null}
@@ -640,12 +701,63 @@ function ScenarioSection({
           {scenario.annualSavingsRappen == null ? (
             <Text style={s.roiUnavailable}>
               {scenario.annualKwhYield != null
-                ? 'Saisissez l\'adresse du site pour calculer les économies.'
+                ? "Saisissez l'adresse du site pour calculer les économies."
                 : 'Aucun panneau — données insuffisantes.'}
             </Text>
           ) : null}
         </View>
+
       </View>
+
+      {/* Subsidy strip — shown when Pronovo or tax data is available */}
+      {(scenario.pronovoSubsidyRappen != null ||
+        scenario.taxSavingsRappen != null ||
+        scenario.effectiveInvestmentRappen != null ||
+        scenario.rateRappenPerKwh != null) ? (
+        <View style={s.subsidyStrip}>
+          {scenario.pronovoSubsidyRappen != null ? (
+            <View style={s.subsidyItem}>
+              <Text style={s.subsidyLabel}>Subvention Pronovo</Text>
+              <Text style={s.subsidyValue}>−{formatChf(scenario.pronovoSubsidyRappen)}</Text>
+              <Text style={s.subsidyNote}>Indicatif — validation OFEN</Text>
+            </View>
+          ) : null}
+          {scenario.taxSavingsRappen != null ? (
+            <View style={s.subsidyItem}>
+              <Text style={s.subsidyLabel}>Déduction fiscale (est.)</Text>
+              <Text style={s.subsidyValue}>−{formatChf(scenario.taxSavingsRappen)}</Text>
+              <Text style={s.subsidyNote}>~20% du prix HT</Text>
+            </View>
+          ) : null}
+          {scenario.effectiveInvestmentRappen != null ? (
+            <View style={s.subsidyItem}>
+              <Text style={s.subsidyLabel}>Investissement net</Text>
+              <Text style={s.subsidyValueNeutral}>
+                {formatChf(scenario.effectiveInvestmentRappen)}
+              </Text>
+              <Text style={s.subsidyNote}>Après aides &amp; déductions</Text>
+            </View>
+          ) : null}
+          {scenario.paybackYearsWithSubsidy != null ? (
+            <View style={[s.subsidyItem, s.subsidyItemLast]}>
+              <Text style={s.subsidyLabel}>Amortissement avec aides</Text>
+              <Text style={[s.subsidyValue, { color: GREEN }]}>
+                {scenario.paybackYearsWithSubsidy.toFixed(1)} ans
+              </Text>
+              <Text style={s.subsidyNote}>Pronovo + déduction fiscale</Text>
+            </View>
+          ) : scenario.rateRappenPerKwh != null ? (
+            <View style={[s.subsidyItem, s.subsidyItemLast]}>
+              <Text style={s.subsidyLabel}>Tarif élec. (ElCom)</Text>
+              <Text style={s.subsidyValueNeutral}>
+                {scenario.rateRappenPerKwh.toFixed(2)} ct/kWh
+              </Text>
+              <Text style={s.subsidyNote}>Tarif réseau local</Text>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+
     </View>
   )
 }
