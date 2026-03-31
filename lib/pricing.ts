@@ -444,6 +444,202 @@ export function buildIonCoefficientsFromSettings(
 export type RoofType = 'tuile' | 'ardoise' | 'bac_acier' | 'plat'
 export type RoofSlope = 'simple' | 'moyen' | 'complexe'
 
+// ─── I.ON Energy PAC (Heat Pump) Pricing Model ───────────────────────────────
+
+/**
+ * PAC pricing coefficients — sourced from Sales List-PAC-2026.xlsx Data sheet.
+ *
+ * Key differences from PV model:
+ *   1. Admin rate is applied to mat_net (not full appro chain)
+ *   2. Sales overhead is ADDITIVE (not a divisor)
+ *   3. Labor ("Main-d'oeuvre") is stored per product, not per category
+ */
+export interface PacPricingCoefficients {
+  pac_accessories_bps: number     // 300  = 3%   — material accessories markup
+  pac_frais_supp_bps: number      // 200  = 2%   — frais supplémentaires
+  pac_transport_bps: number       // 500  = 5%   — transport
+  pac_pm_bps: number              // 600  = 6%   — project management (on appro+labor)
+  pac_admin_bps: number           // 600  = 6%   — admin (on mat_net only ← differs from PV)
+  pac_sales_overhead_bps: number  // 1500 = 15%  — sales overhead (additive ← differs from PV)
+  pac_profit_appro_bps: number    // 2700 = 27%  — profit on procurement
+  pac_profit_constr_bps: number   // 2700 = 27%  — profit on construction
+  vatBasisPts: number
+}
+
+export const DEFAULT_PAC_COEFFICIENTS: PacPricingCoefficients = {
+  pac_accessories_bps: 300,
+  pac_frais_supp_bps: 200,
+  pac_transport_bps: 500,
+  pac_pm_bps: 600,
+  pac_admin_bps: 600,
+  pac_sales_overhead_bps: 1500,
+  pac_profit_appro_bps: 2700,
+  pac_profit_constr_bps: 2700,
+  vatBasisPts: 810,
+}
+
+/** Setting keys for PAC coefficients — consumed by admin UI and API route. */
+export const PAC_SETTING_KEYS = [
+  'pac_accessories_bps',
+  'pac_frais_supp_bps',
+  'pac_transport_bps',
+  'pac_pm_bps',
+  'pac_admin_bps',
+  'pac_sales_overhead_bps',
+  'pac_profit_appro_bps',
+  'pac_profit_constr_bps',
+] as const
+
+/**
+ * Build PacPricingCoefficients from a DB settings map.
+ * Falls back to DEFAULT_PAC_COEFFICIENTS for any missing key.
+ */
+export function buildPacCoefficientsFromSettings(
+  settingsMap: Record<string, number>,
+  vatBasisPts: number
+): PacPricingCoefficients {
+  const D = DEFAULT_PAC_COEFFICIENTS
+  return {
+    pac_accessories_bps:    settingsMap['pac_accessories_bps']    ?? D.pac_accessories_bps,
+    pac_frais_supp_bps:     settingsMap['pac_frais_supp_bps']     ?? D.pac_frais_supp_bps,
+    pac_transport_bps:      settingsMap['pac_transport_bps']      ?? D.pac_transport_bps,
+    pac_pm_bps:             settingsMap['pac_pm_bps']             ?? D.pac_pm_bps,
+    pac_admin_bps:          settingsMap['pac_admin_bps']          ?? D.pac_admin_bps,
+    pac_sales_overhead_bps: settingsMap['pac_sales_overhead_bps'] ?? D.pac_sales_overhead_bps,
+    pac_profit_appro_bps:   settingsMap['pac_profit_appro_bps']   ?? D.pac_profit_appro_bps,
+    pac_profit_constr_bps:  settingsMap['pac_profit_constr_bps']  ?? D.pac_profit_constr_bps,
+    vatBasisPts,
+  }
+}
+
+export interface PacPricingProduct {
+  /** Material cost in Rappen per unit */
+  costRappen: number
+  /** Labor cost in Rappen per unit (0 for material-only products) */
+  laborRappen: number
+  quantity: number
+}
+
+export interface PacPricingBreakdown {
+  // Intermediate procurement values
+  totalMatNetRappen: number     // Σ (cost × (1+acc)) × qty  — used for admin calc
+  totalApproRappen: number      // Σ (mat_net × (1+frais_supp+transport)) × qty
+  totalLaborRappen: number      // Σ labor × qty
+  // Construction
+  pmRappen: number              // (appro + labor) × pm_rate
+  adminRappen: number           // mat_net × admin_rate  ← based on mat_net, not appro
+  constructionRappen: number    // labor + pm + admin
+  // Overhead & profit
+  salesOverheadRappen: number   // (appro + labor) × overhead_rate  ← additive, not a divisor
+  profitApproRappen: number     // appro × profit_appro_rate
+  profitConstrRappen: number    // construction × profit_constr_rate
+  // Final
+  sellingPriceExVatRappen: number
+  vatRappen: number
+  sellingPriceIncVatRappen: number
+  effectiveMarginBasisPts: number
+  rawCostRappen: number         // sum of (material + labor) costs before markup (reference)
+}
+
+/**
+ * Calculate selling price using the I.ON Energy PAC (heat pump) Excel pricing model.
+ *
+ * Data flow (from Sales List-PAC-2026.xlsx):
+ *
+ *   per product:
+ *     mat_net  = cost × (1 + acc)
+ *     appro    = mat_net × (1 + frais_supp + transport)
+ *
+ *   totals:
+ *     total_appro    = Σ appro × qty
+ *     total_mat_net  = Σ mat_net × qty     ← admin is based on THIS, not appro
+ *     total_labor    = Σ labor × qty
+ *
+ *   construction:
+ *     pm           = (total_appro + total_labor) × 6%
+ *     admin        = total_mat_net × 6%    ← key difference vs PV
+ *     construction = total_labor + pm + admin
+ *
+ *   overhead & profit:
+ *     sales_overhead = (total_appro + total_labor) × 15%  ← additive, not divisor
+ *     profit_appro   = total_appro × 27%
+ *     profit_constr  = construction × 27%
+ *
+ *   PRIX HT = total_appro + construction + sales_overhead + profit_appro + profit_constr
+ */
+export function calculatePacPrice(
+  products: PacPricingProduct[],
+  coeff: PacPricingCoefficients
+): PacPricingBreakdown {
+  const acc = coeff.pac_accessories_bps / 10000
+  const fraisSupp = coeff.pac_frais_supp_bps / 10000
+  const transport = coeff.pac_transport_bps / 10000
+  const pmRate = coeff.pac_pm_bps / 10000
+  const adminRate = coeff.pac_admin_bps / 10000
+  const overheadRate = coeff.pac_sales_overhead_bps / 10000
+  const profitApproRate = coeff.pac_profit_appro_bps / 10000
+  const profitConstrRate = coeff.pac_profit_constr_bps / 10000
+  const vat = coeff.vatBasisPts / 10000
+
+  // Accumulate procurement totals
+  let totalMatNetRappen = 0
+  let totalApproRappen = 0
+  let totalLaborRappen = 0
+
+  for (const p of products) {
+    const qty = p.quantity
+    const matNet = p.costRappen * (1 + acc)
+    const appro = matNet * (1 + fraisSupp + transport)
+    totalMatNetRappen += matNet * qty
+    totalApproRappen += appro * qty
+    totalLaborRappen += p.laborRappen * qty
+  }
+
+  // Construction
+  const pmRappen = Math.round((totalApproRappen + totalLaborRappen) * pmRate)
+  const adminRappen = Math.round(totalMatNetRappen * adminRate)
+  const constructionRappen = Math.round(totalLaborRappen) + pmRappen + adminRappen
+
+  // Overhead & profit (all additive — no divisor)
+  const salesOverheadRappen = Math.round((totalApproRappen + totalLaborRappen) * overheadRate)
+  const profitApproRappen = Math.round(totalApproRappen * profitApproRate)
+  const profitConstrRappen = Math.round(constructionRappen * profitConstrRate)
+
+  // Final price
+  const sellingPriceExVatRappen = Math.round(totalApproRappen)
+    + constructionRappen
+    + salesOverheadRappen
+    + profitApproRappen
+    + profitConstrRappen
+  const vatRappen = Math.round(sellingPriceExVatRappen * vat)
+  const sellingPriceIncVatRappen = sellingPriceExVatRappen + vatRappen
+
+  const rawCostRappen = products.reduce(
+    (s, p) => s + (p.costRappen + p.laborRappen) * p.quantity,
+    0
+  )
+  const effectiveMarginBasisPts = sellingPriceExVatRappen > 0
+    ? Math.round(((sellingPriceExVatRappen - rawCostRappen) / sellingPriceExVatRappen) * 10000)
+    : 0
+
+  return {
+    totalMatNetRappen: Math.round(totalMatNetRappen),
+    totalApproRappen: Math.round(totalApproRappen),
+    totalLaborRappen: Math.round(totalLaborRappen),
+    pmRappen,
+    adminRappen,
+    constructionRappen,
+    salesOverheadRappen,
+    profitApproRappen,
+    profitConstrRappen,
+    sellingPriceExVatRappen,
+    vatRappen,
+    sellingPriceIncVatRappen,
+    effectiveMarginBasisPts,
+    rawCostRappen,
+  }
+}
+
 /**
  * Calculate selling price using the I.ON Energy Excel pricing model.
  *
