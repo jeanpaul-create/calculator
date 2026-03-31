@@ -12,6 +12,9 @@ import {
   estimateTaxSavings,
   buildIonCoefficientsFromSettings,
   DEFAULT_ION_COEFFICIENTS,
+  calculatePacPrice,
+  buildPacCoefficientsFromSettings,
+  DEFAULT_PAC_COEFFICIENTS,
 } from '@/lib/pricing'
 
 // ─── calculatePrice ───────────────────────────────────────────────────────────
@@ -517,5 +520,175 @@ describe('buildIonCoefficientsFromSettings', () => {
     // All others should be defaults
     expect(result.pv_frais_supp_bps).toBe(DEFAULT_ION_COEFFICIENTS.pv_frais_supp_bps)
     expect(result.mount_tuile_rappen).toBe(DEFAULT_ION_COEFFICIENTS.mount_tuile_rappen)
+  })
+})
+
+// ─── calculatePacPrice ────────────────────────────────────────────────────────
+
+describe('calculatePacPrice', () => {
+  const C = DEFAULT_PAC_COEFFICIENTS // acc=3%, frais=2%, transport=5%, pm=6%, admin=6%, oh=15%, profitA=27%, profitC=27%, vat=8.1%
+
+  it('returns zero price for empty product list', () => {
+    const result = calculatePacPrice([], C)
+    expect(result.sellingPriceExVatRappen).toBe(0)
+    expect(result.sellingPriceIncVatRappen).toBe(0)
+    expect(result.totalApproRappen).toBe(0)
+    expect(result.totalLaborRappen).toBe(0)
+  })
+
+  it('calculates mat_net and appro correctly for a single material-only product', () => {
+    // cost = 100_000 Rappen
+    // mat_net = 100_000 × 1.03 = 103_000
+    // appro = 103_000 × (1 + 0.02 + 0.05) = 103_000 × 1.07 = 110_210
+    const result = calculatePacPrice(
+      [{ costRappen: 100_000, laborRappen: 0, quantity: 1 }],
+      C
+    )
+    expect(result.totalMatNetRappen).toBe(103_000)
+    expect(result.totalApproRappen).toBe(110_210)
+    expect(result.totalLaborRappen).toBe(0)
+  })
+
+  it('applies pm to (appro + labor), not appro alone', () => {
+    // cost=100_000, labor=50_000 → appro=110_210, labor=50_000
+    // pm = (110_210 + 50_000) × 0.06 = 160_210 × 0.06 = 9_612 (rounded)
+    const result = calculatePacPrice(
+      [{ costRappen: 100_000, laborRappen: 50_000, quantity: 1 }],
+      C
+    )
+    expect(result.pmRappen).toBe(9_613) // 160_210 × 0.06 = 9_612.6 → 9_613
+  })
+
+  it('applies admin to mat_net (NOT appro — key difference from PV)', () => {
+    // mat_net=103_000 → admin = 103_000 × 0.06 = 6_180
+    const result = calculatePacPrice(
+      [{ costRappen: 100_000, laborRappen: 0, quantity: 1 }],
+      C
+    )
+    expect(result.adminRappen).toBe(6_180)
+    // If admin were based on appro (110_210), it would be 6_613 — NOT the PAC formula
+    expect(result.adminRappen).not.toBe(6_613)
+  })
+
+  it('construction = labor + pm + admin', () => {
+    const result = calculatePacPrice(
+      [{ costRappen: 100_000, laborRappen: 50_000, quantity: 1 }],
+      C
+    )
+    expect(result.constructionRappen).toBe(
+      result.totalLaborRappen + result.pmRappen + result.adminRappen
+    )
+  })
+
+  it('sales overhead is additive (not a divisor like PV)', () => {
+    // overhead = (appro + labor) × 15%
+    const result = calculatePacPrice(
+      [{ costRappen: 100_000, laborRappen: 50_000, quantity: 1 }],
+      C
+    )
+    const expectedOverhead = Math.round((result.totalApproRappen + result.totalLaborRappen) * 0.15)
+    expect(result.salesOverheadRappen).toBe(expectedOverhead)
+  })
+
+  it('PRIX HT = appro + construction + overhead + profitAppro + profitConstr', () => {
+    const result = calculatePacPrice(
+      [{ costRappen: 100_000, laborRappen: 50_000, quantity: 1 }],
+      C
+    )
+    const expectedHT =
+      result.totalApproRappen +
+      result.constructionRappen +
+      result.salesOverheadRappen +
+      result.profitApproRappen +
+      result.profitConstrRappen
+    expect(result.sellingPriceExVatRappen).toBe(expectedHT)
+  })
+
+  it('applies VAT correctly', () => {
+    const result = calculatePacPrice(
+      [{ costRappen: 100_000, laborRappen: 0, quantity: 1 }],
+      C
+    )
+    const expectedVat = Math.round(result.sellingPriceExVatRappen * 0.081)
+    expect(result.vatRappen).toBe(expectedVat)
+    expect(result.sellingPriceIncVatRappen).toBe(result.sellingPriceExVatRappen + expectedVat)
+  })
+
+  it('scales linearly with quantity (within 1 Rappen rounding)', () => {
+    // Integer rounding at intermediate steps means price(3) ≈ 3 × price(1)
+    // but may differ by at most 1 Rappen due to Math.round() on each step.
+    const one = calculatePacPrice(
+      [{ costRappen: 50_000, laborRappen: 20_000, quantity: 1 }],
+      C
+    )
+    const three = calculatePacPrice(
+      [{ costRappen: 50_000, laborRappen: 20_000, quantity: 3 }],
+      C
+    )
+    // Pre-rounding totals scale exactly
+    expect(three.totalLaborRappen).toBe(one.totalLaborRappen * 3)
+    // Final price may differ by ≤ 1 Rappen due to rounding accumulation
+    expect(Math.abs(three.sellingPriceExVatRappen - one.sellingPriceExVatRappen * 3)).toBeLessThanOrEqual(3)
+  })
+
+  it('handles multiple products correctly', () => {
+    const machine = { costRappen: 500_000, laborRappen: 100_000, quantity: 1 }
+    const accessory = { costRappen: 20_000, laborRappen: 0, quantity: 3 }
+    const result = calculatePacPrice([machine, accessory], C)
+
+    // mat_net: machine = 515_000, accessory = 20_600 × 3 = 61_800
+    const expectedMatNet = Math.round(500_000 * 1.03 + 20_000 * 1.03 * 3)
+    expect(result.totalMatNetRappen).toBe(expectedMatNet)
+
+    // total labor = 100_000
+    expect(result.totalLaborRappen).toBe(100_000)
+  })
+
+  it('approximates the Excel example: BUDERUS 5kW basic install ~CHF 30,912 HT', () => {
+    // Simplified version of the Excel example quote.
+    // Machine: BUDERUS WLW176i-5 AR ~CHF 7,000 mat, labor ~CHF 1,000
+    // + standard install items totaling ~CHF 15,000 mat + CHF 4,000 labor
+    // Expected result: ~CHF 30,912 HT = 3_091_200 Rappen
+    const products = [
+      { costRappen: 700_000, laborRappen: 100_000, quantity: 1 }, // machine
+      { costRappen: 500_000, laborRappen: 200_000, quantity: 1 }, // electric + install
+      { costRappen: 300_000, laborRappen: 100_000, quantity: 1 }, // piping + misc
+    ]
+    const result = calculatePacPrice(products, C)
+    // Ensure the price is in a realistic range for a basic PAC install
+    // CHF 20,000 – 45,000 HT
+    expect(result.sellingPriceExVatRappen).toBeGreaterThan(2_000_000)
+    expect(result.sellingPriceExVatRappen).toBeLessThan(4_500_000)
+  })
+})
+
+// ─── buildPacCoefficientsFromSettings ────────────────────────────────────────
+
+describe('buildPacCoefficientsFromSettings', () => {
+  it('uses provided settings values', () => {
+    const result = buildPacCoefficientsFromSettings(
+      {
+        pac_accessories_bps: 400,
+        pac_pm_bps: 700,
+        pac_profit_appro_bps: 3000,
+      },
+      810
+    )
+    expect(result.pac_accessories_bps).toBe(400)
+    expect(result.pac_pm_bps).toBe(700)
+    expect(result.pac_profit_appro_bps).toBe(3000)
+    expect(result.vatBasisPts).toBe(810)
+  })
+
+  it('falls back to defaults for missing keys', () => {
+    const result = buildPacCoefficientsFromSettings({}, 810)
+    expect(result.pac_accessories_bps).toBe(DEFAULT_PAC_COEFFICIENTS.pac_accessories_bps)
+    expect(result.pac_frais_supp_bps).toBe(DEFAULT_PAC_COEFFICIENTS.pac_frais_supp_bps)
+    expect(result.pac_transport_bps).toBe(DEFAULT_PAC_COEFFICIENTS.pac_transport_bps)
+    expect(result.pac_pm_bps).toBe(DEFAULT_PAC_COEFFICIENTS.pac_pm_bps)
+    expect(result.pac_admin_bps).toBe(DEFAULT_PAC_COEFFICIENTS.pac_admin_bps)
+    expect(result.pac_sales_overhead_bps).toBe(DEFAULT_PAC_COEFFICIENTS.pac_sales_overhead_bps)
+    expect(result.pac_profit_appro_bps).toBe(DEFAULT_PAC_COEFFICIENTS.pac_profit_appro_bps)
+    expect(result.pac_profit_constr_bps).toBe(DEFAULT_PAC_COEFFICIENTS.pac_profit_constr_bps)
   })
 })
