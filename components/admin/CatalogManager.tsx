@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatChf } from '@/lib/pricing'
 
@@ -20,6 +20,8 @@ type Category =
   | 'PAC_CONDUITE'
   | 'PAC_MONTAGE'
   | 'PAC_ADMIN'
+
+type Tab = 'pv' | 'pac' | 'options'
 
 interface Product {
   id: string
@@ -53,44 +55,31 @@ const CATEGORY_LABELS: Record<Category, string> = {
   MOUNTING: 'Montage',
   ACCESSORY: 'Accessoires',
   EV_CHARGER: 'Borne VE',
-  PAC_MACHINE: 'PAC – Machine',
-  PAC_ACCESSORY: 'PAC – Accessoires',
-  PAC_ELECTRICITE: 'PAC – Électricité',
-  PAC_MACONNERIE: 'PAC – Maçonnerie',
-  PAC_ISOLATION: 'PAC – Isolation',
-  PAC_CITERNE: 'PAC – Citerne',
-  PAC_CONDUITE: 'PAC – Conduite',
-  PAC_MONTAGE: 'PAC – Montage',
-  PAC_ADMIN: 'PAC – Administratif',
+  PAC_MACHINE: 'Machine',
+  PAC_ACCESSORY: 'Accessoires',
+  PAC_ELECTRICITE: 'Électricité',
+  PAC_MACONNERIE: 'Maçonnerie',
+  PAC_ISOLATION: 'Isolation',
+  PAC_CITERNE: 'Citerne',
+  PAC_CONDUITE: 'Conduite',
+  PAC_MONTAGE: 'Montage',
+  PAC_ADMIN: 'Administratif',
 }
 
-const CATEGORIES: Category[] = [
-  'PANEL',
-  'INVERTER',
-  'BATTERY',
-  'MOUNTING',
-  'ACCESSORY',
-  'EV_CHARGER',
-  'PAC_MACHINE',
-  'PAC_ACCESSORY',
-  'PAC_ELECTRICITE',
-  'PAC_MACONNERIE',
-  'PAC_ISOLATION',
-  'PAC_CITERNE',
-  'PAC_CONDUITE',
-  'PAC_MONTAGE',
-  'PAC_ADMIN',
+const PV_CATEGORIES: Category[] = [
+  'PANEL', 'INVERTER', 'BATTERY', 'MOUNTING', 'ACCESSORY', 'EV_CHARGER',
 ]
+
+const PAC_CATEGORIES: Category[] = [
+  'PAC_MACHINE', 'PAC_ACCESSORY', 'PAC_ELECTRICITE', 'PAC_MACONNERIE',
+  'PAC_ISOLATION', 'PAC_CITERNE', 'PAC_CONDUITE', 'PAC_MONTAGE', 'PAC_ADMIN',
+]
+
+const ALL_CATEGORIES: Category[] = [...PV_CATEGORIES, ...PAC_CATEGORIES]
 
 // ─── Product Row ──────────────────────────────────────────────────────────────
 
-function ProductRow({
-  product,
-  onRefresh,
-}: {
-  product: Product
-  onRefresh: () => void
-}) {
+function ProductRow({ product, onRefresh }: { product: Product; onRefresh: () => void }) {
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState(product.name)
   const [description, setDescription] = useState(product.description ?? '')
@@ -160,7 +149,7 @@ function ProductRow({
   if (editing) {
     return (
       <tr className="bg-yellow-50">
-        <td colSpan={6} className="px-4 py-3">
+        <td colSpan={5} className="px-4 py-3">
           <div className="grid grid-cols-2 gap-3 mb-3">
             <div>
               <label className="label">Nom</label>
@@ -168,12 +157,8 @@ function ProductRow({
             </div>
             <div>
               <label className="label">Catégorie</label>
-              <select
-                className="input"
-                value={category}
-                onChange={(e) => setCategory(e.target.value as Category)}
-              >
-                {CATEGORIES.map((c) => (
+              <select className="input" value={category} onChange={(e) => setCategory(e.target.value as Category)}>
+                {ALL_CATEGORIES.map((c) => (
                   <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>
                 ))}
               </select>
@@ -185,23 +170,11 @@ function ProductRow({
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="label">Coût (CHF HT)</label>
-                <input
-                  className="input"
-                  type="number"
-                  step="0.01"
-                  value={costChf}
-                  onChange={(e) => setCostChf(e.target.value)}
-                />
+                <input className="input" type="number" step="0.01" value={costChf} onChange={(e) => setCostChf(e.target.value)} />
               </div>
               <div>
                 <label className="label">Puissance (Wp/Wh)</label>
-                <input
-                  className="input"
-                  type="number"
-                  value={powerWp}
-                  onChange={(e) => setPowerWp(e.target.value)}
-                  placeholder="—"
-                />
+                <input className="input" type="number" value={powerWp} onChange={(e) => setPowerWp(e.target.value)} placeholder="—" />
               </div>
             </div>
           </div>
@@ -210,9 +183,7 @@ function ProductRow({
             <button onClick={handleSave} disabled={saving} className="btn-primary text-xs px-3 py-1.5">
               {saving ? '…' : 'Enregistrer'}
             </button>
-            <button onClick={() => setEditing(false)} className="btn-secondary text-xs px-3 py-1.5">
-              Annuler
-            </button>
+            <button onClick={() => setEditing(false)} className="btn-secondary text-xs px-3 py-1.5">Annuler</button>
           </div>
         </td>
       </tr>
@@ -223,19 +194,14 @@ function ProductRow({
     <tr className={!product.active ? 'opacity-50' : undefined}>
       <td>
         <div className="font-medium text-sm">{product.name}</div>
-        {product.description && (
-          <div className="text-xs text-gray-400 mt-0.5">{product.description}</div>
-        )}
+        {product.description && <div className="text-xs text-gray-400 mt-0.5">{product.description}</div>}
       </td>
-      <td className="text-sm">{CATEGORY_LABELS[product.category]}</td>
       <td className="tabular-nums text-sm text-gray-600">
-        {product.powerWp ? (
-          product.powerWp >= 1000
+        {product.powerWp
+          ? product.powerWp >= 1000
             ? `${(product.powerWp / 1000).toFixed(1)} kW`
             : `${product.powerWp} Wp`
-        ) : (
-          <span className="text-gray-300">—</span>
-        )}
+          : <span className="text-gray-300">—</span>}
       </td>
       <td className="text-right tabular-nums font-mono text-sm">{formatChf(product.costRappen)}</td>
       <td>
@@ -245,34 +211,106 @@ function ProductRow({
       </td>
       <td>
         <div className="flex items-center gap-1 justify-end">
-          <button onClick={() => setEditing(true)} className="text-xs text-blue-600 hover:underline px-1">
-            Modifier
-          </button>
-          <button
-            onClick={handleToggleActive}
-            disabled={saving}
-            className="text-xs text-gray-500 hover:underline px-1"
-          >
+          <button onClick={() => setEditing(true)} className="text-xs text-blue-600 hover:underline px-1">Modifier</button>
+          <button onClick={handleToggleActive} disabled={saving} className="text-xs text-gray-500 hover:underline px-1">
             {product.active ? 'Désactiver' : 'Activer'}
           </button>
           {confirmDelete ? (
             <>
-              <button onClick={handleDelete} disabled={saving} className="text-xs text-red-600 hover:underline px-1 font-medium">
-                Confirmer
-              </button>
-              <button onClick={() => setConfirmDelete(false)} className="text-xs text-gray-400 hover:underline px-1">
-                ×
-              </button>
+              <button onClick={handleDelete} disabled={saving} className="text-xs text-red-600 hover:underline px-1 font-medium">Confirmer</button>
+              <button onClick={() => setConfirmDelete(false)} className="text-xs text-gray-400 hover:underline px-1">×</button>
             </>
           ) : (
-            <button onClick={() => setConfirmDelete(true)} className="text-xs text-red-400 hover:underline px-1">
-              Supprimer
-            </button>
+            <button onClick={() => setConfirmDelete(true)} className="text-xs text-red-400 hover:underline px-1">Supprimer</button>
           )}
           {error && <span className="text-xs text-red-500 ml-1">{error}</span>}
         </div>
       </td>
     </tr>
+  )
+}
+
+// ─── Category Section ─────────────────────────────────────────────────────────
+
+function CategorySection({
+  category,
+  products,
+  onRefresh,
+  addingInCategory,
+  onStartAdd,
+  onCancelAdd,
+}: {
+  category: Category
+  products: Product[]
+  onRefresh: () => void
+  addingInCategory: Category | null
+  onStartAdd: (cat: Category) => void
+  onCancelAdd: () => void
+}) {
+  const [collapsed, setCollapsed] = useState(false)
+  const isAdding = addingInCategory === category
+
+  return (
+    <div className="border border-gray-200 rounded-lg overflow-hidden mb-3">
+      {/* Section header */}
+      <div
+        className="flex items-center justify-between px-4 py-2.5 bg-gray-50 cursor-pointer select-none hover:bg-gray-100 transition-colors"
+        onClick={() => setCollapsed((c) => !c)}
+      >
+        <div className="flex items-center gap-2">
+          <svg
+            className={`w-3.5 h-3.5 text-gray-400 transition-transform ${collapsed ? '-rotate-90' : ''}`}
+            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
+          <span className="text-sm font-semibold text-gray-700">{CATEGORY_LABELS[category]}</span>
+          <span className="text-xs font-medium text-gray-400 bg-gray-200 rounded-full px-2 py-0.5">
+            {products.length}
+          </span>
+        </div>
+        <button
+          onClick={(e) => { e.stopPropagation(); onStartAdd(category) }}
+          className="text-xs text-blue-600 hover:underline"
+        >
+          + Ajouter
+        </button>
+      </div>
+
+      {/* Table */}
+      {!collapsed && (
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Produit</th>
+              <th>Puissance</th>
+              <th className="text-right">Coût (EK)</th>
+              <th>Statut</th>
+              <th className="text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {isAdding && (
+              <AddProductForm
+                defaultCategory={category}
+                onRefresh={onRefresh}
+                onCancel={onCancelAdd}
+              />
+            )}
+            {products.length === 0 && !isAdding && (
+              <tr>
+                <td colSpan={5} className="text-center text-sm text-gray-400 py-4 italic">
+                  Aucun produit dans cette catégorie
+                </td>
+              </tr>
+            )}
+            {products.map((p) => (
+              <ProductRow key={p.id} product={p} onRefresh={onRefresh} />
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
   )
 }
 
@@ -321,11 +359,8 @@ function OptionRow({ option, onRefresh }: { option: CostOption; onRefresh: () =>
 
   const handleToggleActive = async () => {
     setSaving(true)
-    try {
-      await patch({ active: !option.active })
-    } finally {
-      setSaving(false)
-    }
+    try { await patch({ active: !option.active }) }
+    finally { setSaving(false) }
   }
 
   const handleDelete = async () => {
@@ -351,22 +386,11 @@ function OptionRow({ option, onRefresh }: { option: CostOption; onRefresh: () =>
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="label">Coût (CHF HT)</label>
-                <input
-                  className="input"
-                  type="number"
-                  step="0.01"
-                  value={costChf}
-                  onChange={(e) => setCostChf(e.target.value)}
-                />
+                <input className="input" type="number" step="0.01" value={costChf} onChange={(e) => setCostChf(e.target.value)} />
               </div>
               <div>
                 <label className="label">Ordre</label>
-                <input
-                  className="input"
-                  type="number"
-                  value={sortOrder}
-                  onChange={(e) => setSortOrder(e.target.value)}
-                />
+                <input className="input" type="number" value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} />
               </div>
             </div>
             <div className="col-span-2">
@@ -379,9 +403,7 @@ function OptionRow({ option, onRefresh }: { option: CostOption; onRefresh: () =>
             <button onClick={handleSave} disabled={saving} className="btn-primary text-xs px-3 py-1.5">
               {saving ? '…' : 'Enregistrer'}
             </button>
-            <button onClick={() => setEditing(false)} className="btn-secondary text-xs px-3 py-1.5">
-              Annuler
-            </button>
+            <button onClick={() => setEditing(false)} className="btn-secondary text-xs px-3 py-1.5">Annuler</button>
           </div>
         </td>
       </tr>
@@ -392,9 +414,7 @@ function OptionRow({ option, onRefresh }: { option: CostOption; onRefresh: () =>
     <tr className={!option.active ? 'opacity-50' : undefined}>
       <td>
         <div className="font-medium text-sm">{option.name}</div>
-        {option.description && (
-          <div className="text-xs text-gray-400 mt-0.5">{option.description}</div>
-        )}
+        {option.description && <div className="text-xs text-gray-400 mt-0.5">{option.description}</div>}
       </td>
       <td className="text-right tabular-nums font-mono text-sm">{formatChf(option.costRappen)}</td>
       <td>
@@ -404,27 +424,17 @@ function OptionRow({ option, onRefresh }: { option: CostOption; onRefresh: () =>
       </td>
       <td>
         <div className="flex items-center gap-1 justify-end">
-          <button onClick={() => setEditing(true)} className="text-xs text-blue-600 hover:underline px-1">
-            Modifier
-          </button>
-          <button
-            onClick={handleToggleActive}
-            disabled={saving}
-            className="text-xs text-gray-500 hover:underline px-1"
-          >
+          <button onClick={() => setEditing(true)} className="text-xs text-blue-600 hover:underline px-1">Modifier</button>
+          <button onClick={handleToggleActive} disabled={saving} className="text-xs text-gray-500 hover:underline px-1">
             {option.active ? 'Désactiver' : 'Activer'}
           </button>
           {confirmDelete ? (
             <>
-              <button onClick={handleDelete} disabled={saving} className="text-xs text-red-600 hover:underline px-1 font-medium">
-                Confirmer
-              </button>
+              <button onClick={handleDelete} disabled={saving} className="text-xs text-red-600 hover:underline px-1 font-medium">Confirmer</button>
               <button onClick={() => setConfirmDelete(false)} className="text-xs text-gray-400 px-1">×</button>
             </>
           ) : (
-            <button onClick={() => setConfirmDelete(true)} className="text-xs text-red-400 hover:underline px-1">
-              Supprimer
-            </button>
+            <button onClick={() => setConfirmDelete(true)} className="text-xs text-red-400 hover:underline px-1">Supprimer</button>
           )}
         </div>
       </td>
@@ -434,20 +444,25 @@ function OptionRow({ option, onRefresh }: { option: CostOption; onRefresh: () =>
 
 // ─── Add Product Form ─────────────────────────────────────────────────────────
 
-function AddProductForm({ onRefresh, onCancel }: { onRefresh: () => void; onCancel: () => void }) {
+function AddProductForm({
+  defaultCategory,
+  onRefresh,
+  onCancel,
+}: {
+  defaultCategory: Category
+  onRefresh: () => void
+  onCancel: () => void
+}) {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
-  const [category, setCategory] = useState<Category>('PANEL')
+  const [category, setCategory] = useState<Category>(defaultCategory)
   const [costChf, setCostChf] = useState('')
   const [powerWp, setPowerWp] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const handleSubmit = async () => {
-    if (!name || !costChf) {
-      setError('Nom et coût requis')
-      return
-    }
+    if (!name || !costChf) { setError('Nom et coût requis'); return }
     setSaving(true)
     setError(null)
     try {
@@ -477,7 +492,7 @@ function AddProductForm({ onRefresh, onCancel }: { onRefresh: () => void; onCanc
 
   return (
     <tr className="bg-blue-50">
-      <td colSpan={6} className="px-4 py-3">
+      <td colSpan={5} className="px-4 py-3">
         <div className="grid grid-cols-2 gap-3 mb-3">
           <div>
             <label className="label">Nom *</label>
@@ -486,7 +501,7 @@ function AddProductForm({ onRefresh, onCancel }: { onRefresh: () => void; onCanc
           <div>
             <label className="label">Catégorie *</label>
             <select className="input" value={category} onChange={(e) => setCategory(e.target.value as Category)}>
-              {CATEGORIES.map((c) => (
+              {ALL_CATEGORIES.map((c) => (
                 <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>
               ))}
             </select>
@@ -529,10 +544,7 @@ function AddOptionForm({ onRefresh, onCancel }: { onRefresh: () => void; onCance
   const [error, setError] = useState<string | null>(null)
 
   const handleSubmit = async () => {
-    if (!name || !costChf) {
-      setError('Nom et coût requis')
-      return
-    }
+    if (!name || !costChf) { setError('Nom et coût requis'); return }
     setSaving(true)
     setError(null)
     try {
@@ -600,107 +612,152 @@ export default function CatalogManager({ products: initialProducts, costOptions:
   const router = useRouter()
   const [products, setProducts] = useState(initialProducts)
   const [costOptions, setCostOptions] = useState(initialOptions)
-  const [addingProduct, setAddingProduct] = useState(false)
+  const [activeTab, setActiveTab] = useState<Tab>('pv')
+  const [search, setSearch] = useState('')
+  const [addingInCategory, setAddingInCategory] = useState<Category | null>(null)
   const [addingOption, setAddingOption] = useState(false)
 
   const refreshProducts = async () => {
     const res = await fetch('/api/catalog/products?all=1')
-    if (res.ok) {
-      const data = await res.json()
-      setProducts(data)
-    } else {
-      // Fallback: server refresh
-      router.refresh()
-    }
+    if (res.ok) setProducts(await res.json())
+    else router.refresh()
   }
 
   const refreshOptions = async () => {
     const res = await fetch('/api/catalog/options?all=1')
-    if (res.ok) {
-      const data = await res.json()
-      setCostOptions(data)
-    } else {
-      router.refresh()
-    }
+    if (res.ok) setCostOptions(await res.json())
+    else router.refresh()
   }
 
+  const pvCount = products.filter((p) => PV_CATEGORIES.includes(p.category)).length
+  const pacCount = products.filter((p) => PAC_CATEGORIES.includes(p.category)).length
+
+  const query = search.trim().toLowerCase()
+
+  const filteredPv = useMemo(() => {
+    const base = products.filter((p) => PV_CATEGORIES.includes(p.category))
+    return query ? base.filter((p) => p.name.toLowerCase().includes(query)) : base
+  }, [products, query])
+
+  const filteredPac = useMemo(() => {
+    const base = products.filter((p) => PAC_CATEGORIES.includes(p.category))
+    return query ? base.filter((p) => p.name.toLowerCase().includes(query)) : base
+  }, [products, query])
+
+  const tabCategories = activeTab === 'pv' ? PV_CATEGORIES : PAC_CATEGORIES
+  const tabProducts = activeTab === 'pv' ? filteredPv : filteredPac
+
+  const tabs: { id: Tab; label: string; count: number }[] = [
+    { id: 'pv', label: 'Photovoltaïque', count: pvCount },
+    { id: 'pac', label: 'Pompe à chaleur', count: pacCount },
+    { id: 'options', label: 'Suppléments', count: costOptions.length },
+  ]
+
   return (
-    <div className="p-6 max-w-5xl space-y-8">
+    <div className="p-6 max-w-5xl space-y-6">
       <h1 className="page-title">Catalogue</h1>
 
-      {/* Products */}
-      <section>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="section-title">Produits ({products.length})</h2>
+      {/* Tab bar */}
+      <div className="flex items-center gap-1 border-b border-gray-200">
+        {tabs.map((tab) => (
           <button
-            onClick={() => setAddingProduct(true)}
-            className="btn-primary text-xs px-3 py-1.5"
+            key={tab.id}
+            onClick={() => { setActiveTab(tab.id); setSearch(''); setAddingInCategory(null); setAddingOption(false) }}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              activeTab === tab.id
+                ? 'border-blue-600 text-blue-700'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
           >
-            + Ajouter un produit
+            {tab.label}
+            <span className={`ml-2 text-xs rounded-full px-1.5 py-0.5 ${
+              activeTab === tab.id ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'
+            }`}>
+              {tab.count}
+            </span>
           </button>
-        </div>
-        <div className="table-container">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Produit</th>
-                <th>Catégorie</th>
-                <th>Puissance</th>
-                <th className="text-right">Coût (EK)</th>
-                <th>Statut</th>
-                <th className="text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {addingProduct && (
-                <AddProductForm
-                  onRefresh={refreshProducts}
-                  onCancel={() => setAddingProduct(false)}
-                />
-              )}
-              {products.map((p) => (
-                <ProductRow key={p.id} product={p} onRefresh={refreshProducts} />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+        ))}
+      </div>
 
-      {/* Cost options */}
-      <section>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="section-title">Suppléments ({costOptions.length})</h2>
-          <button
-            onClick={() => setAddingOption(true)}
-            className="btn-primary text-xs px-3 py-1.5"
-          >
-            + Ajouter un supplément
-          </button>
+      {/* PV and PAC tabs */}
+      {activeTab !== 'options' && (
+        <div>
+          {/* Search */}
+          <div className="flex items-center gap-3 mb-5">
+            <div className="relative flex-1 max-w-sm">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                className="input pl-9 text-sm"
+                placeholder="Rechercher un produit…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            {query && (
+              <span className="text-sm text-gray-500">
+                {tabProducts.length} résultat{tabProducts.length !== 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+
+          {/* Category sections */}
+          {tabCategories.map((cat) => {
+            const catProducts = tabProducts.filter((p) => p.category === cat)
+            if (query && catProducts.length === 0) return null
+            return (
+              <CategorySection
+                key={cat}
+                category={cat}
+                products={catProducts}
+                onRefresh={refreshProducts}
+                addingInCategory={addingInCategory}
+                onStartAdd={(c) => setAddingInCategory(c)}
+                onCancelAdd={() => setAddingInCategory(null)}
+              />
+            )
+          })}
+
+          {query && tabProducts.length === 0 && (
+            <div className="text-center text-sm text-gray-400 py-12">
+              Aucun produit trouvé pour &ldquo;{search}&rdquo;
+            </div>
+          )}
         </div>
-        <div className="table-container">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Option</th>
-                <th className="text-right">Prix</th>
-                <th>Statut</th>
-                <th className="text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {addingOption && (
-                <AddOptionForm
-                  onRefresh={refreshOptions}
-                  onCancel={() => setAddingOption(false)}
-                />
-              )}
-              {costOptions.map((o) => (
-                <OptionRow key={o.id} option={o} onRefresh={refreshOptions} />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      )}
+
+      {/* Suppléments tab */}
+      {activeTab === 'options' && (
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm text-gray-500">{costOptions.length} supplément{costOptions.length !== 1 ? 's' : ''}</p>
+            <button onClick={() => setAddingOption(true)} className="btn-primary text-xs px-3 py-1.5">
+              + Ajouter un supplément
+            </button>
+          </div>
+          <div className="table-container">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Option</th>
+                  <th className="text-right">Prix</th>
+                  <th>Statut</th>
+                  <th className="text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {addingOption && (
+                  <AddOptionForm onRefresh={refreshOptions} onCancel={() => setAddingOption(false)} />
+                )}
+                {costOptions.map((o) => (
+                  <OptionRow key={o.id} option={o} onRefresh={refreshOptions} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
     </div>
   )
 }
