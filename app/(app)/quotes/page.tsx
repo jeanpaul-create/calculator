@@ -2,9 +2,9 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import QuoteStatusBadge from '@/components/ui/QuoteStatusBadge'
-import { PageHeader, EmptyState } from '@/components/ui'
-import { QuoteStatus } from '@prisma/client'
+import { PageHeader, EmptyState, KpiCard, type QuoteStatusValue } from '@/components/ui'
+import QuotesList, { type QuoteListItem } from '@/components/quotes/QuotesList'
+import { formatChf } from '@/lib/pricing'
 
 export const metadata = { title: 'Offres' }
 
@@ -14,17 +14,78 @@ export default async function QuotesPage() {
 
   const isAdmin = session.user.role === 'ADMIN'
 
-  const quotes = await prisma.quote.findMany({
+  const quotesRaw = await prisma.quote.findMany({
     where: isAdmin ? undefined : { repId: session.user.id },
     orderBy: { createdAt: 'desc' },
-    include: {
+    select: {
+      id: true,
+      quoteNumber: true,
+      status: true,
+      customerName: true,
+      customerEmail: true,
+      customerZip: true,
+      customerCanton: true,
+      sentAt: true,
+      expiresAt: true,
+      createdAt: true,
       rep: { select: { name: true } },
       scenarios: {
-        select: { marginBasisPts: true, vatPctBasisPts: true, items: true, options: true },
+        select: { name: true, sellingPriceIncVatRappen: true },
+        orderBy: { sortOrder: 'asc' },
         take: 1,
       },
     },
   })
+
+  // Shape for the client list — flatten the first scenario's price up.
+  const quotes: QuoteListItem[] = quotesRaw.map((q) => ({
+    id: q.id,
+    quoteNumber: q.quoteNumber,
+    status: q.status as QuoteStatusValue,
+    customerName: q.customerName,
+    customerEmail: q.customerEmail,
+    customerZip: q.customerZip,
+    customerCanton: q.customerCanton,
+    totalIncVatRappen: q.scenarios[0]?.sellingPriceIncVatRappen ?? null,
+    scenarioName: q.scenarios[0]?.name ?? null,
+    sentAt: q.sentAt,
+    expiresAt: q.expiresAt,
+    createdAt: q.createdAt,
+    repName: q.rep?.name ?? null,
+  }))
+
+  // ── KPI computations (one pass over the result set) ──
+  const now = Date.now()
+  const startOfMonth = new Date()
+  startOfMonth.setDate(1)
+  startOfMonth.setHours(0, 0, 0, 0)
+  const startOfYear = new Date()
+  startOfYear.setMonth(0, 1)
+  startOfYear.setHours(0, 0, 0, 0)
+  const sevenDays = 7 * 24 * 60 * 60 * 1000
+
+  let sentThisMonth = 0
+  let pipelineRappen = 0
+  let pipelineCount = 0
+  let expiringSoon = 0
+  let wonYtdRappen = 0
+  let wonYtdCount = 0
+
+  for (const q of quotes) {
+    if (q.sentAt && q.sentAt.getTime() >= startOfMonth.getTime()) sentThisMonth++
+    if (q.status === 'SENT') {
+      pipelineCount++
+      if (q.totalIncVatRappen) pipelineRappen += q.totalIncVatRappen
+      if (q.expiresAt) {
+        const ms = q.expiresAt.getTime() - now
+        if (ms > 0 && ms <= sevenDays) expiringSoon++
+      }
+    }
+    if (q.status === 'ACCEPTED' && q.createdAt.getTime() >= startOfYear.getTime()) {
+      wonYtdCount++
+      if (q.totalIncVatRappen) wonYtdRappen += q.totalIncVatRappen
+    }
+  }
 
   return (
     <div className="p-6">
@@ -34,8 +95,35 @@ export default async function QuotesPage() {
         actions={<NewQuoteButton />}
       />
 
+      {/* KPI row */}
+      {quotes.length > 0 && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+          <KpiCard
+            label="Envoyées ce mois"
+            value={sentThisMonth.toString()}
+            context={sentThisMonth === 0 ? 'Aucune offre envoyée' : 'Depuis le 1er du mois'}
+          />
+          <KpiCard
+            label="En pipeline"
+            value={formatChf(pipelineRappen)}
+            context={`${pipelineCount} offre${pipelineCount !== 1 ? 's' : ''} en attente`}
+          />
+          <KpiCard
+            label="Expire ≤ 7 jours"
+            value={expiringSoon.toString()}
+            context={expiringSoon > 0 ? 'À relancer rapidement' : 'Aucune offre urgente'}
+            emphasis={expiringSoon > 0 ? 'primary' : 'muted'}
+          />
+          <KpiCard
+            label="Gagnées YTD"
+            value={formatChf(wonYtdRappen)}
+            context={`${wonYtdCount} offre${wonYtdCount !== 1 ? 's' : ''} acceptée${wonYtdCount !== 1 ? 's' : ''}`}
+          />
+        </div>
+      )}
+
       {quotes.length === 0 ? (
-        <div className="card">
+        <div className="bg-white rounded-lg border border-gray-200">
           <EmptyState
             icon={
               <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -48,57 +136,7 @@ export default async function QuotesPage() {
           />
         </div>
       ) : (
-        <div className="table-container">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>N°</th>
-                <th>Client</th>
-                <th>NPA / Canton</th>
-                {isAdmin && <th>Conseiller</th>}
-                <th>Statut</th>
-                <th className="text-right">Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              {quotes.map((quote) => (
-                <tr key={quote.id}>
-                  <td>
-                    <Link
-                      href={`/quotes/${quote.id}`}
-                      className="font-mono text-sm font-medium text-red-600 hover:text-red-700 hover:underline tabular-nums"
-                    >
-                      {quote.quoteNumber}
-                    </Link>
-                  </td>
-                  <td>
-                    <div className="font-medium text-gray-800">
-                      {quote.customerName ?? <span className="text-gray-400 italic">sans nom</span>}
-                    </div>
-                    {quote.customerEmail && (
-                      <div className="text-xs text-gray-500">{quote.customerEmail}</div>
-                    )}
-                  </td>
-                  <td className="tabular-nums text-sm">
-                    {quote.customerZip && <span>{quote.customerZip}</span>}
-                    {quote.customerCanton && (
-                      <span className="ml-1 text-gray-500">({quote.customerCanton})</span>
-                    )}
-                  </td>
-                  {isAdmin && (
-                    <td className="text-sm text-gray-600">{quote.rep?.name ?? '—'}</td>
-                  )}
-                  <td>
-                    <QuoteStatusBadge status={quote.status as QuoteStatus} />
-                  </td>
-                  <td className="text-right tabular-nums text-sm text-gray-500">
-                    {new Date(quote.createdAt).toLocaleDateString('fr-CH')}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <QuotesList quotes={quotes} isAdmin={isAdmin} />
       )}
     </div>
   )

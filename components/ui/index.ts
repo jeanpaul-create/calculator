@@ -30,3 +30,9 @@ export type { EmptyStateProps } from './EmptyState'
 
 export { FormField } from './FormField'
 export type { FormFieldProps } from './FormField'
+
+export { Tabs } from './Tabs'
+export type { TabsProps, TabItem } from './Tabs'
+
+export { ActivityTimeline } from './ActivityTimeline'
+export type { ActivityTimelineProps, ActivityItem, ActivityKind } from './ActivityTimeline'
