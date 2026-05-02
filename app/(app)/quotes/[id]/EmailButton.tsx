@@ -20,11 +20,11 @@ export default function EmailButton({ quoteId, hasEmail }: Props) {
         setState('sent')
       } else {
         const data = await res.json().catch(() => ({}))
-        setErrorMessage(data.error ?? 'Fehler beim Senden.')
+        setErrorMessage(data.error ?? "Erreur lors de l'envoi.")
         setState('error')
       }
     } catch {
-      setErrorMessage('Netzwerkfehler. Bitte erneut versuchen.')
+      setErrorMessage('Erreur réseau. Veuillez réessayer.')
       setState('error')
     }
   }
@@ -32,7 +32,7 @@ export default function EmailButton({ quoteId, hasEmail }: Props) {
   if (!hasEmail) {
     return (
       <button disabled className="btn-secondary opacity-50 cursor-not-allowed text-center">
-        ✉ Per E-Mail senden
+        ✉ Envoyer par e-mail
       </button>
     )
   }
@@ -52,7 +52,7 @@ export default function EmailButton({ quoteId, hasEmail }: Props) {
         disabled={state === 'loading'}
         className="btn-secondary text-center w-full disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {state === 'loading' ? 'Envoi en cours…' : '✉ Per E-Mail senden'}
+        {state === 'loading' ? 'Envoi en cours…' : '✉ Envoyer par e-mail'}
       </button>
       {state === 'error' && errorMessage && (
         <p className="text-xs text-red-600 mt-1">{errorMessage}</p>
