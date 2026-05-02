@@ -37,7 +37,7 @@ export default async function PacCalculatorPage({
     prisma.setting.findMany({
       where: {
         key: {
-          in: ['vat_pct_basis_pts', ...PAC_SETTING_KEYS],
+          in: ['vat_pct_basis_pts', 'min_margin_basis_pts', ...PAC_SETTING_KEYS],
         },
       },
     }),
@@ -45,6 +45,7 @@ export default async function PacCalculatorPage({
 
   const settingsMap = Object.fromEntries(settings.map((s) => [s.key, parseInt(s.value)]))
   const vatBasisPts = settingsMap['vat_pct_basis_pts'] ?? 810
+  const minMarginBasisPts = settingsMap['min_margin_basis_pts'] ?? 2000
   const pacCoefficients = buildPacCoefficientsFromSettings(settingsMap, vatBasisPts)
 
   // Cast to the type expected by PacCalculatorForm
@@ -79,6 +80,7 @@ export default async function PacCalculatorPage({
       <PacCalculatorForm
         products={pacProducts}
         vatBasisPts={vatBasisPts}
+        minMarginBasisPts={minMarginBasisPts}
         pacCoefficients={pacCoefficients}
         quoteId={searchParams.quoteId}
       />

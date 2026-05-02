@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   calculatePacPrice,
+  applyDiscount,
   PacPricingCoefficients,
   PacPricingBreakdown,
   formatChf,
@@ -36,6 +37,8 @@ interface SelectedProduct {
 interface PacCalculatorFormProps {
   products: PacProduct[]
   vatBasisPts: number
+  /** Minimum allowable effective margin (basis points). Discounts below require approval. */
+  minMarginBasisPts: number
   pacCoefficients: PacPricingCoefficients
   quoteId?: string
   onSaved?: (quoteId: string) => void
@@ -68,6 +71,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 export default function PacCalculatorForm({
   products,
   vatBasisPts,
+  minMarginBasisPts,
   pacCoefficients,
   quoteId,
   onSaved,
@@ -87,6 +91,9 @@ export default function PacCalculatorForm({
     siteAddress: '',
     notes: '',
   })
+  /** Rep-chosen discount on the engine-computed PAC price (basis points). */
+  const [discountBasisPts, setDiscountBasisPts] = useState<number>(0)
+  const [discountReason, setDiscountReason] = useState<string>('')
 
   // Group products by category, then by brand within category
   const getBrand = (name: string): string => {
@@ -120,10 +127,39 @@ export default function PacCalculatorForm({
     quantity: sp.quantity,
   }))
 
-  const pricing =
+  const enginePricing =
     selectedProducts.length > 0
       ? calculatePacPrice(pacProducts, pacCoefficients)
       : null
+
+  // Apply rep-chosen discount on engine output. Pass-through when discount = 0.
+  const discountResult = enginePricing
+    ? applyDiscount({
+        sellingExVatRappen: enginePricing.sellingPriceExVatRappen,
+        totalCostRappen: Math.round(
+          (enginePricing.sellingPriceExVatRappen * (10000 - enginePricing.effectiveMarginBasisPts)) / 10000
+        ),
+        discountBasisPts,
+        minMarginBasisPts,
+        vatBasisPts,
+      })
+    : null
+
+  // Final pricing with discount baked into the headline numbers.
+  const pricing: PacPricingBreakdown | null = enginePricing && discountResult
+    ? {
+        ...enginePricing,
+        sellingPriceExVatRappen: discountResult.discountedExVatRappen,
+        vatRappen: discountResult.vatRappen,
+        sellingPriceIncVatRappen: discountResult.discountedIncVatRappen,
+        effectiveMarginBasisPts:
+          discountBasisPts > 0
+            ? discountResult.effectiveMarginAfterDiscountBps
+            : enginePricing.effectiveMarginBasisPts,
+      }
+    : null
+
+  const requiresApproval = discountResult?.requiresApproval ?? false
 
   // Product interaction handlers
   const addProduct = (product: PacProduct) => {
@@ -154,6 +190,8 @@ export default function PacCalculatorForm({
 
   const buildScenarioPayload = () => ({
     scenarioType: 'PAC' as const,
+    discountBasisPts,
+    discountReason: discountBasisPts > 0 && discountReason.trim() ? discountReason.trim() : undefined,
     ...projectInfo,
     items: selectedProducts.map((sp) => ({
       productId: sp.product.id,
@@ -439,6 +477,12 @@ export default function PacCalculatorForm({
           <PacPriceSummaryCard
             pricing={pricing}
             vatBasisPts={vatBasisPts}
+            discountBasisPts={discountBasisPts}
+            onDiscountChange={(bps) => { setDiscountBasisPts(bps); setIsDirty(true) }}
+            discountReason={discountReason}
+            onDiscountReasonChange={(s) => { setDiscountReason(s); setIsDirty(true) }}
+            requiresApproval={requiresApproval}
+            minMarginBasisPts={minMarginBasisPts}
             isDirty={isDirty}
             isSaving={isSaving}
             onSave={quoteId ? handleSave : undefined}
@@ -461,6 +505,12 @@ export default function PacCalculatorForm({
 interface PacPriceSummaryCardProps {
   pricing: PacPricingBreakdown
   vatBasisPts: number
+  discountBasisPts?: number
+  onDiscountChange?: (bps: number) => void
+  discountReason?: string
+  onDiscountReasonChange?: (reason: string) => void
+  requiresApproval?: boolean
+  minMarginBasisPts?: number
   isDirty?: boolean
   isSaving?: boolean
   onSave?: () => void
@@ -470,6 +520,12 @@ interface PacPriceSummaryCardProps {
 function PacPriceSummaryCard({
   pricing,
   vatBasisPts,
+  discountBasisPts = 0,
+  onDiscountChange,
+  discountReason = '',
+  onDiscountReasonChange,
+  requiresApproval = false,
+  minMarginBasisPts,
   isDirty,
   isSaving,
   onSave,
@@ -529,6 +585,65 @@ function PacPriceSummaryCard({
           </span>
         </div>
       </div>
+
+      {/* Discount slider */}
+      {onDiscountChange && (
+        <div className="px-5 py-4 border-b border-gray-100">
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              Rabais commercial
+            </label>
+            <span className={`text-sm font-mono tabular-nums font-semibold ${
+              discountBasisPts === 0
+                ? 'text-gray-500'
+                : requiresApproval
+                  ? 'text-red-600'
+                  : 'text-orange-600'
+            }`}>
+              {(discountBasisPts / 100).toFixed(1)}%
+            </span>
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={2000}
+            step={25}
+            value={discountBasisPts}
+            onChange={(e) => onDiscountChange(parseInt(e.target.value, 10))}
+            className="w-full accent-orange-500"
+          />
+          <div className="flex justify-between text-[10px] text-gray-400 font-mono mt-0.5">
+            <span>0%</span>
+            <span>10%</span>
+            <span>20%</span>
+          </div>
+
+          {requiresApproval && (
+            <div className="mt-3 rounded-md bg-red-50 border border-red-200 px-3 py-2">
+              <div className="flex items-start gap-2 text-xs">
+                <span className="text-red-600 font-semibold">⚠</span>
+                <div className="flex-1">
+                  <p className="text-red-800 font-medium">
+                    Marge sous le seuil ({minMarginBasisPts != null ? (minMarginBasisPts / 100).toFixed(1) : '20.0'}%) — approbation requise
+                  </p>
+                  <p className="text-red-700 mt-1">
+                    Marge effective: {formatPct(pricing.effectiveMarginBasisPts)}
+                  </p>
+                </div>
+              </div>
+              {onDiscountReasonChange && (
+                <textarea
+                  value={discountReason}
+                  onChange={(e) => onDiscountReasonChange(e.target.value)}
+                  placeholder="Raison (concurrence, volume, fidélité…)"
+                  rows={2}
+                  className="mt-2 w-full text-xs border border-red-200 rounded px-2 py-1.5 bg-white resize-none"
+                />
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Cost structure detail */}
       <div className="px-5 py-3 border-b border-gray-100 space-y-1">
