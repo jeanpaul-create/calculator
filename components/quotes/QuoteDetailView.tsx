@@ -252,9 +252,9 @@ function OverviewTab({
       {/* Left: customer + scenario summary */}
       <div className="lg:col-span-2 space-y-4">
         <Card>
-          <h2 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-3">
+          <h3 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-3">
             Client
-          </h2>
+          </h3>
           {quote.customerName ? (
             <p className="font-semibold text-gray-900 text-lg">{quote.customerName}</p>
           ) : (
@@ -295,11 +295,11 @@ function OverviewTab({
 
         {firstScenario && (
           <Card>
-            <h2 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-3">
+            <h3 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-3">
               {quote.scenarios.length === 1
                 ? 'Scénario'
                 : `${quote.scenarios.length} scénarios — premier`}
-            </h2>
+            </h3>
             <div className="flex items-baseline gap-3 mb-3">
               <span className="font-semibold text-gray-900 text-base">{firstScenario.name}</span>
               <span className="text-xs text-gray-500">
@@ -351,9 +351,9 @@ function OverviewTab({
 
         {quote.notes && (
           <Card>
-            <h2 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2">
+            <h3 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2">
               Notes
-            </h2>
+            </h3>
             <p className="text-sm text-gray-700 whitespace-pre-wrap">{quote.notes}</p>
           </Card>
         )}
@@ -363,18 +363,18 @@ function OverviewTab({
       <div className="space-y-4">
         {isAdmin && (quote.repName || quote.repEmail) && (
           <Card>
-            <h2 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2">
+            <h3 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2">
               Conseiller
-            </h2>
+            </h3>
             <p className="text-sm font-medium text-gray-900">
               {quote.repName ?? quote.repEmail ?? '—'}
             </p>
           </Card>
         )}
         <Card>
-          <h2 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-3">
+          <h3 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-3">
             Dernière activité
-          </h2>
+          </h3>
           <ActivityTimeline items={activityItems.slice(0, 3)} compact />
         </Card>
       </div>
@@ -488,9 +488,9 @@ function ScenariosTab({ quote }: { quote: QuoteDetailVM }) {
 function DocumentsTab({ quote }: { quote: QuoteDetailVM }) {
   return (
     <Card>
-      <h2 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-4">
+      <h3 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-4">
         Documents disponibles
-      </h2>
+      </h3>
       <div className="space-y-2">
         <DocRow
           icon="📄"
