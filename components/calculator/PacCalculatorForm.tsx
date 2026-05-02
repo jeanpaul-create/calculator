@@ -14,6 +14,7 @@ import {
 import { useLanguage } from '@/context/LanguageContext'
 import { Card, EmptyState, SectionHeader } from '@/components/ui'
 import AddressSearch from './AddressSearch'
+import AiPromptDialog, { type AiProposedDraft } from './AiPromptDialog'
 
 // SiteMap uses Leaflet (DOM-only) — load client-side only
 const SiteMap = dynamic(() => import('./SiteMap'), { ssr: false })
@@ -115,6 +116,30 @@ export default function PacCalculatorForm({
     communeName: string | null
   } | null>(null)
   const [fetchingSiteInfo, setFetchingSiteInfo] = useState(false)
+  /** AI prompt dialog open state */
+  const [aiOpen, setAiOpen] = useState(false)
+
+  /**
+   * Apply an AI-proposed draft. Replaces selected products with the AI's
+   * proposal and fills empty customer fields. Doesn't touch fields the rep
+   * already filled.
+   */
+  const applyAiDraft = (draft: AiProposedDraft) => {
+    const productById = new Map(products.map((p) => [p.id, p]))
+    const newSelected: SelectedProduct[] = []
+    for (const item of draft.items) {
+      const product = productById.get(item.productId)
+      if (product) newSelected.push({ product, quantity: item.quantity })
+    }
+    setSelectedProducts(newSelected)
+    setIsDirty(true)
+
+    setProjectInfo((p) => ({
+      ...p,
+      customerName: p.customerName || draft.customerInfo.name || '',
+      siteAddress: p.siteAddress || draft.customerInfo.siteAddress || '',
+    }))
+  }
 
   // Group products by category, then by brand within category
   const getBrand = (name: string): string => {
@@ -298,8 +323,24 @@ export default function PacCalculatorForm({
 
   return (
     <div className="flex flex-col lg:flex-row gap-6">
+      <AiPromptDialog
+        scenarioType="PAC"
+        open={aiOpen}
+        onClose={() => setAiOpen(false)}
+        onApply={applyAiDraft}
+      />
+
       {/* Left: form */}
       <div className="flex-1 space-y-6 min-w-0">
+        {/* Quick-start: AI prompt — orange accent matches PAC theme */}
+        <button
+          type="button"
+          onClick={() => setAiOpen(true)}
+          className="w-full flex items-center justify-center gap-2 text-sm font-medium text-orange-700 bg-orange-50 hover:bg-orange-100 border border-orange-200 rounded-lg py-3 transition-colors"
+        >
+          <span className="text-base">✨</span>
+          <span>Décrire le projet — l&apos;assistant remplit le formulaire</span>
+        </button>
 
         {/* Project Information */}
         <div className="card-padded">

@@ -7,6 +7,7 @@ import { calculateIonPrice, calculateRoi, estimateAnnualYield, estimateSelfConsu
 import PriceSummaryCard from './PriceSummaryCard'
 import { useLanguage } from '@/context/LanguageContext'
 import AddressSearch from './AddressSearch'
+import AiPromptDialog, { type AiProposedDraft } from './AiPromptDialog'
 import { Card, EmptyState, SectionHeader } from '@/components/ui'
 
 const SiteMap = dynamic(() => import('./SiteMap'), { ssr: false })
@@ -81,6 +82,43 @@ export default function CalculatorForm({
   /** Rep-chosen discount on the engine-computed price (basis points; 500 = 5%). */
   const [discountBasisPts, setDiscountBasisPts] = useState<number>(0)
   const [discountReason, setDiscountReason] = useState<string>('')
+  /** AI prompt dialog open state */
+  const [aiOpen, setAiOpen] = useState(false)
+
+  /**
+   * Apply an AI-proposed draft to the form. Replaces selected products with
+   * the AI's proposal (rep can still tweak), updates customer info / roof
+   * attrs / consumption only when the rep didn't have a value already (so we
+   * never overwrite their work).
+   */
+  const applyAiDraft = (draft: AiProposedDraft) => {
+    // Map proposed productIds back to full Product objects. The AI may have
+    // referenced products that aren't in the current `products` prop (e.g.
+    // PAC products on a PV calculator); skip silently — the parse-project
+    // server already filtered those, so this is just a safety net.
+    const productById = new Map(products.map((p) => [p.id, p]))
+    const newSelected: SelectedProduct[] = []
+    for (const item of draft.items) {
+      const product = productById.get(item.productId)
+      if (product) newSelected.push({ product, quantity: item.quantity })
+    }
+    setSelectedProducts(newSelected)
+    setIsDirty(true)
+
+    // Customer fields — only fill empty ones (don't trample what the rep typed)
+    setProjectInfo((p) => ({
+      ...p,
+      customerName: p.customerName || draft.customerInfo.name || '',
+      siteAddress: p.siteAddress || draft.customerInfo.siteAddress || '',
+    }))
+
+    if (draft.customerInfo.annualConsumptionKwh && !annualConsumptionKwh) {
+      setAnnualConsumptionKwh(String(draft.customerInfo.annualConsumptionKwh))
+    }
+
+    if (draft.roofType) setRoofType(draft.roofType)
+    if (draft.roofSlope) setRoofSlope(draft.roofSlope)
+  }
 
   const ionProducts = selectedProducts.map((sp) => ({
     category: sp.product.category,
@@ -348,8 +386,25 @@ export default function CalculatorForm({
 
   return (
     <div className="flex flex-col lg:flex-row gap-6">
+      <AiPromptDialog
+        scenarioType="PV"
+        open={aiOpen}
+        onClose={() => setAiOpen(false)}
+        onApply={applyAiDraft}
+      />
+
       {/* Left: form */}
       <div className="flex-1 space-y-6 min-w-0">
+        {/* Quick-start: AI prompt */}
+        <button
+          type="button"
+          onClick={() => setAiOpen(true)}
+          className="w-full flex items-center justify-center gap-2 text-sm font-medium text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg py-3 transition-colors"
+        >
+          <span className="text-base">✨</span>
+          <span>Décrire le projet — l&apos;assistant remplit le formulaire</span>
+        </button>
+
         {/* Project Information */}
         <div className="card-padded">
           <SectionHeader
