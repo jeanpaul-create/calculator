@@ -51,7 +51,12 @@ export function PageHeader({
           <div className="flex items-center gap-2 flex-shrink-0">{actions}</div>
         ) : null}
       </div>
-      {!noRule ? <div className="mt-4 h-0.5 bg-red-500 w-12" /> : null}
+      {/*
+        Red rule: 1px hairline at full content width, not the previous
+        12px×2px stub which read as residue. Subtle, professional, always
+        delimits the header from content below.
+      */}
+      {!noRule ? <div className="mt-4 h-px bg-gray-200" /> : null}
     </div>
   )
 }
