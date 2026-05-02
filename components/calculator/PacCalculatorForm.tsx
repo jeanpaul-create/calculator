@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import {
   calculatePacPrice,
@@ -12,6 +13,10 @@ import {
 } from '@/lib/pricing'
 import { useLanguage } from '@/context/LanguageContext'
 import { Card, EmptyState, SectionHeader } from '@/components/ui'
+import AddressSearch from './AddressSearch'
+
+// SiteMap uses Leaflet (DOM-only) — load client-side only
+const SiteMap = dynamic(() => import('./SiteMap'), { ssr: false })
 
 interface PacProduct {
   id: string
@@ -95,6 +100,21 @@ export default function PacCalculatorForm({
   /** Rep-chosen discount on the engine-computed PAC price (basis points). */
   const [discountBasisPts, setDiscountBasisPts] = useState<number>(0)
   const [discountReason, setDiscountReason] = useState<string>('')
+  /**
+   * Aerial site map state — set when the rep picks an address from the
+   * autocomplete; user can then drag the marker to fine-tune. Persisted on
+   * scenario save so the PDF can render the map. (Same shape as PV form.)
+   */
+  const [mapState, setMapState] = useState<{ lat: number; lon: number; zoom: number } | null>(null)
+  /**
+   * Site info auto-populated from the address ZIP — for PAC we mainly use the
+   * commune name (ElCom rate is informational, not used in PAC pricing).
+   */
+  const [siteInfo, setSiteInfo] = useState<{
+    rateCtPerKwh: number | null
+    communeName: string | null
+  } | null>(null)
+  const [fetchingSiteInfo, setFetchingSiteInfo] = useState(false)
 
   // Group products by category, then by brand within category
   const getBrand = (name: string): string => {
@@ -194,6 +214,10 @@ export default function PacCalculatorForm({
     discountBasisPts,
     discountReason: discountBasisPts > 0 && discountReason.trim() ? discountReason.trim() : undefined,
     ...projectInfo,
+    // Map position — persisted on the scenario for PDF rendering
+    mapLat: mapState?.lat,
+    mapLon: mapState?.lon,
+    mapZoom: mapState?.zoom,
     items: selectedProducts.map((sp) => ({
       productId: sp.product.id,
       quantity: sp.quantity,
@@ -228,7 +252,7 @@ export default function PacCalculatorForm({
     setIsSaving(true)
     setSaveError(null)
     try {
-      // Step 1: create quote with project info
+      // Step 1: create quote with project info + map position
       const createRes = await fetch('/api/quotes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -238,6 +262,9 @@ export default function PacCalculatorForm({
           customerPhone: projectInfo.customerPhone || undefined,
           siteAddress: projectInfo.siteAddress || undefined,
           notes: projectInfo.notes || undefined,
+          mapLat: mapState?.lat,
+          mapLon: mapState?.lon,
+          mapZoom: mapState?.zoom,
         }),
       })
       if (!createRes.ok) {
@@ -294,13 +321,45 @@ export default function PacCalculatorForm({
             </div>
             <div>
               <label className="label">Adresse du site</label>
-              <input
-                type="text"
-                className="input"
-                placeholder="Rue, NPA, localité"
+              <AddressSearch
                 value={projectInfo.siteAddress}
-                onChange={(e) => setProjectInfo((p) => ({ ...p, siteAddress: e.target.value }))}
+                onChange={(val) => setProjectInfo((p) => ({ ...p, siteAddress: val }))}
+                onSelect={(address, lat, lon, zip, commune) => {
+                  setProjectInfo((p) => ({ ...p, siteAddress: address }))
+                  setMapState((prev) => ({ lat, lon, zoom: prev?.zoom ?? 17 }))
+                  setIsDirty(true)
+                  if (zip) {
+                    setSiteInfo(null)
+                    setFetchingSiteInfo(true)
+                    const params = new URLSearchParams({
+                      zip,
+                      lat: String(lat),
+                      lon: String(lon),
+                    })
+                    if (commune) params.set('commune', commune)
+                    fetch(`/api/site-info?${params}`)
+                      .then((r) => (r.ok ? r.json() : null))
+                      .then(
+                        (d) =>
+                          d &&
+                          setSiteInfo({
+                            rateCtPerKwh: d.rateCtPerKwh,
+                            communeName: d.communeName,
+                          })
+                      )
+                      .catch(() => {})
+                      .finally(() => setFetchingSiteInfo(false))
+                  }
+                }}
               />
+              {fetchingSiteInfo && (
+                <p className="text-xs text-gray-400 mt-1">Chargement…</p>
+              )}
+              {!fetchingSiteInfo && siteInfo?.communeName && (
+                <p className="mt-1.5 text-xs text-gray-600">
+                  <strong>{siteInfo.communeName}</strong>
+                </p>
+              )}
             </div>
             <div>
               <label className="label">Email client</label>
@@ -334,6 +393,27 @@ export default function PacCalculatorForm({
             </div>
           </div>
         </div>
+
+        {/* Aerial site map — appears once an address is selected. The map
+            position (lat/lon/zoom) is persisted on the scenario so the PDF
+            shows the same view the rep configured. */}
+        {mapState && (
+          <div className="card-padded">
+            <SectionHeader
+              title="Vue aérienne du site"
+              description="Déplacez le marqueur rouge pour centrer la vue. La carte sera incluse dans le PDF."
+            />
+            <SiteMap
+              initialLat={mapState.lat}
+              initialLon={mapState.lon}
+              initialZoom={mapState.zoom}
+              onPositionChange={(lat, lon, zoom) => {
+                setMapState({ lat, lon, zoom })
+                setIsDirty(true)
+              }}
+            />
+          </div>
+        )}
 
         {/* Product selection — PAC category tabs */}
         <div className="card-padded">
@@ -465,6 +545,64 @@ export default function PacCalculatorForm({
                   </div>
                 </div>
               ))}
+          </div>
+        </div>
+
+        {/* Cercle de bruit — Federal Swiss heat-pump noise verification.
+            Required regulatory check before installation. Provides a
+            deep-link to the FWS (Foederation Waermepumpen Schweiz) tool. */}
+        <div className="card-padded">
+          <SectionHeader
+            title="Cercle de bruit"
+            description="Vérification réglementaire du bruit de la pompe à chaleur (OFEV / FWS)"
+          />
+          <div className="flex items-start gap-3 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3">
+            <svg
+              className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+              aria-hidden
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"
+              />
+            </svg>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-amber-900 font-medium">
+                Calcul des distances minimales aux limites de propriété
+              </p>
+              <p className="text-xs text-amber-800 mt-1">
+                L&apos;outil officiel FWS calcule la distance réglementaire entre la PAC
+                et le voisinage en fonction du niveau sonore. À effectuer avant
+                la commande pour les installations extérieures.
+              </p>
+              <a
+                href="https://www.fws.ch/fr/cercle-bruit/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 mt-3 text-sm font-medium text-amber-900 hover:text-amber-700 underline decoration-amber-400 underline-offset-2"
+              >
+                Ouvrir l&apos;outil cercle de bruit FWS
+                <svg
+                  className="w-3.5 h-3.5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  aria-hidden
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                  />
+                </svg>
+              </a>
+            </div>
           </div>
         </div>
 
