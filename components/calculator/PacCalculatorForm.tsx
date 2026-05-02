@@ -11,7 +11,7 @@ import {
   formatPct,
 } from '@/lib/pricing'
 import { useLanguage } from '@/context/LanguageContext'
-import { Card, EmptyState } from '@/components/ui'
+import { Card, EmptyState, SectionHeader } from '@/components/ui'
 
 interface PacProduct {
   id: string
@@ -276,7 +276,11 @@ export default function PacCalculatorForm({
 
         {/* Project Information */}
         <div className="card-padded">
-          <div className="section-title mb-4">Informations du projet</div>
+          <SectionHeader
+            step={1}
+            title="Client"
+            description="Coordonnées du client et site d&apos;installation"
+          />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="label">Client</label>
@@ -333,6 +337,11 @@ export default function PacCalculatorForm({
 
         {/* Product selection — PAC category tabs */}
         <div className="card-padded">
+          <SectionHeader
+            step={2}
+            title="Postes de l&apos;installation"
+            description="Machine, accessoires, électricité, maçonnerie, etc."
+          />
           {/* Tab strip */}
           <div className="flex gap-1 mb-5 border-b border-gray-100 -mx-5 px-5 overflow-x-auto">
             {availableCategories.map((cat) => {

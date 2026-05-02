@@ -36,3 +36,6 @@ export type { TabsProps, TabItem } from './Tabs'
 
 export { ActivityTimeline } from './ActivityTimeline'
 export type { ActivityTimelineProps, ActivityItem, ActivityKind } from './ActivityTimeline'
+
+export { SectionHeader } from './SectionHeader'
+export type { SectionHeaderProps } from './SectionHeader'

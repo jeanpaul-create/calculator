@@ -7,7 +7,7 @@ import { calculateIonPrice, calculateRoi, estimateAnnualYield, estimateSelfConsu
 import PriceSummaryCard from './PriceSummaryCard'
 import { useLanguage } from '@/context/LanguageContext'
 import AddressSearch from './AddressSearch'
-import { Card, EmptyState } from '@/components/ui'
+import { Card, EmptyState, SectionHeader } from '@/components/ui'
 
 const SiteMap = dynamic(() => import('./SiteMap'), { ssr: false })
 
@@ -352,7 +352,11 @@ export default function CalculatorForm({
       <div className="flex-1 space-y-6 min-w-0">
         {/* Project Information */}
         <div className="card-padded">
-          <div className="section-title mb-4">Informations du projet</div>
+          <SectionHeader
+            step={1}
+            title="Client"
+            description="Coordonnées du client et adresse du site"
+          />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="label">Client</label>
@@ -441,7 +445,11 @@ export default function CalculatorForm({
 
         {/* Installation Configuration */}
         <div className="card-padded">
-          <div className="section-title mb-4">Configuration de l&apos;installation</div>
+          <SectionHeader
+            step={2}
+            title="Configuration de l&apos;installation"
+            description="Type de toiture et complexité d&apos;intégration"
+          />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="label">Type de toiture</label>
@@ -466,10 +474,10 @@ export default function CalculatorForm({
         {/* Aerial site map */}
         {mapState && (
           <div className="card-padded">
-            <div className="section-title mb-3">Vue aérienne du site</div>
-            <p className="text-xs text-gray-500 mb-3">
-              Déplacez le marqueur rouge pour centrer la vue sur le toit. La carte sera incluse dans le PDF.
-            </p>
+            <SectionHeader
+              title="Vue aérienne du site"
+              description="Déplacez le marqueur rouge pour centrer la vue. La carte sera incluse dans le PDF."
+            />
             <SiteMap
               initialLat={mapState.lat}
               initialLon={mapState.lon}
@@ -495,6 +503,11 @@ export default function CalculatorForm({
 
         {/* Product selection — category tabs */}
         <div className="card-padded">
+          <SectionHeader
+            step={3}
+            title="Équipement"
+            description="Sélectionner panneaux, onduleurs, batterie et accessoires"
+          />
           {/* Tab strip */}
           <div className="flex gap-1 mb-5 border-b border-gray-100 -mx-5 px-5">
             {availableCategories.map((cat) => {
@@ -598,7 +611,11 @@ export default function CalculatorForm({
         {/* Cost options */}
         {costOptions.length > 0 && (
           <div className="card-padded">
-            <div className="section-title mb-4">{t('calc_surcharges')}</div>
+            <SectionHeader
+              step={4}
+              title={t('calc_surcharges')}
+              description="Suppléments optionnels (échafaudage, complexité…)"
+            />
             <div className="space-y-2">
               {costOptions.map((option) => {
                 const checked = selectedOptions.has(option.id)
