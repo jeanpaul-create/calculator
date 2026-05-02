@@ -48,44 +48,45 @@ export default function QuoteStatusActions({ quoteId, currentStatus }: Props) {
     }
   }
 
-  return (
-    <div className="border-t border-gray-100 pt-3 mt-1">
-      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-        Clôturer le devis
-      </p>
-      <div className="flex flex-col gap-2">
-        {ACTIONS.map(({ status, label, className }) => (
-          <div key={status}>
-            {confirming === status ? (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-600 flex-1">Confirmer ?</span>
-                <button
-                  onClick={() => handleConfirm(status)}
-                  disabled={pending !== null}
-                  className="text-xs px-3 py-1 rounded bg-gray-800 text-white hover:bg-gray-700 disabled:opacity-50"
-                >
-                  Oui
-                </button>
-                <button
-                  onClick={() => setConfirming(null)}
-                  className="text-xs px-3 py-1 rounded border border-gray-300 text-gray-600 hover:bg-gray-50"
-                >
-                  Annuler
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setConfirming(status)}
-                disabled={pending !== null}
-                className={`${className} text-center w-full disabled:opacity-50 disabled:cursor-not-allowed`}
-              >
-                {pending === status ? 'Mise à jour…' : label}
-              </button>
-            )}
-          </div>
-        ))}
+  // Inline confirmation: when a status is being confirmed, replace the three
+  // buttons with a "Confirmer mark as X?" / Yes / No prompt — keeps the action
+  // row's horizontal rhythm intact.
+  if (confirming) {
+    const action = ACTIONS.find((a) => a.status === confirming)!
+    return (
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs text-gray-600">Marquer comme {action.label.replace(/^[^\w]+/, '').toLowerCase()} ?</span>
+        <button
+          onClick={() => handleConfirm(action.status)}
+          disabled={pending !== null}
+          className="btn-primary text-xs px-3 py-1.5"
+        >
+          {pending === action.status ? 'Mise à jour…' : 'Confirmer'}
+        </button>
+        <button
+          onClick={() => setConfirming(null)}
+          className="btn-secondary text-xs px-3 py-1.5"
+        >
+          Annuler
+        </button>
+        {error && <p className="text-xs text-red-600 ml-2">{error}</p>}
       </div>
-      {error && <p className="text-xs text-red-600 mt-2">{error}</p>}
+    )
+  }
+
+  return (
+    <div className="flex items-center gap-2 flex-wrap">
+      {ACTIONS.map(({ status, label, className }) => (
+        <button
+          key={status}
+          onClick={() => setConfirming(status)}
+          disabled={pending !== null}
+          className={`${className} text-xs px-3 py-1.5 disabled:opacity-50 disabled:cursor-not-allowed`}
+        >
+          {label}
+        </button>
+      ))}
+      {error && <p className="text-xs text-red-600 ml-2">{error}</p>}
     </div>
   )
 }
