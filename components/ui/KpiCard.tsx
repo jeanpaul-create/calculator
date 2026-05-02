@@ -27,10 +27,13 @@ export interface KpiCardProps {
   className?: string
 }
 
+// Red is reserved for the ONE most important element on the page (per DESIGN.md).
+// KPI cards default to a quiet gray top stroke. `primary` is reserved for the
+// hero stat (e.g. "Total TTC" on the price card) — caller opts in explicitly.
 const STROKE_CLASS: Record<NonNullable<KpiCardProps['emphasis']>, string> = {
-  primary: 'border-t-[3px] border-t-red-500',
-  default: 'border-t-2 border-t-red-500',
-  muted: 'border-t border-t-gray-300',
+  primary: 'border-t-2 border-t-red-500',
+  default: 'border-t border-t-gray-200',
+  muted: 'border-t border-t-gray-200',
 }
 
 export function KpiCard({
@@ -59,7 +62,7 @@ export function KpiCard({
       <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 mb-1">
         {label}
       </span>
-      <span className="text-xl font-semibold text-gray-900 tabular-nums font-mono leading-tight">
+      <span className="text-base sm:text-xl font-semibold text-gray-900 tabular-nums font-mono leading-tight w-full truncate">
         {value}
       </span>
       {context ? (
