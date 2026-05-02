@@ -166,6 +166,10 @@ model Quote {
   mapLon  Float?
   mapZoom Int?
   notes       String?     @db.Text
+  // Lifecycle timestamps — drive dashboard KPIs and follow-up reminders
+  sentAt      DateTime?   // when the quote was first marked SENT (email or manual)
+  expiresAt   DateTime?   // offer validity end-date (defaults to sentAt + 30 days at send)
+  followUpAt  DateTime?   // next follow-up due (rep-set or auto-scheduled)
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
@@ -174,6 +178,7 @@ model Quote {
 
   @@index([repId])
   @@index([status])
+  @@index([followUpAt])
 }
 
 model QuoteScenario {

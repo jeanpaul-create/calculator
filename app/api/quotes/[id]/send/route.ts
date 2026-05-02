@@ -82,10 +82,13 @@ export async function POST(_req: NextRequest, { params }: Params) {
     }
 
     // Fire-and-forget status update
+    // Stamps sentAt + expiresAt (sentAt + 30 days) on first SENT transition.
+    const sentAt = new Date()
+    const expiresAt = new Date(sentAt.getTime() + 30 * 24 * 60 * 60 * 1000)
     prisma.quote
       .update({
         where: { id: params.id, status: 'DRAFT' },
-        data: { status: 'SENT' },
+        data: { status: 'SENT', sentAt, expiresAt },
       })
       .catch((err) => console.error('[send/route] status update failed', err))
 
