@@ -13,6 +13,7 @@ const mockQuote: FullQuote = {
   quoteNumber: 'QUO-2026-001',
   status: 'DRAFT',
   repId: 'rep-1',
+  customerId: null,
   customerName: 'Jean Dupont',
   customerEmail: 'jean@example.com',
   customerPhone: '+41 79 123 45 67',

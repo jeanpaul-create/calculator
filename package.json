@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma db push && next build",
+    "build": "prisma db push && tsx prisma/backfill-customers.ts && next build",
+    "db:backfill-customers": "tsx prisma/backfill-customers.ts",
     "start": "next start",
     "lint": "next lint",
     "test": "vitest",

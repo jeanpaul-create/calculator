@@ -137,6 +137,26 @@ model SwissRate {
   @@index([zipPrefix])
 }
 
+// ─── Customers ────────────────────────────────────────────────────────────────
+
+model Customer {
+  id        String   @id @default(cuid())
+  name      String
+  email     String?
+  phone     String?
+  zip       String?
+  canton    String?
+  notes     String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  quotes Quote[]
+
+  // Index for fast search by email (most reliable identifier)
+  @@index([email])
+  @@index([name])
+}
+
 // ─── Quotes ───────────────────────────────────────────────────────────────────
 
 enum QuoteStatus {
@@ -153,7 +173,11 @@ model Quote {
   quoteNumber String      @unique
   status      QuoteStatus @default(DRAFT)
   repId       String
-  // Customer info
+  // FK to Customer entity. Nullable for Phase 1 transition — backfill script
+  // populates this from denormalized fields. New quotes always set customerId.
+  customerId  String?
+  // Customer info — DENORMALIZED (kept for Phase 1.5 rollback safety; will be
+  // dropped in a later phase once Customer FK is fully wired through the UI)
   customerName    String?
   customerEmail   String?
   customerZip     String?
@@ -174,11 +198,13 @@ model Quote {
   updatedAt   DateTime    @updatedAt
 
   rep       User            @relation(fields: [repId], references: [id])
+  customer  Customer?       @relation(fields: [customerId], references: [id])
   scenarios QuoteScenario[]
 
   @@index([repId])
   @@index([status])
   @@index([followUpAt])
+  @@index([customerId])
 }
 
 model QuoteScenario {

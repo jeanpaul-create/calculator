@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { requireAuth } from '@/lib/auth'
 import { generateQuoteNumber } from '@/lib/quote-number'
+import { findOrCreateCustomer } from '@/lib/customer'
 import { z } from 'zod'
 
 const CreateQuoteSchema = z.object({
@@ -69,10 +70,21 @@ export async function POST(req: NextRequest) {
 
     const quoteNumber = await generateQuoteNumber()
 
+    // Find-or-create customer entity (dedupes by email, falls back to name+zip)
+    const { id: customerId } = await findOrCreateCustomer({
+      name: data.customerName,
+      email: data.customerEmail,
+      phone: data.customerPhone,
+      zip: data.customerZip,
+      canton: customerCanton,
+    })
+
     const quote = await prisma.quote.create({
       data: {
         quoteNumber,
         repId: session.user.id,
+        customerId,
+        // Denormalized snapshot (kept during Phase 1 transition)
         customerName: data.customerName,
         customerEmail: data.customerEmail,
         customerPhone: data.customerPhone,

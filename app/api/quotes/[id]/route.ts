@@ -5,6 +5,7 @@ import {
   calculateIonPrice, buildIonCoefficientsFromSettings, RoofType, RoofSlope,
   calculatePacPrice, buildPacCoefficientsFromSettings, PAC_SETTING_KEYS,
 } from '@/lib/pricing'
+import { findOrCreateCustomer } from '@/lib/customer'
 import { z } from 'zod'
 
 const ScenarioItemSchema = z.object({
@@ -276,9 +277,28 @@ export async function PUT(req: NextRequest, { params }: Params) {
     const infoFields = ['customerName', 'customerEmail', 'customerPhone', 'siteAddress', 'notes', 'mapLat', 'mapLon', 'mapZoom'] as const
     const hasInfo = infoFields.some(f => data[f] !== undefined)
     if (hasInfo) {
+      // If customer details changed, find-or-create the Customer and re-link.
+      // We only re-link when the rep actually edited identifying fields
+      // (name/email/phone) — site/map updates don't trigger a re-link.
+      const customerFieldChanged =
+        data.customerName !== undefined ||
+        data.customerEmail !== undefined ||
+        data.customerPhone !== undefined
+      let customerId: string | undefined
+      if (customerFieldChanged) {
+        const result = await findOrCreateCustomer({
+          name: data.customerName,
+          email: data.customerEmail || null,
+          phone: data.customerPhone,
+          zip: quote.customerZip,
+        })
+        customerId = result.id
+      }
+
       await prisma.quote.update({
         where: { id: params.id },
         data: {
+          ...(customerId ? { customerId } : {}),
           customerName: data.customerName,
           customerEmail: data.customerEmail || null,
           customerPhone: data.customerPhone,
