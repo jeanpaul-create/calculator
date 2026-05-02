@@ -193,10 +193,12 @@ This is a bold, energetic tool — not a bubbly, consumer app. Radius is used sp
 └──────────────────────────────────────────────────────────┘
 ```
 
-- Sidebar: `gray-900` background, white text, `red-500` left border on active item
+- Sidebar: **`white` background**, `gray-200` right border, dark text. Active nav item: `red-50` background, `red-600` text, `3px red-500` left rail.
 - Content area: `gray-50` background
 - Cards/panels: `white` surface with `gray-200` border and `2px shadow`
 - Max content width: `1200px`, centered
+
+> **Sidebar revision (2026-05):** changed from dark `gray-900` to white. The dark slab dominated visual weight on a tool that already has restrained color elsewhere; the white sidebar lets content breathe and matches the PDF Variant D aesthetic. Brand recognition is preserved by the red active rail and the red I.ON logo.
 
 ### Calculator Layout (Phase 1)
 
@@ -309,24 +311,32 @@ EXPIRED:  bg=gray-100  text=gray-400  opacity: 0.7
 ### Sidebar
 
 ```css
-background: var(--gray-900);     /* near black, warm tint */
-width: 240px;
-padding: 24px 0;
+/* Light sidebar — revised 2026-05 */
+background: white;
+border-right: 1px solid var(--gray-200);
+width: 224px;          /* w-56 — slightly narrower than 240 */
+padding: 16px 0;
 
 /* Logo area */
-padding: 20px 24px 32px;
+padding: 20px 24px 24px;
+border-bottom: 1px solid var(--gray-200);
 
 /* Nav item */
-padding: 10px 24px;
-color: var(--gray-400);
+padding: 8px 12px;
+color: var(--gray-700);
 font-size: 14px;
 font-weight: 500;
-border-left: 3px solid transparent;
+border-radius: 6px;
+
+/* Hover */
+background: var(--gray-100);
+color: var(--gray-900);
 
 /* Active nav item */
-color: white;
-background: rgba(217, 33, 39, 0.1);   /* red-500 at 10% opacity */
+background: var(--red-50);
+color: var(--red-600);
 border-left: 3px solid var(--red-500);
+padding-left: calc(12px - 3px);  /* preserve 12px content alignment */
 ```
 
 ---
@@ -415,3 +425,6 @@ Phase 1 is desktop-first (reps primarily use laptops or tablets). But mobile mus
 | 2026-03-17 | Integer Rappen + Intl.NumberFormat('de-CH') | Swiss apostrophe thousands separator; zero float drift |
 | 2026-03-17 | Desktop-first, mobile-must-not-break | Primary use case is laptop/tablet; mobile fallback required |
 | 2026-03-17 | Red-500 doubles as error color | Keeps palette tight; distinguished by context (bg + text treatment) |
+| 2026-05-02 | Light sidebar (white) replaces dark `gray-900` | Dark slab dominated visual weight on a brand that's already red-accent dense; light sidebar matches PDF Variant D aesthetic and lets content breathe. Brand recognition preserved via red active rail + I.ON logo. |
+| 2026-05-02 | KPI top-stroke demoted from red-500 to gray-200 | DESIGN.md says red is for the *one* most important element; 4+ red KPI strokes diluted the rule. KPI tiles now opt in to red via `emphasis: 'primary'` only on hero stats. |
+| 2026-05-02 | Page header "rule" changed from 12px×2px red stub to full-width 1px gray hairline | The stub read as residue rather than a designed accent. The hairline acts as a quiet content divider without competing with the hero element. |
