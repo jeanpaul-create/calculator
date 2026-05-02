@@ -42,6 +42,12 @@ const mockScenario: PricedScenario = {
   sellingPriceExVatRappen: 1485000,
   vatRappen: 120285,
   sellingPriceIncVatRappen: 1605285,
+  customerBreakdown: {
+    equipmentRappen: 800000,
+    installationRappen: 200000,
+    servicesRappen: 100000,
+    marginRappen: 385000,
+  },
   installedKwp: 4.4,
   panelCount: 10,
   panelPowerWp: 440,

@@ -5,6 +5,8 @@ import {
   calculateIonPrice, buildIonCoefficientsFromSettings, RoofType, RoofSlope,
   calculatePacPrice, buildPacCoefficientsFromSettings, PAC_SETTING_KEYS,
   applyDiscount,
+  bucketIonForCustomer, bucketPacForCustomer, applyDiscountToBreakdown,
+  type IonPricingBreakdown, type PacPricingBreakdown, type CustomerFacingBreakdown,
 } from '@/lib/pricing'
 import { findOrCreateCustomer } from '@/lib/customer'
 import { z } from 'zod'
@@ -220,6 +222,8 @@ export async function PUT(req: NextRequest, { params }: Params) {
       rawCostRappen?: number
       totalLaborRappen?: number
     }
+    // Customer-facing 4-line breakdown — snapshotted on the scenario for the PDF.
+    let customerBreakdown: CustomerFacingBreakdown
 
     if (scenarioType === 'PAC') {
       const pacCoefficients = buildPacCoefficientsFromSettings(settingsMap, vatBasisPts)
@@ -228,7 +232,9 @@ export async function PUT(req: NextRequest, { params }: Params) {
         laborRappen: productLaborMap[item.productId],
         quantity: item.quantity,
       }))
-      pricing = calculatePacPrice(pacProducts, pacCoefficients)
+      const pacBreakdown: PacPricingBreakdown = calculatePacPrice(pacProducts, pacCoefficients)
+      pricing = pacBreakdown
+      customerBreakdown = bucketPacForCustomer(pacBreakdown, vatBasisPts)
     } else {
       const ionProducts = data.items.map((item) => ({
         category: productCategoryMap[item.productId] as IonProductCategory,
@@ -238,9 +244,15 @@ export async function PUT(req: NextRequest, { params }: Params) {
       const ionOptions = (data.options ?? []).map((opt) => ({
         costRappen: optionCostMap[opt.optionId],
       }))
-      pricing = calculateIonPrice(ionProducts, ionOptions, ionCoefficients,
+      const ionBreakdown: IonPricingBreakdown = calculateIonPrice(
+        ionProducts,
+        ionOptions,
+        ionCoefficients,
         (data.roofType ?? 'tuile') as RoofType,
-        (data.roofSlope ?? 'simple') as RoofSlope)
+        (data.roofSlope ?? 'simple') as RoofSlope
+      )
+      pricing = ionBreakdown
+      customerBreakdown = bucketIonForCustomer(ionBreakdown, vatBasisPts)
     }
 
     // Apply rep-chosen discount and validate the floor.
@@ -279,6 +291,15 @@ export async function PUT(req: NextRequest, { params }: Params) {
       effectiveMarginBasisPts:
         discountBasisPts > 0 ? discount.effectiveMarginAfterDiscountBps : pricing.effectiveMarginBasisPts,
     }
+    // Discount comes off the margin line — equipment/installation/services
+    // stay at cost, the rep is giving up profit.
+    if (discountBasisPts > 0) {
+      customerBreakdown = applyDiscountToBreakdown(
+        customerBreakdown,
+        discount.discountedExVatRappen,
+        vatBasisPts
+      )
+    }
 
     // Atomically replace the scenario (delete old + create new in one transaction)
     // In Phase 2 multi-scenario: create/update by scenario ID
@@ -303,6 +324,11 @@ export async function PUT(req: NextRequest, { params }: Params) {
           discountBasisPts,
           discountReason: discountBasisPts > 0 ? data.discountReason?.trim() || null : null,
           requiresApproval: discount.requiresApproval,
+          // Customer-facing 4-line breakdown (Phase 2a)
+          equipmentRappen: customerBreakdown.equipmentRappen,
+          installationRappen: customerBreakdown.installationRappen,
+          servicesRappen: customerBreakdown.servicesRappen,
+          marginRappen: customerBreakdown.marginRappen,
           items: {
             create: data.items.map((item) => ({
               productId: item.productId,

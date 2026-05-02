@@ -8,6 +8,10 @@ import {
   formatChf,
   formatPct,
   applyDiscount,
+  applyDiscountToBreakdown,
+  bucketIonForCustomer,
+  bucketPacForCustomer,
+  getCustomerVisibleLines,
   calculateIonPrice,
   calculatePronovoSubsidy,
   estimateTaxSavings,
@@ -743,5 +747,155 @@ describe('applyDiscount', () => {
     const r = applyDiscount({ ...baseline, sellingExVatRappen: 0, discountBasisPts: 500 })
     expect(r.discountedExVatRappen).toBe(0)
     expect(r.effectiveMarginAfterDiscountBps).toBe(0)
+  })
+})
+
+// ─── Customer-facing 4-line bucketing ─────────────────────────────────────────
+
+describe('bucketIonForCustomer (PV)', () => {
+  // Realistic scenario: 16 panels @ CHF 250, one inverter @ CHF 1500, one battery @ CHF 8000
+  const products: Parameters<typeof calculateIonPrice>[0] = [
+    { category: 'PANEL', costRappen: 25_000, quantity: 16 },
+    { category: 'INVERTER', costRappen: 150_000, quantity: 1 },
+    { category: 'BATTERY', costRappen: 800_000, quantity: 1 },
+  ]
+  const options: Parameters<typeof calculateIonPrice>[1] = [
+    { costRappen: 50_000 }, // scaffolding option
+  ]
+  const breakdown = calculateIonPrice(products, options, DEFAULT_ION_COEFFICIENTS, 'tuile', 'simple')
+
+  it('four buckets sum exactly to the engine ex-VAT price', () => {
+    const c = bucketIonForCustomer(breakdown, 810)
+    const sum =
+      c.equipmentRappen + c.installationRappen + c.servicesRappen + c.marginRappen
+    expect(sum).toBe(breakdown.sellingPriceExVatRappen)
+    expect(c.subtotalExVatRappen).toBe(breakdown.sellingPriceExVatRappen)
+  })
+
+  it('VAT line matches a fresh VAT computation', () => {
+    const c = bucketIonForCustomer(breakdown, 810)
+    expect(c.vatRappen).toBe(Math.round((c.subtotalExVatRappen * 810) / 10000))
+    expect(c.totalIncVatRappen).toBe(c.subtotalExVatRappen + c.vatRappen)
+  })
+
+  it('equipment bucket is the largest of the three customer-visible lines', () => {
+    const c = bucketIonForCustomer(breakdown, 810)
+    expect(c.equipmentRappen).toBeGreaterThan(c.installationRappen)
+    expect(c.equipmentRappen).toBeGreaterThan(c.servicesRappen)
+  })
+
+  it('margin bucket is positive (the rep is profitable)', () => {
+    const c = bucketIonForCustomer(breakdown, 810)
+    expect(c.marginRappen).toBeGreaterThan(0)
+  })
+})
+
+describe('bucketPacForCustomer (PAC)', () => {
+  const pacProducts: Parameters<typeof calculatePacPrice>[0] = [
+    // 1 BUDERUS 5kW machine + accessories
+    { costRappen: 1_500_000, laborRappen: 200_000, quantity: 1 },
+    { costRappen: 50_000, laborRappen: 30_000, quantity: 2 },
+  ]
+  const breakdown = calculatePacPrice(pacProducts, DEFAULT_PAC_COEFFICIENTS)
+
+  it('four buckets sum exactly to the engine ex-VAT price', () => {
+    const c = bucketPacForCustomer(breakdown, 810)
+    const sum =
+      c.equipmentRappen + c.installationRappen + c.servicesRappen + c.marginRappen
+    // Margin absorbs sub-rappen rounding, so the sum is exact.
+    expect(sum).toBe(breakdown.sellingPriceExVatRappen)
+  })
+
+  it('VAT and total inc-VAT are consistent', () => {
+    const c = bucketPacForCustomer(breakdown, 810)
+    expect(c.vatRappen).toBe(Math.round((c.subtotalExVatRappen * 810) / 10000))
+    expect(c.totalIncVatRappen).toBe(c.subtotalExVatRappen + c.vatRappen)
+  })
+
+  it('equipment bucket dominates total cost (PAC machine is expensive)', () => {
+    const c = bucketPacForCustomer(breakdown, 810)
+    expect(c.equipmentRappen).toBeGreaterThan(c.installationRappen)
+  })
+})
+
+describe('applyDiscountToBreakdown', () => {
+  const original = {
+    equipmentRappen: 1_500_000,
+    installationRappen: 200_000,
+    servicesRappen: 100_000,
+    marginRappen: 700_000, // 25% margin
+    subtotalExVatRappen: 2_500_000,
+    vatRappen: 202_500,
+    totalIncVatRappen: 2_702_500,
+  }
+
+  it('discount comes off the margin line, not equipment/install/services', () => {
+    // 5% discount on 2'500'000 = 2'375'000 ex-VAT (saves 125'000)
+    const c = applyDiscountToBreakdown(original, 2_375_000, 810)
+    expect(c.equipmentRappen).toBe(original.equipmentRappen)
+    expect(c.installationRappen).toBe(original.installationRappen)
+    expect(c.servicesRappen).toBe(original.servicesRappen)
+    expect(c.marginRappen).toBe(700_000 - 125_000) // 575'000
+    expect(c.subtotalExVatRappen).toBe(2_375_000)
+  })
+
+  it('VAT recomputed on the discounted total', () => {
+    const c = applyDiscountToBreakdown(original, 2_375_000, 810)
+    expect(c.vatRappen).toBe(Math.round((2_375_000 * 810) / 10000))
+    expect(c.totalIncVatRappen).toBe(c.subtotalExVatRappen + c.vatRappen)
+  })
+
+  it('extreme discount can push margin negative (caller should have blocked)', () => {
+    // Discount exceeding the original margin
+    const c = applyDiscountToBreakdown(original, 1_700_000, 810)
+    expect(c.marginRappen).toBeLessThan(0)
+  })
+})
+
+describe('getCustomerVisibleLines (margin distributed proportionally)', () => {
+  const original = {
+    equipmentRappen: 1_500_000,
+    installationRappen: 200_000,
+    servicesRappen: 100_000,
+    marginRappen: 700_000,
+    subtotalExVatRappen: 2_500_000,
+    vatRappen: 202_500,
+    totalIncVatRappen: 2_702_500,
+  }
+
+  it('three customer-visible lines sum exactly to subtotalExVatRappen', () => {
+    const v = getCustomerVisibleLines(original)
+    expect(v.equipmentRappen + v.installationRappen + v.servicesRappen)
+      .toBe(original.subtotalExVatRappen)
+  })
+
+  it('equipment is the largest visible line (was the largest cost line)', () => {
+    const v = getCustomerVisibleLines(original)
+    expect(v.equipmentRappen).toBeGreaterThan(v.installationRappen)
+    expect(v.equipmentRappen).toBeGreaterThan(v.servicesRappen)
+  })
+
+  it('preserves cost-line ratios (within 1 rappen rounding)', () => {
+    const v = getCustomerVisibleLines(original)
+    // Original equipment is 1500/1800 of cost = 83.3%; final equipment / total
+    // should also be ~83.3% (markup is uniform).
+    const ratio = v.equipmentRappen / v.subtotalExVatRappen
+    const expected = original.equipmentRappen / (original.equipmentRappen + original.installationRappen + original.servicesRappen)
+    expect(Math.abs(ratio - expected)).toBeLessThan(0.001)
+  })
+
+  it('falls back gracefully when cost basis is zero', () => {
+    const allMargin = {
+      equipmentRappen: 0,
+      installationRappen: 0,
+      servicesRappen: 0,
+      marginRappen: 1_000_000,
+      subtotalExVatRappen: 1_000_000,
+      vatRappen: 81_000,
+      totalIncVatRappen: 1_081_000,
+    }
+    const v = getCustomerVisibleLines(allMargin)
+    // No crash; returns input as-is
+    expect(v.equipmentRappen).toBe(0)
   })
 })

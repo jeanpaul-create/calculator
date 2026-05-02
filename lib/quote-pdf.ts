@@ -41,6 +41,16 @@ export interface PricedScenario {
   sellingPriceExVatRappen: number
   vatRappen: number
   sellingPriceIncVatRappen: number
+  /**
+   * Customer-facing 4-line breakdown (Phase 2a). null on legacy quotes —
+   * PDF falls back to single "Total HT" line in that case.
+   */
+  customerBreakdown: {
+    equipmentRappen: number
+    installationRappen: number
+    servicesRappen: number
+    marginRappen: number
+  } | null
   /** Total installed power in kWp (null if no panels) */
   installedKwp: number | null
   /** Total number of panels */
@@ -285,6 +295,22 @@ export async function buildPricedScenarios(quote: FullQuote): Promise<PricedScen
       }
     }
 
+    // Customer-facing 4-line breakdown — present on Phase-2 saved quotes,
+    // null on legacy quotes (PDF falls back to single Total HT line).
+    const hasBreakdown =
+      scenario.equipmentRappen != null &&
+      scenario.installationRappen != null &&
+      scenario.servicesRappen != null &&
+      scenario.marginRappen != null
+    const customerBreakdown = hasBreakdown
+      ? {
+          equipmentRappen: scenario.equipmentRappen!,
+          installationRappen: scenario.installationRappen!,
+          servicesRappen: scenario.servicesRappen!,
+          marginRappen: scenario.marginRappen!,
+        }
+      : null
+
     return {
       id: scenario.id,
       name: scenario.name,
@@ -294,6 +320,7 @@ export async function buildPricedScenarios(quote: FullQuote): Promise<PricedScen
       sellingPriceExVatRappen,
       vatRappen,
       sellingPriceIncVatRappen,
+      customerBreakdown,
       installedKwp,
       panelCount,
       panelPowerWp,

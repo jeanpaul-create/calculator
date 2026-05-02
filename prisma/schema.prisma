@@ -250,6 +250,14 @@ model QuoteScenario {
   // True when discount drops effective margin below min_margin_basis_pts —
   // surfaces in admin queue for sign-off. False otherwise.
   requiresApproval         Boolean  @default(false)
+  // Customer-facing 4-line breakdown snapshotted at save time. Null on
+  // pre-Phase-2 quotes — PDF falls back to single "Total HT" line in that
+  // case. Sum (equipment + installation + services + margin) === sellingPriceExVatRappen.
+  // Margin is hidden on the customer PDF; the other three are visible.
+  equipmentRappen          Int?
+  installationRappen       Int?
+  servicesRappen           Int?
+  marginRappen             Int?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

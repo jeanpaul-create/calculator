@@ -861,3 +861,184 @@ export function calculateIonPrice(
     rawCostRappen,
   }
 }
+
+// ─── Customer-facing 4-line breakdown ─────────────────────────────────────────
+
+/**
+ * Three lines visible on the customer PDF + one hidden margin line + totals.
+ *
+ * The customer never sees the margin line — it's folded into the total. But the
+ * sum (equipment + installation + services + margin) MUST equal the engine-
+ * computed sellingPriceExVatRappen, otherwise the PDF total wouldn't match.
+ *
+ * Bucketing rationale (PV + PAC):
+ *   Equipment    materials with procurement markup (panels, inverters, batteries,
+ *                mounting hardware, raccordement parts)
+ *   Installation labor (per-product labor, mounting labor, battery PM)
+ *   Services     démarches & ingénierie (raccordement labor, PM, admin work,
+ *                cost options like scaffolding, permits)
+ *   Margin       sales overhead + profits (HIDDEN on customer-facing PDF)
+ */
+export interface CustomerFacingBreakdown {
+  /** Materials & supply chain — visible on PDF */
+  equipmentRappen: number
+  /** Installation labor — visible on PDF */
+  installationRappen: number
+  /** Démarches, ingénierie, options — visible on PDF */
+  servicesRappen: number
+  /** Sales overhead + profit — HIDDEN on customer PDF */
+  marginRappen: number
+  /** Sum of the three customer lines + margin = ex-VAT total */
+  subtotalExVatRappen: number
+  /** VAT amount */
+  vatRappen: number
+  /** Inc-VAT total */
+  totalIncVatRappen: number
+}
+
+/**
+ * Project an IonPricingBreakdown (PV + battery) into the 4 customer-facing buckets.
+ *
+ * Sum invariant: equipment + installation + services + margin === sellingPriceExVatRappen
+ */
+export function bucketIonForCustomer(
+  b: IonPricingBreakdown,
+  vatBasisPts: number
+): CustomerFacingBreakdown {
+  const equipmentRappen = b.pvApproRappen + b.batApproRappen + b.fixedApproRappen
+  const installationRappen = b.pvLaborRappen + b.batConstrRappen
+  const servicesRappen = b.optionsApproRappen + b.fixedLaborRappen
+  // Margin = whatever's left after the visible lines, so the sum exactly
+  // matches sellingPriceExVatRappen. Absorbs sub-rappen accumulated rounding
+  // from the engine's Math.round calls into one line — invisible to the
+  // customer (who never sees this line on the PDF).
+  const subtotalExVatRappen = b.sellingPriceExVatRappen
+  const marginRappen =
+    subtotalExVatRappen - equipmentRappen - installationRappen - servicesRappen
+
+  const vatRappen = Math.round((subtotalExVatRappen * vatBasisPts) / 10000)
+  const totalIncVatRappen = subtotalExVatRappen + vatRappen
+
+  return {
+    equipmentRappen,
+    installationRappen,
+    servicesRappen,
+    marginRappen,
+    subtotalExVatRappen,
+    vatRappen,
+    totalIncVatRappen,
+  }
+}
+
+/**
+ * Project a PacPricingBreakdown into the 4 customer-facing buckets.
+ *
+ * For PAC: Equipment = total appro (material × markup), Installation = labor + PM,
+ * Services = admin work, Margin = sales overhead + profits.
+ *
+ * Sum invariant: equipment + installation + services + margin === sellingPriceExVatRappen
+ */
+export function bucketPacForCustomer(
+  b: PacPricingBreakdown,
+  vatBasisPts: number
+): CustomerFacingBreakdown {
+  const equipmentRappen = Math.round(b.totalApproRappen)
+  const installationRappen = Math.round(b.totalLaborRappen) + b.pmRappen
+  const servicesRappen = b.adminRappen
+  // Margin absorbs the rounding diff so the four buckets sum exactly to
+  // sellingPriceExVatRappen — same approach as the PV bucketer.
+  const subtotalExVatRappen = b.sellingPriceExVatRappen
+  const marginRappen =
+    subtotalExVatRappen - equipmentRappen - installationRappen - servicesRappen
+
+  const vatRappen = Math.round((subtotalExVatRappen * vatBasisPts) / 10000)
+  const totalIncVatRappen = subtotalExVatRappen + vatRappen
+
+  return {
+    equipmentRappen,
+    installationRappen,
+    servicesRappen,
+    marginRappen,
+    subtotalExVatRappen,
+    vatRappen,
+    totalIncVatRappen,
+  }
+}
+
+/**
+ * Customer-visible 3-line projection: distributes the hidden margin
+ * proportionally across equipment / installation / services so that the
+ * three displayed lines sum to the ex-VAT total. The customer never sees a
+ * "margin" line — it's silently folded into the cost lines.
+ *
+ * Rounding: equipment + installation are rounded normally; services absorbs
+ * the diff so the three numbers sum exactly to subtotalExVatRappen.
+ *
+ * Edge case: if the cost basis (eq + inst + svc) is zero (e.g. all margin —
+ * shouldn't happen but guard anyway), returns the input as-is and the caller
+ * should fall back to a single Total HT line.
+ */
+export function getCustomerVisibleLines(b: CustomerFacingBreakdown): {
+  equipmentRappen: number
+  installationRappen: number
+  servicesRappen: number
+  subtotalExVatRappen: number
+  vatRappen: number
+  totalIncVatRappen: number
+} {
+  const costBasis = b.equipmentRappen + b.installationRappen + b.servicesRappen
+  if (costBasis <= 0) {
+    return {
+      equipmentRappen: b.equipmentRappen,
+      installationRappen: b.installationRappen,
+      servicesRappen: b.servicesRappen,
+      subtotalExVatRappen: b.subtotalExVatRappen,
+      vatRappen: b.vatRappen,
+      totalIncVatRappen: b.totalIncVatRappen,
+    }
+  }
+  const markupFactor = b.subtotalExVatRappen / costBasis
+  const equipmentRappen = Math.round(b.equipmentRappen * markupFactor)
+  const installationRappen = Math.round(b.installationRappen * markupFactor)
+  const servicesRappen = b.subtotalExVatRappen - equipmentRappen - installationRappen
+  return {
+    equipmentRappen,
+    installationRappen,
+    servicesRappen,
+    subtotalExVatRappen: b.subtotalExVatRappen,
+    vatRappen: b.vatRappen,
+    totalIncVatRappen: b.totalIncVatRappen,
+  }
+}
+
+/**
+ * Apply a discount to an existing CustomerFacingBreakdown — used for the PDF
+ * when the rep gave a discount. Scales each visible line proportionally so the
+ * customer-visible totals add up correctly to the discounted price.
+ *
+ * Margin absorbs the entire discount (because that's literally what a discount
+ * is from a financial perspective — give up some profit). Equipment, Install,
+ * and Services stay at their cost-plus values.
+ *
+ * Edge case: if the discount is so large it would make margin negative, the
+ * negative value is shown — caller should already have blocked save with
+ * requiresApproval, but the bucket math stays consistent.
+ */
+export function applyDiscountToBreakdown(
+  b: CustomerFacingBreakdown,
+  discountedExVatRappen: number,
+  vatBasisPts: number
+): CustomerFacingBreakdown {
+  // Diff goes entirely off the margin line
+  const newMargin = b.marginRappen - (b.subtotalExVatRappen - discountedExVatRappen)
+  const newVat = Math.round((discountedExVatRappen * vatBasisPts) / 10000)
+  return {
+    equipmentRappen: b.equipmentRappen,
+    installationRappen: b.installationRappen,
+    servicesRappen: b.servicesRappen,
+    marginRappen: newMargin,
+    subtotalExVatRappen: discountedExVatRappen,
+    vatRappen: newVat,
+    totalIncVatRappen: discountedExVatRappen + newVat,
+  }
+}

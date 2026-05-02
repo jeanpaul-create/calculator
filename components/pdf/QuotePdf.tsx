@@ -19,7 +19,7 @@ import {
 } from '@react-pdf/renderer'
 
 const LOGO_PATH = path.join(process.cwd(), 'public', 'logo.png')
-import { formatChf, formatPct } from '@/lib/pricing'
+import { formatChf, formatPct, getCustomerVisibleLines } from '@/lib/pricing'
 import type { FullQuote, PricedScenario } from '@/lib/quote-pdf'
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
@@ -605,22 +605,65 @@ function ScenarioSection({
       {/* Financial + ROI side by side */}
       <View style={s.finWrap}>
 
-        {/* Pricing box */}
+        {/* Pricing box — 4 grouped customer-facing lines (Phase 2a) */}
         <View style={s.finBox}>
           <Text style={s.sectionLabel}>Récapitulatif financier</Text>
-          <View style={s.finRow}>
-            <Text style={s.finLabel}>Prix HT</Text>
-            <Text style={s.finValue}>{formatChf(scenario.sellingPriceExVatRappen)}</Text>
-          </View>
-          <View style={s.finRow}>
-            <Text style={s.finLabel}>TVA ({vatPct})</Text>
-            <Text style={s.finValue}>{formatChf(scenario.vatRappen)}</Text>
-          </View>
-          <View style={s.finDivider} />
-          <View style={s.finTotalRow}>
-            <Text style={s.finTotalLabel}>Total TTC</Text>
-            <Text style={s.finTotalValue}>{formatChf(scenario.sellingPriceIncVatRappen)}</Text>
-          </View>
+          {scenario.customerBreakdown ? (
+            (() => {
+              const v = getCustomerVisibleLines({
+                ...scenario.customerBreakdown,
+                subtotalExVatRappen: scenario.sellingPriceExVatRappen,
+                vatRappen: scenario.vatRappen,
+                totalIncVatRappen: scenario.sellingPriceIncVatRappen,
+              })
+              return (
+                <>
+                  <View style={s.finRow}>
+                    <Text style={s.finLabel}>Matériel</Text>
+                    <Text style={s.finValue}>{formatChf(v.equipmentRappen)}</Text>
+                  </View>
+                  <View style={s.finRow}>
+                    <Text style={s.finLabel}>Pose &amp; main-d&apos;œuvre</Text>
+                    <Text style={s.finValue}>{formatChf(v.installationRappen)}</Text>
+                  </View>
+                  <View style={s.finRow}>
+                    <Text style={s.finLabel}>Démarches &amp; ingénierie</Text>
+                    <Text style={s.finValue}>{formatChf(v.servicesRappen)}</Text>
+                  </View>
+                  <View style={s.finDivider} />
+                  <View style={s.finRow}>
+                    <Text style={s.finLabel}>Prix HT</Text>
+                    <Text style={s.finValue}>{formatChf(scenario.sellingPriceExVatRappen)}</Text>
+                  </View>
+                  <View style={s.finRow}>
+                    <Text style={s.finLabel}>TVA ({vatPct})</Text>
+                    <Text style={s.finValue}>{formatChf(scenario.vatRappen)}</Text>
+                  </View>
+                  <View style={s.finTotalRow}>
+                    <Text style={s.finTotalLabel}>Total TTC</Text>
+                    <Text style={s.finTotalValue}>{formatChf(scenario.sellingPriceIncVatRappen)}</Text>
+                  </View>
+                </>
+              )
+            })()
+          ) : (
+            <>
+              {/* Legacy quote without breakdown — single Total HT line */}
+              <View style={s.finRow}>
+                <Text style={s.finLabel}>Prix HT</Text>
+                <Text style={s.finValue}>{formatChf(scenario.sellingPriceExVatRappen)}</Text>
+              </View>
+              <View style={s.finRow}>
+                <Text style={s.finLabel}>TVA ({vatPct})</Text>
+                <Text style={s.finValue}>{formatChf(scenario.vatRappen)}</Text>
+              </View>
+              <View style={s.finDivider} />
+              <View style={s.finTotalRow}>
+                <Text style={s.finTotalLabel}>Total TTC</Text>
+                <Text style={s.finTotalValue}>{formatChf(scenario.sellingPriceIncVatRappen)}</Text>
+              </View>
+            </>
+          )}
         </View>
 
         {/* ROI box */}
