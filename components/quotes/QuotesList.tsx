@@ -151,15 +151,15 @@ export default function QuotesList({ quotes, isAdmin }: QuotesListProps) {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="text-left px-4 py-2.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wider">N°</th>
-                <th className="text-left px-4 py-2.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Client</th>
+                <th className="text-left px-2 sm:px-4 py-2.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">N°</th>
+                <th className="text-left px-2 sm:px-4 py-2.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Client</th>
                 <th className="text-left px-4 py-2.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wider hidden md:table-cell">NPA</th>
                 {isAdmin && (
                   <th className="text-left px-4 py-2.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wider hidden lg:table-cell">Conseiller</th>
                 )}
-                <th className="text-right px-4 py-2.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Total</th>
-                <th className="text-left px-4 py-2.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Statut</th>
-                <th className="text-right px-4 py-2.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wider hidden sm:table-cell">Date</th>
+                <th className="text-right px-2 sm:px-4 py-2.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wider hidden sm:table-cell">Total</th>
+                <th className="text-left px-2 sm:px-4 py-2.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Statut</th>
+                <th className="text-right px-4 py-2.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wider hidden md:table-cell">Date</th>
               </tr>
             </thead>
             <tbody>
@@ -183,16 +183,16 @@ function QuoteRow({ quote, isAdmin }: { quote: QuoteListItem; isAdmin: boolean }
 
   return (
     <tr className="border-b border-gray-100 last:border-b-0 hover:bg-gray-50 transition-colors group">
-      <td className="px-4 py-3">
+      <td className="px-2 sm:px-4 py-3 whitespace-nowrap">
         <Link
           href={`/quotes/${quote.id}`}
-          className="font-mono text-sm font-semibold text-red-600 hover:text-red-700 tabular-nums"
+          className="font-mono text-xs sm:text-sm font-semibold text-red-600 hover:text-red-700 tabular-nums"
         >
           {quote.quoteNumber}
         </Link>
       </td>
-      <td className="px-4 py-3">
-        <div className="font-medium text-gray-900">
+      <td className="px-2 sm:px-4 py-3">
+        <div className="font-medium text-gray-900 truncate max-w-[140px] sm:max-w-none">
           {quote.customerName?.trim() ? (
             quote.customerName
           ) : (
@@ -200,7 +200,7 @@ function QuoteRow({ quote, isAdmin }: { quote: QuoteListItem; isAdmin: boolean }
           )}
         </div>
         {quote.customerEmail && (
-          <div className="text-xs text-gray-500">{quote.customerEmail}</div>
+          <div className="text-xs text-gray-500 truncate max-w-[140px] sm:max-w-none">{quote.customerEmail}</div>
         )}
       </td>
       <td className="px-4 py-3 text-sm text-gray-600 tabular-nums hidden md:table-cell">
@@ -220,7 +220,7 @@ function QuoteRow({ quote, isAdmin }: { quote: QuoteListItem; isAdmin: boolean }
           {quote.repName ?? '—'}
         </td>
       )}
-      <td className="px-4 py-3 text-right text-sm tabular-nums font-mono">
+      <td className="px-2 sm:px-4 py-3 text-right text-sm tabular-nums font-mono whitespace-nowrap hidden sm:table-cell">
         {quote.totalIncVatRappen != null ? (
           <span className="font-medium text-gray-900">
             {formatChf(quote.totalIncVatRappen)}
@@ -229,7 +229,7 @@ function QuoteRow({ quote, isAdmin }: { quote: QuoteListItem; isAdmin: boolean }
           <span className="text-gray-300">—</span>
         )}
       </td>
-      <td className="px-4 py-3">
+      <td className="px-2 sm:px-4 py-3">
         <div className="flex items-center gap-1.5">
           <StatusPill status={quote.status} />
           {isExpiringSoon && (
@@ -242,7 +242,7 @@ function QuoteRow({ quote, isAdmin }: { quote: QuoteListItem; isAdmin: boolean }
           )}
         </div>
       </td>
-      <td className="px-4 py-3 text-right text-xs text-gray-500 tabular-nums hidden sm:table-cell">
+      <td className="px-4 py-3 text-right text-xs text-gray-500 tabular-nums hidden md:table-cell whitespace-nowrap">
         {new Date(quote.createdAt).toLocaleDateString('fr-CH')}
       </td>
     </tr>
