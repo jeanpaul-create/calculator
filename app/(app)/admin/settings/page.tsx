@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import AdminSettingsForm from './AdminSettingsForm'
-import { DEFAULT_ION_COEFFICIENTS } from '@/lib/pricing'
+import { DEFAULT_ION_COEFFICIENTS, DEFAULT_PAC_COEFFICIENTS, PAC_SETTING_KEYS } from '@/lib/pricing'
 
 export const metadata = { title: 'Paramètres' }
 
@@ -39,6 +39,7 @@ export default async function AdminSettingsPage() {
           'mount_plat_rappen',
           'mount_slope_medium_bps',
           'mount_slope_steep_bps',
+          ...PAC_SETTING_KEYS,
         ],
       },
     },
@@ -72,6 +73,14 @@ export default async function AdminSettingsPage() {
         mountPlatRappen={settingsMap['mount_plat_rappen'] ?? DEFAULT_ION_COEFFICIENTS.mount_plat_rappen}
         mountSlopeMediumBps={settingsMap['mount_slope_medium_bps'] ?? DEFAULT_ION_COEFFICIENTS.mount_slope_medium_bps}
         mountSlopeSteepBps={settingsMap['mount_slope_steep_bps'] ?? DEFAULT_ION_COEFFICIENTS.mount_slope_steep_bps}
+        pacAccessoriesBps={settingsMap['pac_accessories_bps'] ?? DEFAULT_PAC_COEFFICIENTS.pac_accessories_bps}
+        pacFraisSuppBps={settingsMap['pac_frais_supp_bps'] ?? DEFAULT_PAC_COEFFICIENTS.pac_frais_supp_bps}
+        pacTransportBps={settingsMap['pac_transport_bps'] ?? DEFAULT_PAC_COEFFICIENTS.pac_transport_bps}
+        pacPmBps={settingsMap['pac_pm_bps'] ?? DEFAULT_PAC_COEFFICIENTS.pac_pm_bps}
+        pacAdminBps={settingsMap['pac_admin_bps'] ?? DEFAULT_PAC_COEFFICIENTS.pac_admin_bps}
+        pacSalesOverheadBps={settingsMap['pac_sales_overhead_bps'] ?? DEFAULT_PAC_COEFFICIENTS.pac_sales_overhead_bps}
+        pacProfitApproBps={settingsMap['pac_profit_appro_bps'] ?? DEFAULT_PAC_COEFFICIENTS.pac_profit_appro_bps}
+        pacProfitConstrBps={settingsMap['pac_profit_constr_bps'] ?? DEFAULT_PAC_COEFFICIENTS.pac_profit_constr_bps}
       />
     </div>
   )

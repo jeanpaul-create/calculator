@@ -27,6 +27,15 @@ const ALL_SETTING_KEYS = [
   'mount_plat_rappen',
   'mount_slope_medium_bps',
   'mount_slope_steep_bps',
+  // PAC (heat pump) coefficients
+  'pac_accessories_bps',
+  'pac_frais_supp_bps',
+  'pac_transport_bps',
+  'pac_pm_bps',
+  'pac_admin_bps',
+  'pac_sales_overhead_bps',
+  'pac_profit_appro_bps',
+  'pac_profit_constr_bps',
 ]
 
 const UpdateSettingsSchema = z.object({
@@ -53,6 +62,15 @@ const UpdateSettingsSchema = z.object({
   mount_plat_rappen: z.number().int().min(0).optional(),
   mount_slope_medium_bps: z.number().int().min(0).max(9999).optional(),
   mount_slope_steep_bps: z.number().int().min(0).max(9999).optional(),
+  // PAC (heat pump) coefficients
+  pac_accessories_bps: z.number().int().min(0).max(9999).optional(),
+  pac_frais_supp_bps: z.number().int().min(0).max(9999).optional(),
+  pac_transport_bps: z.number().int().min(0).max(9999).optional(),
+  pac_pm_bps: z.number().int().min(0).max(9999).optional(),
+  pac_admin_bps: z.number().int().min(0).max(9999).optional(),
+  pac_sales_overhead_bps: z.number().int().min(0).max(9999).optional(),
+  pac_profit_appro_bps: z.number().int().min(0).max(9999).optional(),
+  pac_profit_constr_bps: z.number().int().min(0).max(9999).optional(),
 })
 
 // GET /api/settings — returns all settings (any authenticated user can read)

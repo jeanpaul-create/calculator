@@ -29,6 +29,15 @@ interface AdminSettingsFormProps {
   mountPlatRappen: number
   mountSlopeMediumBps: number
   mountSlopeSteepBps: number
+  // PAC (heat pump) coefficients
+  pacAccessoriesBps: number
+  pacFraisSuppBps: number
+  pacTransportBps: number
+  pacPmBps: number
+  pacAdminBps: number
+  pacSalesOverheadBps: number
+  pacProfitApproBps: number
+  pacProfitConstrBps: number
 }
 
 export default function AdminSettingsForm({
@@ -55,6 +64,14 @@ export default function AdminSettingsForm({
   mountPlatRappen: initialMountPlat,
   mountSlopeMediumBps: initialMountSlopeMedium,
   mountSlopeSteepBps: initialMountSlopeSteep,
+  pacAccessoriesBps: initialPacAcc,
+  pacFraisSuppBps: initialPacFraisSupp,
+  pacTransportBps: initialPacTransport,
+  pacPmBps: initialPacPm,
+  pacAdminBps: initialPacAdmin,
+  pacSalesOverheadBps: initialPacOverhead,
+  pacProfitApproBps: initialPacProfitAppro,
+  pacProfitConstrBps: initialPacProfitConstr,
 }: AdminSettingsFormProps) {
   const [vatPct, setVatPct] = useState((initialVat / 100).toFixed(2))
   const [minMarginPct, setMinMarginPct] = useState((initialMinMargin / 100).toFixed(1))
@@ -87,6 +104,16 @@ export default function AdminSettingsForm({
   const [mountPlatChf, setMountPlatChf] = useState((initialMountPlat / 100).toFixed(0))
   const [mountSlopeMediumPct, setMountSlopeMediumPct] = useState((initialMountSlopeMedium / 100).toFixed(1))
   const [mountSlopeSteepPct, setMountSlopeSteepPct] = useState((initialMountSlopeSteep / 100).toFixed(1))
+
+  // PAC (heat pump) coefficients
+  const [pacAccPct, setPacAccPct] = useState((initialPacAcc / 100).toFixed(2))
+  const [pacFraisSuppPct, setPacFraisSuppPct] = useState((initialPacFraisSupp / 100).toFixed(2))
+  const [pacTransportPct, setPacTransportPct] = useState((initialPacTransport / 100).toFixed(2))
+  const [pacPmPct, setPacPmPct] = useState((initialPacPm / 100).toFixed(2))
+  const [pacAdminPct, setPacAdminPct] = useState((initialPacAdmin / 100).toFixed(2))
+  const [pacSalesOverheadPct, setPacSalesOverheadPct] = useState((initialPacOverhead / 100).toFixed(2))
+  const [pacProfitApproPct, setPacProfitApproPct] = useState((initialPacProfitAppro / 100).toFixed(2))
+  const [pacProfitConstrPct, setPacProfitConstrPct] = useState((initialPacProfitConstr / 100).toFixed(2))
 
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -126,6 +153,14 @@ export default function AdminSettingsForm({
           mount_plat_rappen: Math.round(parseFloat(mountPlatChf) * 100),
           mount_slope_medium_bps: Math.round(parseFloat(mountSlopeMediumPct) * 100),
           mount_slope_steep_bps: Math.round(parseFloat(mountSlopeSteepPct) * 100),
+          pac_accessories_bps: Math.round(parseFloat(pacAccPct) * 100),
+          pac_frais_supp_bps: Math.round(parseFloat(pacFraisSuppPct) * 100),
+          pac_transport_bps: Math.round(parseFloat(pacTransportPct) * 100),
+          pac_pm_bps: Math.round(parseFloat(pacPmPct) * 100),
+          pac_admin_bps: Math.round(parseFloat(pacAdminPct) * 100),
+          pac_sales_overhead_bps: Math.round(parseFloat(pacSalesOverheadPct) * 100),
+          pac_profit_appro_bps: Math.round(parseFloat(pacProfitApproPct) * 100),
+          pac_profit_constr_bps: Math.round(parseFloat(pacProfitConstrPct) * 100),
         }),
       })
 
@@ -531,6 +566,146 @@ export default function AdminSettingsForm({
                 max={100}
                 step={0.1}
                 onChange={(e) => setBatProfitPct(e.target.value)}
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Coefficients Pompe à Chaleur (PAC) ── */}
+      <div className="card-padded space-y-6">
+        <div className="section-title">Coefficients Pompe à Chaleur (PAC)</div>
+        <p className="field-hint -mt-2">
+          Modèle additif (différent du PV) : prix HT = appro + construction + frais généraux + profits.
+        </p>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="label">Accessoires matériel (%)</label>
+            <div className="relative">
+              <input
+                type="number"
+                className="input"
+                value={pacAccPct}
+                min={0}
+                max={50}
+                step={0.1}
+                onChange={(e) => setPacAccPct(e.target.value)}
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">%</span>
+            </div>
+          </div>
+
+          <div>
+            <label className="label">Frais supplémentaires (%)</label>
+            <div className="relative">
+              <input
+                type="number"
+                className="input"
+                value={pacFraisSuppPct}
+                min={0}
+                max={50}
+                step={0.1}
+                onChange={(e) => setPacFraisSuppPct(e.target.value)}
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">%</span>
+            </div>
+          </div>
+
+          <div>
+            <label className="label">Transport (%)</label>
+            <div className="relative">
+              <input
+                type="number"
+                className="input"
+                value={pacTransportPct}
+                min={0}
+                max={50}
+                step={0.1}
+                onChange={(e) => setPacTransportPct(e.target.value)}
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">%</span>
+            </div>
+          </div>
+
+          <div>
+            <label className="label">Project Management (%)</label>
+            <div className="relative">
+              <input
+                type="number"
+                className="input"
+                value={pacPmPct}
+                min={0}
+                max={50}
+                step={0.1}
+                onChange={(e) => setPacPmPct(e.target.value)}
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">%</span>
+            </div>
+            <p className="field-hint">Sur appro + main-d&apos;œuvre.</p>
+          </div>
+
+          <div>
+            <label className="label">Frais administratifs (%)</label>
+            <div className="relative">
+              <input
+                type="number"
+                className="input"
+                value={pacAdminPct}
+                min={0}
+                max={50}
+                step={0.1}
+                onChange={(e) => setPacAdminPct(e.target.value)}
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">%</span>
+            </div>
+            <p className="field-hint">Sur matériel net (avant chaîne d&apos;approvisionnement).</p>
+          </div>
+
+          <div>
+            <label className="label">Frais généraux Sales (%)</label>
+            <div className="relative">
+              <input
+                type="number"
+                className="input"
+                value={pacSalesOverheadPct}
+                min={0}
+                max={50}
+                step={0.1}
+                onChange={(e) => setPacSalesOverheadPct(e.target.value)}
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">%</span>
+            </div>
+          </div>
+
+          <div>
+            <label className="label">Profit Approvision (%)</label>
+            <div className="relative">
+              <input
+                type="number"
+                className="input"
+                value={pacProfitApproPct}
+                min={0}
+                max={100}
+                step={0.1}
+                onChange={(e) => setPacProfitApproPct(e.target.value)}
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">%</span>
+            </div>
+          </div>
+
+          <div>
+            <label className="label">Profit Construction (%)</label>
+            <div className="relative">
+              <input
+                type="number"
+                className="input"
+                value={pacProfitConstrPct}
+                min={0}
+                max={100}
+                step={0.1}
+                onChange={(e) => setPacProfitConstrPct(e.target.value)}
               />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">%</span>
             </div>
