@@ -28,6 +28,15 @@ interface PriceSummaryCardProps {
   rateRappenPerKwh?: number
   /** PVGIS yield factor used for annual yield estimate (kWh/kWp/year) */
   yieldKwhPerKwp?: number
+  // Discount slider — rep-chosen % off engine-computed price
+  discountBasisPts?: number
+  onDiscountChange?: (bps: number) => void
+  discountReason?: string
+  onDiscountReasonChange?: (reason: string) => void
+  /** True when discount drops effective margin below minMarginBasisPts */
+  requiresApproval?: boolean
+  /** Floor below which discounts require an approval reason */
+  minMarginBasisPts?: number
   isDirty?: boolean
   isSaving?: boolean
   onSave?: () => void
@@ -57,6 +66,12 @@ export default function PriceSummaryCard({
   paybackYearsWithSubsidy,
   rateRappenPerKwh,
   yieldKwhPerKwp,
+  discountBasisPts = 0,
+  onDiscountChange,
+  discountReason = '',
+  onDiscountReasonChange,
+  requiresApproval = false,
+  minMarginBasisPts,
   isDirty,
   isSaving,
   onSave,
@@ -96,6 +111,65 @@ export default function PriceSummaryCard({
           <PriceRow label={t('price_total_incl_vat')} value={sellingPriceIncVatRappen} bold large />
         </div>
       </div>
+
+      {/* Discount slider */}
+      {onDiscountChange && (
+        <div className="px-5 py-4 border-b border-gray-100">
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              Rabais commercial
+            </label>
+            <span className={`text-sm font-mono tabular-nums font-semibold ${
+              discountBasisPts === 0
+                ? 'text-gray-500'
+                : requiresApproval
+                  ? 'text-red-600'
+                  : 'text-orange-600'
+            }`}>
+              {(discountBasisPts / 100).toFixed(1)}%
+            </span>
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={2000}
+            step={25}
+            value={discountBasisPts}
+            onChange={(e) => onDiscountChange(parseInt(e.target.value, 10))}
+            className="w-full accent-red-500"
+          />
+          <div className="flex justify-between text-[10px] text-gray-400 font-mono mt-0.5">
+            <span>0%</span>
+            <span>10%</span>
+            <span>20%</span>
+          </div>
+
+          {requiresApproval && (
+            <div className="mt-3 rounded-md bg-red-50 border border-red-200 px-3 py-2">
+              <div className="flex items-start gap-2 text-xs">
+                <span className="text-red-600 font-semibold">⚠</span>
+                <div className="flex-1">
+                  <p className="text-red-800 font-medium">
+                    Marge sous le seuil ({minMarginBasisPts != null ? (minMarginBasisPts / 100).toFixed(1) : '20.0'}%) — approbation requise
+                  </p>
+                  <p className="text-red-700 mt-1">
+                    Marge effective: {formatPct(effectiveMarginBasisPts)}
+                  </p>
+                </div>
+              </div>
+              {onDiscountReasonChange && (
+                <textarea
+                  value={discountReason}
+                  onChange={(e) => onDiscountReasonChange(e.target.value)}
+                  placeholder="Raison (concurrence, volume, fidélité…)"
+                  rows={2}
+                  className="mt-2 w-full text-xs border border-red-200 rounded px-2 py-1.5 bg-white resize-none"
+                />
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ROI section */}
       {annualSavingsRappen != null && paybackYears != null && (

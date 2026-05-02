@@ -4,6 +4,7 @@ import { requireOwnerOrAdmin } from '@/lib/auth'
 import {
   calculateIonPrice, buildIonCoefficientsFromSettings, RoofType, RoofSlope,
   calculatePacPrice, buildPacCoefficientsFromSettings, PAC_SETTING_KEYS,
+  applyDiscount,
 } from '@/lib/pricing'
 import { findOrCreateCustomer } from '@/lib/customer'
 import { z } from 'zod'
@@ -30,6 +31,10 @@ const SaveScenarioSchema = z.object({
   selfConsumptionRatePct: z.number().int().min(0).max(100).optional(),
   feedInRateRappenPerKwh: z.number().int().min(0).max(200).optional(),
   annualConsumptionKwh: z.number().int().min(0).max(1000000).optional(),
+  // Rep-chosen discount (0-9999 basis points; saves with requiresApproval flag
+  // when the resulting effective margin falls below min_margin_basis_pts)
+  discountBasisPts: z.number().int().min(0).max(9999).optional(),
+  discountReason: z.string().max(500).optional(),
   // Optional project info update
   customerName: z.string().optional(),
   customerEmail: z.string().email().optional().or(z.literal('')),
@@ -207,7 +212,14 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
     type IonProductCategory = 'PANEL' | 'INVERTER' | 'BATTERY' | 'MOUNTING' | 'ACCESSORY' | 'EV_CHARGER'
 
-    let pricing: { sellingPriceExVatRappen: number; sellingPriceIncVatRappen: number; effectiveMarginBasisPts: number }
+    let pricing: {
+      sellingPriceExVatRappen: number
+      sellingPriceIncVatRappen: number
+      effectiveMarginBasisPts: number
+      totalCostRappen?: number
+      rawCostRappen?: number
+      totalLaborRappen?: number
+    }
 
     if (scenarioType === 'PAC') {
       const pacCoefficients = buildPacCoefficientsFromSettings(settingsMap, vatBasisPts)
@@ -231,6 +243,43 @@ export async function PUT(req: NextRequest, { params }: Params) {
         (data.roofSlope ?? 'simple') as RoofSlope)
     }
 
+    // Apply rep-chosen discount and validate the floor.
+    // Total cost basis for margin = sellingPrice * (1 - effectiveMargin/10000)
+    const minMarginBasisPts = settingsMap['min_margin_basis_pts'] ?? 2000
+    const discountBasisPts = data.discountBasisPts ?? 0
+    const totalCostForMargin = Math.round(
+      (pricing.sellingPriceExVatRappen * (10000 - pricing.effectiveMarginBasisPts)) / 10000
+    )
+    const discount = applyDiscount({
+      sellingExVatRappen: pricing.sellingPriceExVatRappen,
+      totalCostRappen: totalCostForMargin,
+      discountBasisPts,
+      minMarginBasisPts,
+      vatBasisPts,
+    })
+
+    // Floor enforcement: requiresApproval but no reason → reject. With reason
+    // → allow with the flag set so admins can sign off later.
+    if (discount.requiresApproval && !data.discountReason?.trim()) {
+      return NextResponse.json(
+        {
+          error: `Le rabais demandé fait passer la marge effective à ${(discount.effectiveMarginAfterDiscountBps / 100).toFixed(1)}% (seuil: ${(minMarginBasisPts / 100).toFixed(1)}%). Veuillez fournir une raison.`,
+          requiresApproval: true,
+          effectiveMarginAfterDiscountBps: discount.effectiveMarginAfterDiscountBps,
+        },
+        { status: 422 }
+      )
+    }
+
+    // Override pricing with discounted values for downstream storage
+    pricing = {
+      ...pricing,
+      sellingPriceExVatRappen: discount.discountedExVatRappen,
+      sellingPriceIncVatRappen: discount.discountedIncVatRappen,
+      effectiveMarginBasisPts:
+        discountBasisPts > 0 ? discount.effectiveMarginAfterDiscountBps : pricing.effectiveMarginBasisPts,
+    }
+
     // Atomically replace the scenario (delete old + create new in one transaction)
     // In Phase 2 multi-scenario: create/update by scenario ID
     const scenario = await prisma.$transaction(async (tx) => {
@@ -251,6 +300,9 @@ export async function PUT(req: NextRequest, { params }: Params) {
           selfConsumptionRatePct: data.selfConsumptionRatePct ?? null,
           feedInRateRappenPerKwh: data.feedInRateRappenPerKwh ?? null,
           annualConsumptionKwh: data.annualConsumptionKwh ?? null,
+          discountBasisPts,
+          discountReason: discountBasisPts > 0 ? data.discountReason?.trim() || null : null,
+          requiresApproval: discount.requiresApproval,
           items: {
             create: data.items.map((item) => ({
               productId: item.productId,

@@ -304,6 +304,76 @@ export function formatPct(basisPts: number): string {
   return (basisPts / 100).toFixed(2) + '%'
 }
 
+// ─── Discount helper ─────────────────────────────────────────────────────────
+
+export interface DiscountInput {
+  /** Engine-computed selling price (ex-VAT, in Rappen) */
+  sellingExVatRappen: number
+  /** Total cost (materials + labor + overhead) used for margin floor check */
+  totalCostRappen: number
+  /** Rep-chosen discount in basis points (500 = 5%). 0 = no discount. */
+  discountBasisPts: number
+  /** Minimum allowable effective margin (basis points). Below this requires approval. */
+  minMarginBasisPts: number
+  /** VAT rate (basis points; 810 = 8.1%) */
+  vatBasisPts: number
+}
+
+export interface DiscountResult {
+  /** Discounted selling price ex-VAT (Rappen) */
+  discountedExVatRappen: number
+  /** Recomputed VAT (Rappen) */
+  vatRappen: number
+  /** Discounted selling price inc-VAT (Rappen) */
+  discountedIncVatRappen: number
+  /** Effective margin AFTER discount (basis points). May go negative on huge discounts. */
+  effectiveMarginAfterDiscountBps: number
+  /** True when effective margin after discount is below minMarginBasisPts */
+  requiresApproval: boolean
+}
+
+/**
+ * Apply a rep-chosen discount to engine-computed pricing and recompute the
+ * effective margin. Used by both PV and PAC scenarios — pure, no Prisma deps.
+ *
+ * Returns requiresApproval=true when the post-discount effective margin falls
+ * below minMarginBasisPts. Callers can either block the save or capture a
+ * discountReason and proceed with the flag set.
+ */
+export function applyDiscount(input: DiscountInput): DiscountResult {
+  const {
+    sellingExVatRappen,
+    totalCostRappen,
+    discountBasisPts,
+    minMarginBasisPts,
+    vatBasisPts,
+  } = input
+
+  const safeDiscount = Math.max(0, Math.min(discountBasisPts, 9999))
+  const discountedExVatRappen = Math.round(
+    (sellingExVatRappen * (10000 - safeDiscount)) / 10000
+  )
+  const vatRappen = Math.round((discountedExVatRappen * vatBasisPts) / 10000)
+  const discountedIncVatRappen = discountedExVatRappen + vatRappen
+
+  // Effective margin = (selling - cost) / selling (basis points)
+  const effectiveMarginAfterDiscountBps =
+    discountedExVatRappen > 0
+      ? Math.round(((discountedExVatRappen - totalCostRappen) * 10000) / discountedExVatRappen)
+      : 0
+
+  const requiresApproval =
+    safeDiscount > 0 && effectiveMarginAfterDiscountBps < minMarginBasisPts
+
+  return {
+    discountedExVatRappen,
+    vatRappen,
+    discountedIncVatRappen,
+    effectiveMarginAfterDiscountBps,
+    requiresApproval,
+  }
+}
+
 // ─── I.ON Energy Excel Pricing Model ─────────────────────────────────────────
 
 export interface IonPricingCoefficients {

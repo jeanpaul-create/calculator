@@ -61,6 +61,7 @@ export default async function CalculatorPage({
 
   const settingsMap = Object.fromEntries(settings.map((s) => [s.key, parseInt(s.value)]))
   const vatBasisPts = settingsMap['vat_pct_basis_pts'] ?? 810
+  const minMarginBasisPts = settingsMap['min_margin_basis_pts'] ?? 2000
 
   const ionCoefficients = buildIonCoefficientsFromSettings(settingsMap, vatBasisPts)
 
@@ -78,6 +79,7 @@ export default async function CalculatorPage({
         products={products as any}
         costOptions={costOptions}
         vatBasisPts={vatBasisPts}
+        minMarginBasisPts={minMarginBasisPts}
         ionCoefficients={ionCoefficients}
         quoteId={searchParams.quoteId}
       />

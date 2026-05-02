@@ -238,6 +238,18 @@ model QuoteScenario {
   feedInRateRappenPerKwh   Int?
   // Annual household consumption used to derive SCR (kWh/year). NULL = not provided.
   annualConsumptionKwh     Int?
+  // Rep-chosen discount applied to the engine-computed price (basis points;
+  // 500 = 5%). Defaults to 0 (no discount). Capped server-side so effective
+  // margin never falls below min_margin_basis_pts unless requiresApproval is
+  // set and discountReason is captured.
+  discountBasisPts         Int      @default(0)
+  // Free-text reason required when the discount pushes effective margin below
+  // min_margin_basis_pts. Captured for audit and analytics ("price
+  // pressure", "volume", "competitive bid").
+  discountReason           String?  @db.Text
+  // True when discount drops effective margin below min_margin_basis_pts —
+  // surfaces in admin queue for sign-off. False otherwise.
+  requiresApproval         Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

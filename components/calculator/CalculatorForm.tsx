@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
-import { calculateIonPrice, calculateRoi, estimateAnnualYield, estimateSelfConsumptionRate, sumInstalledKwp, calculatePronovoSubsidy, estimateTaxSavings, IonPricingCoefficients, RoofType, RoofSlope } from '@/lib/pricing'
+import { calculateIonPrice, calculateRoi, estimateAnnualYield, estimateSelfConsumptionRate, sumInstalledKwp, calculatePronovoSubsidy, estimateTaxSavings, applyDiscount, IonPricingCoefficients, RoofType, RoofSlope } from '@/lib/pricing'
 import PriceSummaryCard from './PriceSummaryCard'
 import { useLanguage } from '@/context/LanguageContext'
 import AddressSearch from './AddressSearch'
@@ -34,6 +34,8 @@ interface CalculatorFormProps {
   products: Product[]
   costOptions: CostOption[]
   vatBasisPts: number
+  /** Minimum allowable effective margin (basis points). Discounts below this require approval. */
+  minMarginBasisPts: number
   ionCoefficients: IonPricingCoefficients
   quoteId?: string
   onSaved?: (quoteId: string) => void
@@ -43,6 +45,7 @@ export default function CalculatorForm({
   products,
   costOptions,
   vatBasisPts,
+  minMarginBasisPts,
   ionCoefficients,
   quoteId,
   onSaved,
@@ -74,6 +77,9 @@ export default function CalculatorForm({
     yieldKwhPerKwp: number | null
   } | null>(null)
   const [fetchingSiteInfo, setFetchingSiteInfo] = useState(false)
+  /** Rep-chosen discount on the engine-computed price (basis points; 500 = 5%). */
+  const [discountBasisPts, setDiscountBasisPts] = useState<number>(0)
+  const [discountReason, setDiscountReason] = useState<string>('')
 
   const ionProducts = selectedProducts.map((sp) => ({
     category: sp.product.category,
@@ -86,10 +92,41 @@ export default function CalculatorForm({
     return { costRappen: opt.costRappen }
   })
 
-  const pricing =
+  const enginePricing =
     ionProducts.length > 0 || ionOptions.length > 0
       ? calculateIonPrice(ionProducts, ionOptions, ionCoefficients, roofType, roofSlope)
       : null
+
+  // Apply rep-chosen discount on top of engine pricing. When discount = 0,
+  // discounted figures equal engine figures (passes through).
+  const discountResult = enginePricing
+    ? applyDiscount({
+        sellingExVatRappen: enginePricing.sellingPriceExVatRappen,
+        totalCostRappen: Math.round(
+          (enginePricing.sellingPriceExVatRappen * (10000 - enginePricing.effectiveMarginBasisPts)) / 10000
+        ),
+        discountBasisPts,
+        minMarginBasisPts,
+        vatBasisPts,
+      })
+    : null
+
+  // Final pricing object passed to the summary card — engine numbers
+  // overridden with discounted versions when discount > 0.
+  const pricing = enginePricing && discountResult
+    ? {
+        ...enginePricing,
+        sellingPriceExVatRappen: discountResult.discountedExVatRappen,
+        vatRappen: discountResult.vatRappen,
+        sellingPriceIncVatRappen: discountResult.discountedIncVatRappen,
+        effectiveMarginBasisPts:
+          discountBasisPts > 0
+            ? discountResult.effectiveMarginAfterDiscountBps
+            : enginePricing.effectiveMarginBasisPts,
+      }
+    : null
+
+  const requiresApproval = discountResult?.requiresApproval ?? false
 
   const panels = selectedProducts
     .filter((sp) => sp.product.category === 'PANEL' && sp.product.powerWp)
@@ -213,6 +250,8 @@ export default function CalculatorForm({
 
   const buildScenarioPayload = () => ({
     marginBasisPts: pricing?.effectiveMarginBasisPts ?? 0,
+    discountBasisPts,
+    discountReason: discountBasisPts > 0 && discountReason.trim() ? discountReason.trim() : undefined,
     roofType,
     roofSlope,
     yieldKwhPerKwp: activeYield,
@@ -631,6 +670,12 @@ export default function CalculatorForm({
             paybackYearsWithSubsidy={paybackYearsWithSubsidy}
             rateRappenPerKwh={activeRate}
             yieldKwhPerKwp={activeYield}
+            discountBasisPts={discountBasisPts}
+            onDiscountChange={(bps) => { setDiscountBasisPts(bps); setIsDirty(true) }}
+            discountReason={discountReason}
+            onDiscountReasonChange={(s) => { setDiscountReason(s); setIsDirty(true) }}
+            requiresApproval={requiresApproval}
+            minMarginBasisPts={minMarginBasisPts}
             isDirty={isDirty}
             isSaving={isSaving}
             onSave={quoteId ? handleSave : undefined}

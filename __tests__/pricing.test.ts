@@ -7,6 +7,7 @@ import {
   sumInstalledKwp,
   formatChf,
   formatPct,
+  applyDiscount,
   calculateIonPrice,
   calculatePronovoSubsidy,
   estimateTaxSavings,
@@ -690,5 +691,57 @@ describe('buildPacCoefficientsFromSettings', () => {
     expect(result.pac_sales_overhead_bps).toBe(DEFAULT_PAC_COEFFICIENTS.pac_sales_overhead_bps)
     expect(result.pac_profit_appro_bps).toBe(DEFAULT_PAC_COEFFICIENTS.pac_profit_appro_bps)
     expect(result.pac_profit_constr_bps).toBe(DEFAULT_PAC_COEFFICIENTS.pac_profit_constr_bps)
+  })
+})
+
+// ─── applyDiscount ────────────────────────────────────────────────────────────
+
+describe('applyDiscount', () => {
+  // Baseline scenario: CHF 30'000 ex-VAT, CHF 22'500 cost (25% margin), 8.1% VAT, 20% min margin
+  const baseline = {
+    sellingExVatRappen: 3_000_000,
+    totalCostRappen: 2_250_000,
+    minMarginBasisPts: 2000, // 20%
+    vatBasisPts: 810,
+  }
+
+  it('zero discount preserves the original price', () => {
+    const r = applyDiscount({ ...baseline, discountBasisPts: 0 })
+    expect(r.discountedExVatRappen).toBe(3_000_000)
+    expect(r.discountedIncVatRappen).toBe(3_000_000 + Math.round(3_000_000 * 0.081))
+    expect(r.requiresApproval).toBe(false)
+  })
+
+  it('5% discount reduces price proportionally', () => {
+    const r = applyDiscount({ ...baseline, discountBasisPts: 500 })
+    expect(r.discountedExVatRappen).toBe(2_850_000) // 30000 * 0.95
+    // New margin = (28500 - 22500) / 28500 = 21.05% > 20% floor
+    expect(r.effectiveMarginAfterDiscountBps).toBeGreaterThanOrEqual(2000)
+    expect(r.requiresApproval).toBe(false)
+  })
+
+  it('flags requiresApproval when discount drops margin below floor', () => {
+    // 8% discount: new selling = 27600, margin = (27600 - 22500) / 27600 = 18.48% < 20%
+    const r = applyDiscount({ ...baseline, discountBasisPts: 800 })
+    expect(r.effectiveMarginAfterDiscountBps).toBeLessThan(2000)
+    expect(r.requiresApproval).toBe(true)
+  })
+
+  it('clamps negative discounts to zero', () => {
+    const r = applyDiscount({ ...baseline, discountBasisPts: -500 })
+    expect(r.discountedExVatRappen).toBe(3_000_000)
+    expect(r.requiresApproval).toBe(false)
+  })
+
+  it('clamps absurd discounts to 99.99%', () => {
+    const r = applyDiscount({ ...baseline, discountBasisPts: 50000 })
+    expect(r.discountedExVatRappen).toBeGreaterThan(0)
+    expect(r.requiresApproval).toBe(true)
+  })
+
+  it('handles zero selling price gracefully', () => {
+    const r = applyDiscount({ ...baseline, sellingExVatRappen: 0, discountBasisPts: 500 })
+    expect(r.discountedExVatRappen).toBe(0)
+    expect(r.effectiveMarginAfterDiscountBps).toBe(0)
   })
 })
