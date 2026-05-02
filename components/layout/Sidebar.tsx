@@ -66,6 +66,13 @@ export default function Sidebar({ userName, role, mobileOpen, onMobileClose }: S
 
         {/* Main nav */}
         <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto md:px-1 lg:px-2">
+          <NavItem href="/" isActive={pathname === '/'} onClick={onMobileClose} title="Tableau de bord">
+            <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+            </svg>
+            <span className="md:hidden lg:inline">Tableau de bord</span>
+          </NavItem>
+
           <NavItem href="/calculator" isActive={pathname === '/calculator'} onClick={onMobileClose} title={t('nav_calculator')}>
             <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 13h.01M13 13h.01M17 13h.01M17 17h.01M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
