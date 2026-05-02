@@ -1,6 +1,9 @@
 'use client'
 
 import { useState } from 'react'
+import { Tabs, type TabItem } from '@/components/ui'
+
+type SettingsTab = 'general' | 'pv' | 'mounting' | 'battery' | 'pac'
 
 interface AdminSettingsFormProps {
   vatBasisPts: number
@@ -118,6 +121,15 @@ export default function AdminSettingsForm({
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<SettingsTab>('general')
+
+  const tabs: TabItem<SettingsTab>[] = [
+    { value: 'general', label: 'Général' },
+    { value: 'pv', label: 'Photovoltaïque' },
+    { value: 'mounting', label: 'Montage' },
+    { value: 'battery', label: 'Batteries & EV' },
+    { value: 'pac', label: 'Pompe à chaleur' },
+  ]
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -177,8 +189,17 @@ export default function AdminSettingsForm({
   }
 
   return (
-    <form onSubmit={handleSave} className="space-y-8">
+    <form onSubmit={handleSave}>
+      <Tabs<SettingsTab>
+        items={tabs}
+        value={activeTab}
+        onChange={setActiveTab}
+        className="mb-6"
+      />
+
+      <div className="space-y-8">
       {/* ── General ── */}
+      {activeTab === 'general' && (
       <div className="card-padded space-y-6">
         <div className="section-title">Général</div>
 
@@ -216,8 +237,11 @@ export default function AdminSettingsForm({
           <p className="field-hint">Seuil de contrôle minimum (rarement déclenché avec le modèle de coefficients).</p>
         </div>
       </div>
+      )}
 
-      {/* ── Coefficients Système Solaire ── */}
+      {/* ── Coefficients Système Solaire (PV tab — both cards) ── */}
+      {activeTab === 'pv' && (
+      <>
       <div className="card-padded space-y-6">
         <div className="section-title">Coefficients Système Solaire (PV)</div>
 
@@ -417,8 +441,11 @@ export default function AdminSettingsForm({
           </div>
         </div>
       </div>
+      </>
+      )}
 
       {/* ── Système de Montage ── */}
+      {activeTab === 'mounting' && (
       <div className="card-padded space-y-6">
         <div className="section-title">Système de Montage</div>
         <p className="field-hint -mt-2">Coût matériel par panneau (CHF, avant chaîne d&apos;approvisionnement)</p>
@@ -517,8 +544,10 @@ export default function AdminSettingsForm({
           </div>
         </div>
       </div>
+      )}
 
       {/* ── Coefficients Batteries & Bornes de Recharge ── */}
+      {activeTab === 'battery' && (
       <div className="card-padded space-y-6">
         <div className="section-title">Coefficients Batteries &amp; Bornes de Recharge</div>
 
@@ -572,8 +601,10 @@ export default function AdminSettingsForm({
           </div>
         </div>
       </div>
+      )}
 
       {/* ── Coefficients Pompe à Chaleur (PAC) ── */}
+      {activeTab === 'pac' && (
       <div className="card-padded space-y-6">
         <div className="section-title">Coefficients Pompe à Chaleur (PAC)</div>
         <p className="field-hint -mt-2">
@@ -712,13 +743,22 @@ export default function AdminSettingsForm({
           </div>
         </div>
       </div>
+      )}
+      </div>
 
-      {error && <div className="alert-error text-sm">{error}</div>}
-      {saved && <div className="alert-success text-sm">Paramètres enregistrés.</div>}
-
-      <button type="submit" className="btn-primary" disabled={saving}>
-        {saving ? 'Enregistrement…' : 'Enregistrer les paramètres'}
-      </button>
+      <div className="mt-6 flex items-center gap-3">
+        <button type="submit" className="btn-primary" disabled={saving}>
+          {saving ? 'Enregistrement…' : 'Enregistrer les paramètres'}
+        </button>
+        {saved && (
+          <span className="text-sm text-green-700 font-medium">
+            ✓ Paramètres enregistrés
+          </span>
+        )}
+        {error && (
+          <span className="text-sm text-red-600 font-medium">{error}</span>
+        )}
+      </div>
     </form>
   )
 }
