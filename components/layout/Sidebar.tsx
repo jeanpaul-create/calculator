@@ -129,7 +129,7 @@ export default function Sidebar({ userName, role, mobileOpen, onMobileClose }: S
             <button
               onClick={() => setLang('fr')}
               className={cn(
-                'flex-1 text-xs rounded py-1 font-medium transition-colors',
+                'flex-1 text-xs rounded py-2 font-medium transition-colors',
                 lang === 'fr'
                   ? 'bg-red-50 text-red-600'
                   : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
@@ -140,7 +140,7 @@ export default function Sidebar({ userName, role, mobileOpen, onMobileClose }: S
             <button
               onClick={() => setLang('de')}
               className={cn(
-                'flex-1 text-xs rounded py-1 font-medium transition-colors',
+                'flex-1 text-xs rounded py-2 font-medium transition-colors',
                 lang === 'de'
                   ? 'bg-red-50 text-red-600'
                   : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
