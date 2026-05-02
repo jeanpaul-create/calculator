@@ -140,14 +140,15 @@
   .alert-warning { @apply alert bg-amber-50 text-amber-700 border border-amber-200; }
   .alert-error   { @apply alert bg-red-50   text-red-700   border border-red-200;   }
 
-  /* ─── Sidebar nav ─────────────────────────────────────────────────── */
+  /* ─── Sidebar nav (light theme) ───────────────────────────────────── */
   .nav-item {
     @apply flex items-center gap-3 px-3 py-2 text-sm font-medium rounded
-           text-gray-300 hover:bg-gray-700 hover:text-white transition-colors duration-150;
+           text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors duration-150;
   }
 
   .nav-item-active {
-    @apply nav-item bg-red-500/10 text-white border-l-[3px] border-l-red-500;
+    @apply nav-item bg-red-50 text-red-600 hover:bg-red-50 hover:text-red-600
+           border-l-[3px] border-l-red-500 pl-[calc(0.75rem-3px)];
   }
 
   /* ─── Section headings ────────────────────────────────────────────── */

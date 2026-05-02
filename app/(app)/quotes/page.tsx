@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import QuoteStatusBadge from '@/components/ui/QuoteStatusBadge'
+import { PageHeader, EmptyState } from '@/components/ui'
 import { QuoteStatus } from '@prisma/client'
 
 export const metadata = { title: 'Offres' }
@@ -27,20 +28,24 @@ export default async function QuotesPage() {
 
   return (
     <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="page-title">Offres</h1>
-        <NewQuoteButton />
-      </div>
+      <PageHeader
+        title="Offres"
+        subtitle={`${quotes.length} offre${quotes.length > 1 ? 's' : ''}${isAdmin ? ' au total' : ''}`}
+        actions={<NewQuoteButton />}
+      />
 
       {quotes.length === 0 ? (
-        <div className="card-padded text-center py-16">
-          <div className="text-gray-400 mb-3">
-            <svg className="w-10 h-10 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-          </div>
-          <p className="text-gray-500 text-sm mb-4">Aucune offre pour le moment.</p>
-          <NewQuoteButton />
+        <div className="card">
+          <EmptyState
+            icon={
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            }
+            title="Aucune offre pour le moment"
+            description="Créez votre première offre depuis le calculateur."
+            action={<NewQuoteButton />}
+          />
         </div>
       ) : (
         <div className="table-container">

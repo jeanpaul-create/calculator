@@ -7,6 +7,7 @@ import { calculateIonPrice, calculateRoi, estimateAnnualYield, estimateSelfConsu
 import PriceSummaryCard from './PriceSummaryCard'
 import { useLanguage } from '@/context/LanguageContext'
 import AddressSearch from './AddressSearch'
+import { Card, EmptyState } from '@/components/ui'
 
 const SiteMap = dynamic(() => import('./SiteMap'), { ssr: false })
 
@@ -682,11 +683,18 @@ export default function CalculatorForm({
             onSaveAsNew={!quoteId ? handleSaveAsNewQuote : undefined}
           />
         ) : (
-          <div className="card-padded text-sm text-gray-500 text-center py-10">
-            {selectedProducts.length === 0 && selectedOptions.size === 0
-              ? t('calc_select_products')
-              : '…'}
-          </div>
+          <Card padding="none" className="sticky top-6">
+            <EmptyState
+              compact
+              icon={
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+              }
+              title="Le panier est vide"
+              description="Sélectionnez des panneaux, onduleurs ou batteries pour voir le prix de vente et les indicateurs ROI apparaître ici."
+            />
+          </Card>
         )}
       </div>
     </div>

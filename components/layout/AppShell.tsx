@@ -34,11 +34,11 @@ export default function AppShell({ children, session }: AppShellProps) {
 
           {/* Main content area */}
           <div className="flex-1 flex flex-col overflow-hidden">
-            {/* Mobile top bar with hamburger */}
-            <header className="md:hidden flex items-center gap-3 px-4 py-3 bg-gray-800 border-b border-gray-700 flex-shrink-0">
+            {/* Mobile top bar with hamburger — light theme */}
+            <header className="md:hidden flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-200 flex-shrink-0">
               <button
                 onClick={() => setMobileOpen(true)}
-                className="text-gray-300 hover:text-white p-1 -ml-1"
+                className="text-gray-600 hover:text-gray-900 p-1 -ml-1 rounded hover:bg-gray-100 transition-colors"
                 aria-label="Ouvrir le menu"
               >
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -48,7 +48,7 @@ export default function AppShell({ children, session }: AppShellProps) {
               <div className="w-6 h-6 bg-red-500 rounded flex items-center justify-center flex-shrink-0">
                 <span className="text-white text-xs font-bold">i</span>
               </div>
-              <span className="text-sm font-semibold text-white">I.ON Energy</span>
+              <span className="text-sm font-semibold text-gray-900">I.ON Energy</span>
             </header>
 
             <main className="flex-1 overflow-y-auto">

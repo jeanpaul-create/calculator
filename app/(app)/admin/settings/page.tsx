@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import AdminSettingsForm from './AdminSettingsForm'
 import { DEFAULT_ION_COEFFICIENTS, DEFAULT_PAC_COEFFICIENTS, PAC_SETTING_KEYS } from '@/lib/pricing'
+import { PageHeader } from '@/components/ui'
 
 export const metadata = { title: 'Paramètres' }
 
@@ -48,7 +49,10 @@ export default async function AdminSettingsPage() {
 
   return (
     <div className="p-6 max-w-2xl">
-      <h1 className="page-title mb-6">Paramètres</h1>
+      <PageHeader
+        title="Paramètres"
+        subtitle="Coefficients de prix, TVA et marge minimum"
+      />
       <AdminSettingsForm
         vatBasisPts={settingsMap['vat_pct_basis_pts'] ?? 810}
         minMarginBasisPts={settingsMap['min_margin_basis_pts'] ?? 2000}

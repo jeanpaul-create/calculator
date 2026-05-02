@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatChf } from '@/lib/pricing'
+import { PageHeader } from '@/components/ui'
 
 type Category =
   | 'PANEL'
@@ -655,7 +656,10 @@ export default function CatalogManager({ products: initialProducts, costOptions:
 
   return (
     <div className="p-6 max-w-5xl space-y-6">
-      <h1 className="page-title">Catalogue</h1>
+      <PageHeader
+        title="Catalogue"
+        subtitle={`${products.length} produits · ${costOptions.length} suppléments`}
+      />
 
       {/* Tab bar */}
       <div className="flex items-center gap-1 border-b border-gray-200">

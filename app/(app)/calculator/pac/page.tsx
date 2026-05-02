@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db'
 import { auth } from '@/lib/auth'
 import PacCalculatorForm from '@/components/calculator/PacCalculatorForm'
 import { buildPacCoefficientsFromSettings, PAC_SETTING_KEYS } from '@/lib/pricing'
+import { PageHeader } from '@/components/ui'
 
 export const metadata = { title: 'Calculateur PAC' }
 
@@ -70,12 +71,10 @@ export default async function PacCalculatorPage({
 
   return (
     <div className="p-6 max-w-6xl">
-      <div className="mb-6">
-        <h1 className="page-title">Calculateur PAC</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Pompe à chaleur — configurer les postes et calculer le prix de vente
-        </p>
-      </div>
+      <PageHeader
+        title="Calculateur pompe à chaleur"
+        subtitle="Configurer les postes et calculer le prix de vente"
+      />
 
       <PacCalculatorForm
         products={pacProducts}

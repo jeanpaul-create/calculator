@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
 import { useLanguage } from '@/context/LanguageContext'
+import { cn } from '@/lib/cn'
 
 interface SidebarProps {
   userName?: string
@@ -26,30 +27,29 @@ export default function Sidebar({ userName, role, mobileOpen, onMobileClose }: S
       {/* Mobile overlay */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-20 bg-black/50 md:hidden"
+          className="fixed inset-0 z-20 bg-black/30 md:hidden"
           onClick={onMobileClose}
         />
       )}
 
-      {/* Sidebar:
-          - Mobile (<768px): hidden by default, slides in as drawer when mobileOpen
-          - Tablet (768-1023px): 48px wide, icons only
-          - Desktop (≥1024px): 224px wide, icons + labels
+      {/*
+        Light sidebar:
+        - White surface, gray-200 right border (replaces dark gray-800 + gray-700)
+        - Mobile (<768px): hidden by default, slides in as drawer
+        - Tablet (768-1023px): 48px wide, icons only
+        - Desktop (≥1024px): 224px wide, icons + labels
       */}
       <aside
-        className={[
-          'flex flex-col h-full bg-gray-800 flex-shrink-0 z-30',
-          // On mobile: fixed drawer that slides in
+        className={cn(
+          'flex flex-col h-full bg-white border-r border-gray-200 flex-shrink-0 z-30',
           'fixed md:relative',
           'transition-transform duration-200 md:transition-none',
           mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
-          // Width: narrow at tablet, full at desktop
-          'w-56 md:w-12 lg:w-56',
-        ].join(' ')}
+          'w-56 md:w-12 lg:w-56'
+        )}
       >
         {/* Logo */}
-        <div className="flex items-center px-4 py-5 border-b border-gray-700 md:px-2 md:py-4 md:justify-center lg:px-4 lg:py-5 lg:justify-start">
-          {/* Full logo — shown on mobile drawer and desktop */}
+        <div className="flex items-center px-4 py-5 border-b border-gray-200 md:px-2 md:py-4 md:justify-center lg:px-4 lg:py-5 lg:justify-start">
           <Image
             src="/logo.png"
             alt="I.ON Energy"
@@ -58,7 +58,7 @@ export default function Sidebar({ userName, role, mobileOpen, onMobileClose }: S
             style={{ objectFit: 'contain' }}
             className="md:hidden lg:block"
           />
-          {/* Icon mark — shown on tablet only */}
+          {/* Icon mark — tablet only */}
           <div className="hidden md:flex lg:hidden w-7 h-7 bg-red-500 rounded items-center justify-center flex-shrink-0">
             <span className="text-white text-xs font-bold">i</span>
           </div>
@@ -91,11 +91,11 @@ export default function Sidebar({ userName, role, mobileOpen, onMobileClose }: S
           {role === 'ADMIN' && (
             <>
               <div className="pt-4 pb-1 px-3 md:hidden lg:block">
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
                   {t('nav_admin')}
                 </span>
               </div>
-              <div className="hidden md:block lg:hidden pt-3 pb-1 border-t border-gray-700 mx-1" />
+              <div className="hidden md:block lg:hidden pt-3 pb-1 border-t border-gray-200 mx-1" />
 
               <NavItem href="/admin/catalog" isActive={isActive('/admin/catalog')} onClick={onMobileClose} title={t('nav_catalog')}>
                 <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -116,39 +116,41 @@ export default function Sidebar({ userName, role, mobileOpen, onMobileClose }: S
         </nav>
 
         {/* User + language section */}
-        <div className="px-2 py-3 border-t border-gray-700 md:px-1 lg:px-2">
+        <div className="px-2 py-3 border-t border-gray-200 md:px-1 lg:px-2">
           {/* Language toggle — hidden in tablet icon-only mode */}
-          <div className="flex items-center gap-1 px-3 py-2 mb-1 md:hidden lg:flex">
+          <div className="flex items-center gap-1 px-2 py-1 mb-2 md:hidden lg:flex">
             <button
               onClick={() => setLang('fr')}
-              className={`flex-1 text-xs rounded py-1 font-medium transition-colors ${
+              className={cn(
+                'flex-1 text-xs rounded py-1 font-medium transition-colors',
                 lang === 'fr'
-                  ? 'bg-gray-600 text-white'
-                  : 'text-gray-400 hover:text-gray-200'
-              }`}
+                  ? 'bg-red-50 text-red-600'
+                  : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+              )}
             >
               FR
             </button>
             <button
               onClick={() => setLang('de')}
-              className={`flex-1 text-xs rounded py-1 font-medium transition-colors ${
+              className={cn(
+                'flex-1 text-xs rounded py-1 font-medium transition-colors',
                 lang === 'de'
-                  ? 'bg-gray-600 text-white'
-                  : 'text-gray-400 hover:text-gray-200'
-              }`}
+                  ? 'bg-red-50 text-red-600'
+                  : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+              )}
             >
               DE
             </button>
           </div>
 
           <div className="flex items-center gap-2 px-3 py-2 mb-1 md:justify-center md:px-1 lg:justify-start lg:px-3">
-            <div className="w-7 h-7 bg-gray-600 rounded-full flex items-center justify-center flex-shrink-0">
-              <span className="text-xs font-semibold text-gray-200">
+            <div className="w-7 h-7 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0 ring-1 ring-gray-200">
+              <span className="text-xs font-semibold text-gray-700">
                 {userName?.[0]?.toUpperCase() ?? '?'}
               </span>
             </div>
             <div className="flex-1 min-w-0 md:hidden lg:block">
-              <div className="text-sm font-medium text-gray-200 truncate">{userName}</div>
+              <div className="text-sm font-medium text-gray-900 truncate">{userName}</div>
               <div className="text-xs text-gray-500">
                 {role === 'ADMIN' ? t('role_admin') : t('role_rep')}
               </div>

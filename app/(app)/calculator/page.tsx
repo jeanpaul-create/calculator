@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db'
 import { auth } from '@/lib/auth'
 import CalculatorForm from '@/components/calculator/CalculatorForm'
 import { buildIonCoefficientsFromSettings } from '@/lib/pricing'
+import { PageHeader } from '@/components/ui'
 
 export const metadata = { title: 'Calculateur' }
 
@@ -67,12 +68,10 @@ export default async function CalculatorPage({
 
   return (
     <div className="p-6 max-w-6xl">
-      <div className="mb-6">
-        <h1 className="page-title">Calculateur de prix</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Sélectionner des produits et calculer le prix de vente
-        </p>
-      </div>
+      <PageHeader
+        title="Calculateur photovoltaïque"
+        subtitle="Configurer un système et calculer le prix de vente"
+      />
 
       <CalculatorForm
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
