@@ -194,6 +194,12 @@ model Quote {
   sentAt      DateTime?   // when the quote was first marked SENT (email or manual)
   expiresAt   DateTime?   // offer validity end-date (defaults to sentAt + 30 days at send)
   followUpAt  DateTime?   // next follow-up due (rep-set or auto-scheduled)
+  // Customer response — set via the public /q/[id] route. acceptedAt is the
+  // moment the customer clicked "Accepter"; declinedAt is the same for decline.
+  // declineReason captures optional context the customer provided.
+  acceptedAt    DateTime?
+  declinedAt    DateTime?
+  declineReason String?     @db.Text
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 

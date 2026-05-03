@@ -204,6 +204,7 @@ export default function QuoteDetailView({ quote, isAdmin }: QuoteDetailViewProps
             ↓ PDF
           </a>
           <EmailButton quoteId={quote.id} hasEmail={!!quote.customerEmail} />
+          <ShareLinkButton quoteId={quote.id} disabled={quote.status === 'DRAFT'} />
           <Link
             href={`/calculator${quote.scenarios[0]?.scenarioType === 'PAC' ? '/pac' : ''}?quoteId=${quote.id}`}
             className="btn-secondary text-xs px-3 py-1.5"
@@ -620,5 +621,47 @@ function buildActivityFeed(quote: QuoteDetailVM): ActivityItem[] {
   return items.sort(
     (a, b) =>
       new Date(b.timestamp as string).getTime() - new Date(a.timestamp as string).getTime()
+  )
+}
+
+// ─── ShareLinkButton ──────────────────────────────────────────────────────────
+
+function ShareLinkButton({ quoteId, disabled }: { quoteId: string; disabled?: boolean }) {
+  const [copied, setCopied] = useState(false)
+
+  async function copy() {
+    try {
+      const url = `${window.location.origin}/q/${quoteId}`
+      await navigator.clipboard.writeText(url)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2500)
+    } catch {
+      // Fallback: select+show URL in a prompt for manual copy
+      window.prompt('Copiez ce lien :', `${window.location.origin}/q/${quoteId}`)
+    }
+  }
+
+  if (disabled) {
+    return (
+      <button
+        disabled
+        title="Disponible une fois l'offre envoyée"
+        className="btn-secondary text-xs px-3 py-1.5 opacity-50 cursor-not-allowed"
+      >
+        🔗 Lien client
+      </button>
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      className={`btn-secondary text-xs px-3 py-1.5 ${
+        copied ? 'text-green-700 border-green-300 bg-green-50' : ''
+      }`}
+    >
+      {copied ? '✓ Lien copié' : '🔗 Lien client'}
+    </button>
   )
 }
