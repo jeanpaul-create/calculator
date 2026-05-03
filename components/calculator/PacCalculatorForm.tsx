@@ -448,6 +448,7 @@ export default function PacCalculatorForm({
               initialLat={mapState.lat}
               initialLon={mapState.lon}
               initialZoom={mapState.zoom}
+              enableSolarLayer={false}
               onPositionChange={(lat, lon, zoom) => {
                 setMapState({ lat, lon, zoom })
                 setIsDirty(true)
