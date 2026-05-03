@@ -108,6 +108,13 @@ export default function PacCalculatorForm({
    */
   const [mapState, setMapState] = useState<{ lat: number; lon: number; zoom: number } | null>(null)
   /**
+   * PAC unit position (lat/lon) — separate from the site marker. When null,
+   * the SiteMap defaults the marker ~5m east of the site marker. Stored
+   * client-side only for now (visual aid for the rep). Could be persisted
+   * on the scenario in a future iteration.
+   */
+  const [pacPos, setPacPos] = useState<{ lat: number; lon: number } | null>(null)
+  /**
    * Site info auto-populated from the address ZIP — for PAC we mainly use the
    * commune name (ElCom rate is informational, not used in PAC pricing).
    */
@@ -449,9 +456,17 @@ export default function PacCalculatorForm({
               initialLon={mapState.lon}
               initialZoom={mapState.zoom}
               enableSolarLayer={false}
+              enablePacPlacement
+              pacLat={pacPos?.lat}
+              pacLon={pacPos?.lon}
               onPositionChange={(lat, lon, zoom) => {
                 setMapState({ lat, lon, zoom })
+                // Reset PAC marker so it re-initialises near the new site marker
+                setPacPos(null)
                 setIsDirty(true)
+              }}
+              onPacPositionChange={(lat, lon) => {
+                setPacPos({ lat, lon })
               }}
             />
           </div>

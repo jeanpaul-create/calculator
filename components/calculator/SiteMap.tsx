@@ -1,10 +1,20 @@
 'use client'
 
 import { useRef, useCallback, useEffect, useState } from 'react'
-import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap } from 'react-leaflet'
+import {
+  MapContainer,
+  TileLayer,
+  Marker,
+  Popup,
+  Polygon,
+  Polyline,
+  useMapEvents,
+  useMap,
+} from 'react-leaflet'
 import type { LatLng } from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
+import { distancePointToPolygonEdge } from '@/lib/geo'
 
 // Fix default marker icon (webpack strips asset references)
 const markerIcon = L.icon({
@@ -15,6 +25,16 @@ const markerIcon = L.icon({
   iconAnchor: [12, 41],
   popupAnchor: [1, -34],
   shadowSize: [41, 41],
+})
+
+// PAC marker — orange disc with white center ring, distinct from the site
+// marker. Custom divIcon avoids needing a separate image asset.
+const pacMarkerIcon = L.divIcon({
+  className: '',
+  html: `<div style="width:22px;height:22px;background:#f97316;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 2px #f97316,0 1px 4px rgba(0,0,0,0.25);"></div>`,
+  iconSize: [22, 22],
+  iconAnchor: [11, 11],
+  popupAnchor: [0, -10],
 })
 
 interface SiteMapProps {
@@ -30,6 +50,21 @@ interface SiteMapProps {
    * (e.g. PAC calculator where solar potential is irrelevant).
    */
   enableSolarLayer?: boolean
+  /**
+   * When true, render a draggable PAC marker (orange disc), the federal
+   * cadastre layer, and a live distance-to-property-line readout. Used on
+   * the PAC calculator so the rep can position the heat pump unit and see
+   * neighbor distances immediately.
+   */
+  enablePacPlacement?: boolean
+  /**
+   * Current PAC unit position. When undefined and enablePacPlacement is
+   * true, the marker initializes ~5m east of the site marker.
+   */
+  pacLat?: number
+  pacLon?: number
+  /** Called when the rep drags the PAC marker. */
+  onPacPositionChange?: (lat: number, lon: number) => void
 }
 
 interface RoofPopupData {
@@ -54,6 +89,10 @@ export default function SiteMap({
   initialZoom = 17,
   onPositionChange,
   enableSolarLayer = true,
+  enablePacPlacement = false,
+  pacLat,
+  pacLon,
+  onPacPositionChange,
 }: SiteMapProps) {
   // Track current marker position for zoom events
   const posRef = useRef({ lat: initialLat, lon: initialLon })
@@ -61,6 +100,86 @@ export default function SiteMap({
   const [showSolar, setShowSolar] = useState(enableSolarLayer)
   // Currently-displayed roof popup (null = no popup open)
   const [roofPopup, setRoofPopup] = useState<RoofPopupData | null>(null)
+
+  // ── PAC mode state ─────────────────────────────────────────────────────
+  // Internal PAC marker position — initializes ~5m east of the site marker
+  // when the parent doesn't pre-supply one. ~5m east = 5 / (111000 ×
+  // cos(latitude)) ≈ 0.000065 degrees longitude at Swiss latitudes.
+  const defaultPacLon = initialLon + 0.000065
+  const [pacPos, setPacPos] = useState<{ lat: number; lon: number }>({
+    lat: pacLat ?? initialLat,
+    lon: pacLon ?? defaultPacLon,
+  })
+  // Property parcel polygon under the SITE marker. Cached after fetch so we
+  // don't re-query swisstopo on every PAC drag.
+  const [parcelRing, setParcelRing] = useState<[number, number][] | null>(null)
+  const [parcelLoading, setParcelLoading] = useState(false)
+  const [parcelError, setParcelError] = useState<string | null>(null)
+
+  // Sync PAC position from parent on prop change (address change re-init)
+  useEffect(() => {
+    if (pacLat != null && pacLon != null) {
+      setPacPos({ lat: pacLat, lon: pacLon })
+    } else {
+      setPacPos({ lat: initialLat, lon: initialLon + 0.000065 })
+      setParcelRing(null)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialLat, initialLon])
+
+  // Fetch the parcel polygon under the site marker whenever it moves (only
+  // when PAC placement is enabled — saves an API call on the PV calculator).
+  useEffect(() => {
+    if (!enablePacPlacement) return
+    let cancelled = false
+    async function fetchParcel() {
+      setParcelLoading(true)
+      setParcelError(null)
+      // Compute a small bbox around the site marker (~200m). swisstopo's
+      // Identify needs the visible map bbox for tolerance-based hit testing.
+      const dLat = 0.001
+      const dLon = 0.0015
+      const params = new URLSearchParams({
+        lat: String(initialLat),
+        lon: String(initialLon),
+        west: String(initialLon - dLon),
+        south: String(initialLat - dLat),
+        east: String(initialLon + dLon),
+        north: String(initialLat + dLat),
+        w: '1280',
+        h: '720',
+      })
+      try {
+        const res = await fetch(`/api/swisstopo/parcel?${params}`)
+        if (!res.ok) {
+          if (!cancelled) setParcelError('Erreur')
+          return
+        }
+        const data = await res.json()
+        if (cancelled) return
+        if (data.found) {
+          setParcelRing(data.ring as [number, number][])
+        } else {
+          setParcelRing(null)
+          setParcelError('Aucune parcelle')
+        }
+      } catch {
+        if (!cancelled) setParcelError('Erreur réseau')
+      } finally {
+        if (!cancelled) setParcelLoading(false)
+      }
+    }
+    fetchParcel()
+    return () => {
+      cancelled = true
+    }
+  }, [enablePacPlacement, initialLat, initialLon])
+
+  // Compute distance from PAC marker to nearest property edge whenever
+  // either changes. Cheap math — runs on every drag.
+  const edgeInfo = enablePacPlacement && parcelRing
+    ? distancePointToPolygonEdge(pacPos, parcelRing)
+    : null
 
   // Keep posRef in sync when address autocomplete changes the coordinates
   useEffect(() => {
@@ -183,6 +302,55 @@ export default function SiteMap({
               <RoofPopupContent data={roofPopup} />
             </Popup>
           )}
+
+          {/* PAC mode: cadastre overlay + parcel polygon + PAC marker +
+              distance line to closest property edge */}
+          {enablePacPlacement && (
+            <>
+              {/* Cadastral layer (swisstopo, free WMTS). Shows property
+                  boundaries on top of satellite imagery. */}
+              <TileLayer
+                url="https://wmts.geo.admin.ch/1.0.0/ch.kantone.cadastralwebmap-farbe/default/current/3857/{z}/{x}/{y}.png"
+                attribution='Cadastre &copy; <a href="https://www.cadastre.ch">cadastre.ch</a>'
+                opacity={0.6}
+                maxZoom={22}
+                minZoom={14}
+              />
+              {/* Highlight the customer's parcel as a red outline */}
+              {parcelRing && parcelRing.length > 2 && (
+                <Polygon
+                  positions={parcelRing.map(([lon, lat]) => [lat, lon])}
+                  pathOptions={{
+                    color: '#dc2626',
+                    weight: 2,
+                    fillColor: '#fca5a5',
+                    fillOpacity: 0.05,
+                  }}
+                />
+              )}
+              {/* Dashed line from PAC marker to closest point on the property
+                  edge — visually anchors the displayed distance */}
+              {edgeInfo && (
+                <Polyline
+                  positions={[
+                    [pacPos.lat, pacPos.lon],
+                    [edgeInfo.closest.lat, edgeInfo.closest.lon],
+                  ]}
+                  pathOptions={{ color: '#f97316', weight: 2, dashArray: '6 4' }}
+                />
+              )}
+              {/* PAC unit marker — orange, draggable */}
+              <PacMarker
+                lat={pacPos.lat}
+                lon={pacPos.lon}
+                onDragEnd={(latlng) => {
+                  const next = { lat: latlng.lat, lon: latlng.lng }
+                  setPacPos(next)
+                  onPacPositionChange?.(next.lat, next.lon)
+                }}
+              />
+            </>
+          )}
         </MapContainer>
       </div>
 
@@ -221,6 +389,47 @@ export default function SiteMap({
               <span>Élevé</span>
               <span className="text-gray-400 ml-1">kWh/m²/an</span>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* PAC placement: distance display + helper copy */}
+      {enablePacPlacement && (
+        <div className="mt-2 rounded border border-orange-200 bg-orange-50 px-3 py-2.5">
+          <div className="flex items-start gap-3 flex-wrap">
+            <div className="w-2.5 h-2.5 rounded-full bg-orange-500 ring-2 ring-white shadow flex-shrink-0 mt-1" aria-hidden />
+            <div className="flex-1 min-w-0">
+              <div className="text-xs font-semibold text-orange-900 uppercase tracking-wider mb-1">
+                Position de la pompe à chaleur
+              </div>
+              <p className="text-xs text-orange-800">
+                Glissez le point orange sur l&apos;emplacement prévu de l&apos;unité extérieure.
+                La distance à la limite la plus proche s&apos;affiche en direct.
+              </p>
+            </div>
+            <div className="text-right flex-shrink-0">
+              {parcelLoading ? (
+                <span className="text-xs text-orange-700">Lecture cadastre…</span>
+              ) : edgeInfo ? (
+                <>
+                  <div className="text-[10px] font-semibold text-orange-700 uppercase tracking-wider">
+                    Distance limite
+                  </div>
+                  <div className="text-2xl font-mono font-semibold text-orange-900 tabular-nums leading-tight">
+                    {edgeInfo.distanceMeters.toFixed(1)} m
+                  </div>
+                </>
+              ) : parcelError ? (
+                <span className="text-xs text-orange-700">{parcelError}</span>
+              ) : (
+                <span className="text-xs text-orange-700">—</span>
+              )}
+            </div>
+          </div>
+          {edgeInfo && edgeInfo.distanceMeters < 4 && (
+            <p className="text-xs text-red-700 font-medium mt-2 pt-2 border-t border-orange-200">
+              ⚠ Distance courte — vérifiez la conformité dB(A) sur l&apos;outil cercle de bruit FWS.
+            </p>
           )}
         </div>
       )}
@@ -268,6 +477,31 @@ function InnerMarker({
       eventHandlers={{
         dragend(e) {
           onDragEnd(e.target.getLatLng(), map.getZoom())
+        },
+      }}
+    />
+  )
+}
+
+// Orange draggable PAC unit marker — uses pacMarkerIcon (custom divIcon).
+// Doesn't capture clicks (so the solar identify still works behind it).
+function PacMarker({
+  lat,
+  lon,
+  onDragEnd,
+}: {
+  lat: number
+  lon: number
+  onDragEnd: (latlng: LatLng) => void
+}) {
+  return (
+    <Marker
+      position={[lat, lon]}
+      icon={pacMarkerIcon}
+      draggable
+      eventHandlers={{
+        dragend(e) {
+          onDragEnd(e.target.getLatLng())
         },
       }}
     />
