@@ -39,10 +39,10 @@ interface RoofPopupData {
   found: boolean
   totalAreaM2?: number
   annualYieldKwh?: number
-  avgRadiationPerM2?: number
+  bestIrradiationKwhPerM2?: number
   bestKlasseLabel?: string
   bestKlasse?: number
-  avgTiltDeg?: number
+  bestTiltDeg?: number
   surfaceCount?: number
   error?: string
 }
@@ -114,10 +114,10 @@ export default function SiteMap({
           found: true,
           totalAreaM2: data.totalAreaM2,
           annualYieldKwh: data.annualYieldKwh,
-          avgRadiationPerM2: data.avgRadiationPerM2,
+          bestIrradiationKwhPerM2: data.bestIrradiationKwhPerM2,
           bestKlasseLabel: data.bestKlasseLabel,
           bestKlasse: data.bestKlasse,
-          avgTiltDeg: data.avgTiltDeg,
+          bestTiltDeg: data.bestTiltDeg,
           surfaceCount: data.surfaceCount,
         })
       } catch {
@@ -352,15 +352,15 @@ function RoofPopupContent({ data }: { data: RoofPopupData }) {
           </span>
         </div>
         <div className="flex justify-between gap-3">
-          <span className="text-gray-500">Irradiation</span>
-          <span className="font-mono tabular-nums text-gray-700">
-            {data.avgRadiationPerM2?.toLocaleString('fr-CH')} kWh/m²/an
+          <span className="text-gray-500">Meilleure exposition</span>
+          <span className="font-mono tabular-nums font-semibold text-gray-900">
+            {data.bestIrradiationKwhPerM2?.toLocaleString('fr-CH')} kWh/m²/an
           </span>
         </div>
         <div className="flex justify-between gap-3">
-          <span className="text-gray-500">Inclinaison</span>
+          <span className="text-gray-500">Inclinaison (meilleur pan)</span>
           <span className="font-mono tabular-nums text-gray-700">
-            {data.avgTiltDeg}°
+            {data.bestTiltDeg}°
           </span>
         </div>
         {data.surfaceCount && data.surfaceCount > 1 && (

@@ -31,20 +31,29 @@ export interface RoofInfo {
   annualYieldKwh: number
   /** Total annual solar radiation reaching the roof (kWh) */
   annualRadiationKwh: number
-  /** Average radiation per m² per year (kWh/m²/year) */
-  avgRadiationPerM2: number
+  /**
+   * Best per-m² irradiation across the building's surfaces (kWh/m²/year).
+   * This is the headline number a rep would quote — it's the south-facing
+   * surface, not the building's weighted average (which would include
+   * shaded / north-facing pans and drag the figure down).
+   *
+   * Computed as max(mstrahlung) across the building's surfaces. Don't use
+   * gstrahlung / flaeche_kollektoren — the swisstopo dataset uses inconsistent
+   * area conventions (gstrahlung is sometimes computed over full roof area
+   * while flaeche_kollektoren is the panelable subset), which can produce
+   * physically impossible values like 3000+ kWh/m²/year.
+   */
+  bestIrradiationKwhPerM2: number
   /** Highest suitability class found on the building (1=Faible … 5=Excellent) */
   bestKlasse: number
   /** Localized label for the best class ("Excellent", "Très bon", …) */
   bestKlasseLabel: string
-  /** Weighted average tilt across surfaces (degrees) */
-  avgTiltDeg: number
+  /** Tilt of the best (max-mstrahlung) surface in degrees */
+  bestTiltDeg: number
   /** Number of distinct roof surfaces aggregated */
   surfaceCount: number
   /** Swiss building ID (BFE/EGID — useful for cross-referencing) */
   buildingId: number | null
-  /** GeoJSON Polygon/MultiPolygon of the union of all surfaces (for highlighting) */
-  geometry?: GeoJSON.Geometry | null
 }
 
 const SUITABILITY_LABEL_FR: Record<number, string> = {
@@ -67,12 +76,12 @@ function pickFrenchLabel(klasse_text: string | undefined, klasse: number): strin
 interface IdentifyFeature {
   featureId: number | string
   layerBodId: string
-  geometry?: GeoJSON.Geometry
   properties: {
     flaeche_kollektoren?: number | string
     flaeche?: number | string
     stromertrag?: number | string
-    gstrahlung?: number | string
+    gstrahlung?: number | string  // total kWh/year on this surface (= area × mstrahlung)
+    mstrahlung?: number | string  // mean kWh/m²/year for this surface — directly per m²
     klasse?: number | string
     klasse_text?: string
     neigung?: number | string
@@ -138,25 +147,37 @@ export async function fetchRoofInfo(input: RoofIdentifyInput): Promise<RoofInfo 
   let totalArea = 0
   let totalYield = 0
   let totalRadiation = 0
-  let weightedTilt = 0
   let maxKlasse = 0
   let bestKlasseLabel = ''
+  let bestIrradiation = 0
+  let bestIrradiationTilt = 0
 
   for (const r of sameBuilding) {
     const p = r.properties
     const area = num(p.flaeche_kollektoren) || num(p.flaeche)
     const yieldKwh = num(p.stromertrag)
-    const radiation = num(p.gstrahlung)
+    // Per-surface mean irradiation (kWh/m²/year). Prefer the explicit
+    // mstrahlung field; fall back to gstrahlung/area when missing.
+    const totalRadOnSurface = num(p.gstrahlung)
+    const meanIrradPerM2 =
+      num(p.mstrahlung) || (area > 0 ? totalRadOnSurface / area : 0)
     const klasse = Math.round(num(p.klasse))
     const tilt = num(p.neigung)
 
     totalArea += area
     totalYield += yieldKwh
-    totalRadiation += radiation
-    weightedTilt += tilt * area
+    totalRadiation += totalRadOnSurface
+
     if (klasse > maxKlasse) {
       maxKlasse = klasse
       bestKlasseLabel = pickFrenchLabel(p.klasse_text, klasse)
+    }
+    // The "best face" is the surface with the highest per-m² irradiation —
+    // that's what a rep would actually quote ("your south roof gets 1300
+    // kWh/m²/year"). Track its tilt too.
+    if (meanIrradPerM2 > bestIrradiation) {
+      bestIrradiation = meanIrradPerM2
+      bestIrradiationTilt = tilt
     }
   }
 
@@ -164,10 +185,10 @@ export async function fetchRoofInfo(input: RoofIdentifyInput): Promise<RoofInfo 
     totalAreaM2: Math.round(totalArea * 10) / 10,
     annualYieldKwh: Math.round(totalYield),
     annualRadiationKwh: Math.round(totalRadiation),
-    avgRadiationPerM2: totalArea > 0 ? Math.round(totalRadiation / totalArea) : 0,
+    bestIrradiationKwhPerM2: Math.round(bestIrradiation),
     bestKlasse: maxKlasse,
     bestKlasseLabel: bestKlasseLabel || pickFrenchLabel(undefined, maxKlasse),
-    avgTiltDeg: totalArea > 0 ? Math.round(weightedTilt / totalArea) : 0,
+    bestTiltDeg: Math.round(bestIrradiationTilt),
     surfaceCount: sameBuilding.length,
     buildingId,
   }
