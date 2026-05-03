@@ -14,7 +14,7 @@ import {
 import type { LatLng } from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
-import { distancePointToPolygonEdge } from '@/lib/geo'
+import { distancePointToPolygonEdge, isPointInRing } from '@/lib/geo'
 
 // Fix default marker icon (webpack strips asset references)
 const markerIcon = L.icon({
@@ -115,6 +115,14 @@ export default function SiteMap({
   const [parcelRing, setParcelRing] = useState<[number, number][] | null>(null)
   const [parcelLoading, setParcelLoading] = useState(false)
   const [parcelError, setParcelError] = useState<string | null>(null)
+  // Neighbor buildings (OSM) — fetched once when the site marker changes,
+  // then filtered/distance-computed locally on every PAC drag.
+  type NeighborBuilding = {
+    id: number
+    ring: [number, number][]
+    address?: string
+  }
+  const [neighborBuildings, setNeighborBuildings] = useState<NeighborBuilding[]>([])
 
   // Sync PAC position from parent on prop change (address change re-init)
   useEffect(() => {
@@ -175,11 +183,74 @@ export default function SiteMap({
     }
   }, [enablePacPlacement, initialLat, initialLon])
 
+  // Fetch neighbor buildings (OSM) within ~80m of the site marker. Cached
+  // for the lifetime of the site location; PAC drags re-use the cache.
+  useEffect(() => {
+    if (!enablePacPlacement) return
+    let cancelled = false
+    async function fetchBuildings() {
+      try {
+        const params = new URLSearchParams({
+          lat: String(initialLat),
+          lon: String(initialLon),
+          radius: '80',
+        })
+        const res = await fetch(`/api/buildings/nearby?${params}`)
+        if (!res.ok) return
+        const data = await res.json()
+        if (cancelled) return
+        setNeighborBuildings(data.buildings ?? [])
+      } catch {
+        /* silent — feature degrades gracefully when OSM is unavailable */
+      }
+    }
+    fetchBuildings()
+    return () => {
+      cancelled = true
+    }
+  }, [enablePacPlacement, initialLat, initialLon])
+
   // Compute distance from PAC marker to nearest property edge whenever
   // either changes. Cheap math — runs on every drag.
   const edgeInfo = enablePacPlacement && parcelRing
     ? distancePointToPolygonEdge(pacPos, parcelRing)
     : null
+
+  // Compute distance from PAC marker to the closest NEIGHBOR building
+  // (excluding any building inside the customer's own parcel). Cheap math —
+  // runs on every drag using the cached buildings array.
+  const closestNeighbor = (() => {
+    if (!enablePacPlacement || neighborBuildings.length === 0) return null
+
+    let best: {
+      distanceMeters: number
+      closest: { lat: number; lon: number }
+      address?: string
+      ring: [number, number][]
+    } | null = null
+
+    for (const b of neighborBuildings) {
+      // Skip the building if its centroid lies inside the customer's parcel.
+      // (Can't always exclude — OSM building outline + parcel may not align
+      // perfectly. Centroid test is a robust heuristic.)
+      if (parcelRing) {
+        const cx = b.ring.reduce((s, c) => s + c[0], 0) / b.ring.length
+        const cy = b.ring.reduce((s, c) => s + c[1], 0) / b.ring.length
+        if (isPointInRing({ lat: cy, lon: cx }, parcelRing)) continue
+      }
+      const r = distancePointToPolygonEdge(pacPos, b.ring)
+      if (!r) continue
+      if (!best || r.distanceMeters < best.distanceMeters) {
+        best = {
+          distanceMeters: r.distanceMeters,
+          closest: r.closest,
+          address: b.address,
+          ring: b.ring,
+        }
+      }
+    }
+    return best
+  })()
 
   // Keep posRef in sync when address autocomplete changes the coordinates
   useEffect(() => {
@@ -329,7 +400,7 @@ export default function SiteMap({
                 />
               )}
               {/* Dashed line from PAC marker to closest point on the property
-                  edge — visually anchors the displayed distance */}
+                  edge — visually anchors the property-line distance */}
               {edgeInfo && (
                 <Polyline
                   positions={[
@@ -338,6 +409,29 @@ export default function SiteMap({
                   ]}
                   pathOptions={{ color: '#f97316', weight: 2, dashArray: '6 4' }}
                 />
+              )}
+              {/* Closest neighbor building — outlined in blue, with a solid
+                  blue line to the PAC marker. Distinct from the parcel-line
+                  visualization so the rep can read both at a glance. */}
+              {closestNeighbor && (
+                <>
+                  <Polygon
+                    positions={closestNeighbor.ring.map(([lon, lat]) => [lat, lon])}
+                    pathOptions={{
+                      color: '#2563eb',
+                      weight: 2,
+                      fillColor: '#93c5fd',
+                      fillOpacity: 0.15,
+                    }}
+                  />
+                  <Polyline
+                    positions={[
+                      [pacPos.lat, pacPos.lon],
+                      [closestNeighbor.closest.lat, closestNeighbor.closest.lon],
+                    ]}
+                    pathOptions={{ color: '#2563eb', weight: 2 }}
+                  />
+                </>
               )}
               {/* PAC unit marker — orange, draggable */}
               <PacMarker
@@ -396,7 +490,7 @@ export default function SiteMap({
       {/* PAC placement: distance display + helper copy */}
       {enablePacPlacement && (
         <div className="mt-2 rounded border border-orange-200 bg-orange-50 px-3 py-2.5">
-          <div className="flex items-start gap-3 flex-wrap">
+          <div className="flex items-start gap-3 flex-wrap mb-2">
             <div className="w-2.5 h-2.5 rounded-full bg-orange-500 ring-2 ring-white shadow flex-shrink-0 mt-1" aria-hidden />
             <div className="flex-1 min-w-0">
               <div className="text-xs font-semibold text-orange-900 uppercase tracking-wider mb-1">
@@ -404,29 +498,59 @@ export default function SiteMap({
               </div>
               <p className="text-xs text-orange-800">
                 Glissez le point orange sur l&apos;emplacement prévu de l&apos;unité extérieure.
-                La distance à la limite la plus proche s&apos;affiche en direct.
+                Les distances aux limites de propriété et au voisin le plus proche
+                s&apos;affichent en direct.
               </p>
             </div>
-            <div className="text-right flex-shrink-0">
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            {/* Property line distance */}
+            <div className="bg-white rounded px-3 py-2 border border-orange-100">
+              <div className="text-[10px] font-semibold text-orange-700 uppercase tracking-wider flex items-center gap-1.5">
+                <span className="inline-block w-3 h-0 border-t-2 border-orange-500 border-dashed" aria-hidden />
+                Limite de propriété
+              </div>
               {parcelLoading ? (
-                <span className="text-xs text-orange-700">Lecture cadastre…</span>
+                <div className="text-xs text-gray-500 mt-1">Lecture cadastre…</div>
               ) : edgeInfo ? (
-                <>
-                  <div className="text-[10px] font-semibold text-orange-700 uppercase tracking-wider">
-                    Distance limite
-                  </div>
-                  <div className="text-2xl font-mono font-semibold text-orange-900 tabular-nums leading-tight">
-                    {edgeInfo.distanceMeters.toFixed(1)} m
-                  </div>
-                </>
+                <div className={`text-xl font-mono font-semibold tabular-nums leading-tight mt-0.5 ${edgeInfo.distanceMeters < 3 ? 'text-red-700' : 'text-orange-900'}`}>
+                  {edgeInfo.distanceMeters.toFixed(1)} m
+                </div>
               ) : parcelError ? (
-                <span className="text-xs text-orange-700">{parcelError}</span>
+                <div className="text-xs text-gray-500 mt-1">{parcelError}</div>
               ) : (
-                <span className="text-xs text-orange-700">—</span>
+                <div className="text-xs text-gray-400 mt-1">—</div>
+              )}
+            </div>
+
+            {/* Closest neighbor building distance */}
+            <div className="bg-white rounded px-3 py-2 border border-blue-200">
+              <div className="text-[10px] font-semibold text-blue-700 uppercase tracking-wider flex items-center gap-1.5">
+                <span className="inline-block w-3 h-0 border-t-2 border-blue-600" aria-hidden />
+                Voisin le plus proche
+              </div>
+              {closestNeighbor ? (
+                <>
+                  <div className={`text-xl font-mono font-semibold tabular-nums leading-tight mt-0.5 ${closestNeighbor.distanceMeters < 6 ? 'text-red-700' : 'text-blue-900'}`}>
+                    {closestNeighbor.distanceMeters.toFixed(1)} m
+                  </div>
+                  {closestNeighbor.address && (
+                    <div className="text-[10px] text-gray-500 mt-0.5 truncate">
+                      {closestNeighbor.address}
+                    </div>
+                  )}
+                </>
+              ) : neighborBuildings.length === 0 ? (
+                <div className="text-xs text-gray-500 mt-1">Recherche…</div>
+              ) : (
+                <div className="text-xs text-gray-400 mt-1">Aucun à proximité</div>
               )}
             </div>
           </div>
-          {edgeInfo && edgeInfo.distanceMeters < 4 && (
+
+          {((edgeInfo && edgeInfo.distanceMeters < 3) ||
+            (closestNeighbor && closestNeighbor.distanceMeters < 6)) && (
             <p className="text-xs text-red-700 font-medium mt-2 pt-2 border-t border-orange-200">
               ⚠ Distance courte — vérifiez la conformité dB(A) sur l&apos;outil cercle de bruit FWS.
             </p>
