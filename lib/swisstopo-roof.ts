@@ -1,3 +1,4 @@
+// build-stamp: 2026-05-03  area-fields-fix
 /**
  * Server-side proxy for swisstopo's Identify API on the
  * `ch.bfe.solarenergie-eignung-daecher` layer.
