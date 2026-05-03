@@ -30,9 +30,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Missing or invalid coordinates' }, { status: 422 })
     }
 
-    const buildings = await fetchNearbyBuildings(lat, lon, radius)
+    const result = await fetchNearbyBuildings(lat, lon, radius)
 
-    return NextResponse.json({ buildings })
+    return NextResponse.json(result)
   } catch (err) {
     if (err instanceof Response) return err
     console.error('[GET /api/buildings/nearby]', err)

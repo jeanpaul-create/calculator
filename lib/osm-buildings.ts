@@ -42,20 +42,20 @@ interface OverpassResponse {
 /**
  * Fetch all building footprints within `radiusMeters` of (lat, lon).
  *
- * Returns an empty array on Overpass error, timeout, or out-of-bounds
- * coordinates — the feature should degrade silently rather than break the
- * map. Caller handles "no neighbours found" UX.
+ * Logs failures to the server console (visible in Vercel logs) so we can
+ * tell the difference between "Overpass returned 0" and "Overpass blocked
+ * us / timed out / errored".
  */
 export async function fetchNearbyBuildings(
   lat: number,
   lon: number,
   radiusMeters: number = 80
-): Promise<OsmBuilding[]> {
+): Promise<{ buildings: OsmBuilding[]; warning?: string }> {
   if (
     lat < SWISS_LAT_MIN || lat > SWISS_LAT_MAX ||
     lon < SWISS_LON_MIN || lon > SWISS_LON_MAX
   ) {
-    return []
+    return { buildings: [], warning: 'out-of-bounds' }
   }
   const r = Math.max(10, Math.min(500, radiusMeters))
   const query = `[out:json][timeout:10];way["building"](around:${r},${lat},${lon});out geom;`
@@ -64,14 +64,23 @@ export async function fetchNearbyBuildings(
   try {
     const res = await fetch(OVERPASS_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        // Some Overpass mirrors require a User-Agent header
+        'User-Agent': 'I.ON-Energy-Calculator/1.0 (https://calculatorsolarch.vercel.app)',
+      },
       body: `data=${encodeURIComponent(query)}`,
       signal: AbortSignal.timeout(12000),
     })
-    if (!res.ok) return []
+    if (!res.ok) {
+      console.error(`[overpass] HTTP ${res.status}: ${await res.text().catch(() => '')}`)
+      return { buildings: [], warning: `overpass-http-${res.status}` }
+    }
     json = (await res.json()) as OverpassResponse
-  } catch {
-    return []
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error(`[overpass] fetch failed: ${msg}`)
+    return { buildings: [], warning: `overpass-error: ${msg}` }
   }
 
   const elements = json.elements ?? []
@@ -99,5 +108,5 @@ export async function fetchNearbyBuildings(
     buildings.push({ id: el.id, ring: coords, address })
   }
 
-  return buildings
+  return { buildings }
 }
