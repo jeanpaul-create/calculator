@@ -100,6 +100,30 @@ export default function SiteMap({
   const [showSolar, setShowSolar] = useState(enableSolarLayer)
   // Currently-displayed roof popup (null = no popup open)
   const [roofPopup, setRoofPopup] = useState<RoofPopupData | null>(null)
+  // Fullscreen toggle — when true, the map renders as a fixed-inset modal
+  // covering the whole viewport so the rep can place markers and inspect
+  // roofs at maximum precision. Esc or close button exits.
+  const [fullscreen, setFullscreen] = useState(false)
+
+  // Esc to exit fullscreen
+  useEffect(() => {
+    if (!fullscreen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setFullscreen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [fullscreen])
+
+  // Lock body scroll while fullscreen
+  useEffect(() => {
+    if (!fullscreen) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prev
+    }
+  }, [fullscreen])
 
   // ── PAC mode state ─────────────────────────────────────────────────────
   // Internal PAC marker position — initializes ~5m east of the site marker
@@ -319,15 +343,58 @@ export default function SiteMap({
     []
   )
 
+  /*
+    Inline default: 60vh, capped at 720px so it never feels overwhelming on
+    huge monitors but fills well on a typical 13" laptop. Floor of 480px so
+    it's always meaningfully large.
+    Fullscreen: 95vh inside a fixed-inset modal — the rep gets nearly the
+    entire viewport for placing markers and inspecting roofs.
+  */
+  const inlineHeight = 'min(720px, max(480px, 60vh))'
+  const containerClass = fullscreen
+    ? 'fixed inset-0 z-50 bg-gray-900/40 backdrop-blur-sm flex flex-col p-4 sm:p-6'
+    : ''
+  const mapBoxClass = fullscreen
+    ? 'rounded-lg overflow-hidden border border-gray-200 bg-white shadow-2xl flex-1 min-h-0'
+    : 'rounded overflow-hidden border border-gray-200 relative'
+  const mapBoxStyle: React.CSSProperties = fullscreen
+    ? { height: 'auto' }
+    : { height: inlineHeight }
+
   return (
-    <div>
-      <div className="rounded overflow-hidden border border-gray-200" style={{ height: 320 }}>
+    <div className={containerClass} onClick={fullscreen ? () => setFullscreen(false) : undefined}>
+      <div
+        className={mapBoxClass}
+        style={mapBoxStyle}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Fullscreen toggle — floats top-right above Leaflet's own controls */}
+        <button
+          type="button"
+          onClick={() => setFullscreen((f) => !f)}
+          className="absolute top-2 right-2 z-[400] inline-flex items-center justify-center w-9 h-9 rounded bg-white/95 hover:bg-white border border-gray-200 shadow-md text-gray-700 hover:text-gray-900 transition-colors"
+          title={fullscreen ? 'Quitter le plein écran (Échap)' : 'Plein écran'}
+          aria-label={fullscreen ? 'Quitter le plein écran' : 'Plein écran'}
+        >
+          {fullscreen ? (
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          ) : (
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4h4m8 0h4v4m0 8v4h-4m-8 0H4v-4" />
+            </svg>
+          )}
+        </button>
         <MapContainer
           center={[initialLat, initialLon]}
           zoom={initialZoom}
           style={{ height: '100%', width: '100%' }}
           scrollWheelZoom
         >
+          {/* Invalidate Leaflet's cached size when fullscreen toggles so
+              tiles re-render correctly at the new dimensions */}
+          <MapResizer trigger={fullscreen} />
           {/* Base layer — Swisstopo aerial imagery */}
           <TileLayer
             url="https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.swissimage/default/current/3857/{z}/{x}/{y}.jpeg"
@@ -559,6 +626,24 @@ export default function SiteMap({
       )}
     </div>
   )
+}
+
+// Calls Leaflet's invalidateSize() whenever the trigger value changes.
+// Required after the parent container resizes (e.g. fullscreen toggle) so
+// Leaflet recomputes which tiles to load — otherwise the map stays at the
+// old size with grey gaps.
+function MapResizer({ trigger }: { trigger: unknown }) {
+  const map = useMap()
+  useEffect(() => {
+    // Wait one frame for the parent div to settle into its new dimensions,
+    // then nudge Leaflet to recompute. 80ms is enough for the CSS transition
+    // and the layout pass that follows.
+    const t = setTimeout(() => {
+      map.invalidateSize()
+    }, 80)
+    return () => clearTimeout(t)
+  }, [trigger, map])
+  return null
 }
 
 // Pans the map to new coordinates when they change (e.g. after address autocomplete)
