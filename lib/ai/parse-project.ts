@@ -21,7 +21,8 @@ import type { ProductCategory } from '@prisma/client'
 // Model: the project's CLAUDE.md uses sonnet 4.7; configurable via env.
 // Keep sonnet (not opus) — this is structured extraction, not deep reasoning.
 const MODEL = process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-4-5-20250929'
-const MAX_TOKENS = 1024
+// Higher token budget needed: 3 proposals × ~30 line items + rationales.
+const MAX_TOKENS = 3072
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -37,22 +38,40 @@ export interface AiParseItem {
   category: ProductCategory
 }
 
+export type ProposalTier = 'essentiel' | 'recommande' | 'premium'
+
+export interface AiProposal {
+  /** Which tier this proposal represents (lower = cheaper, basic) */
+  tier: ProposalTier
+  /** Localized label shown on the dialog ("Essentiel", "Recommandé", "Premium") */
+  label: string
+  /** One-sentence rationale: why this configuration for this customer */
+  rationale: string
+  /** Catalog items for this tier */
+  items: AiParseItem[]
+  /** Per-proposal warnings (e.g. "no battery match for premium tier") */
+  warnings: string[]
+}
+
 export interface AiParseResult {
   scenarioType: 'PV' | 'PAC'
-  items: AiParseItem[]
+  /** Up to 3 tier-labeled proposals. Single-element array allowed when the
+   *  prompt is too narrow for 3 distinct tiers. */
+  proposals: AiProposal[]
+  /** Shared across all proposals — customer info doesn't change by tier */
   customerInfo: {
     name?: string
     siteAddress?: string
     annualConsumptionKwh?: number
   }
-  /** PV-only — undefined for PAC */
+  /** PV-only — shared across proposals (roof doesn't change by tier) */
   roofType?: 'tuile' | 'ardoise' | 'bac_acier' | 'plat'
-  /** PV-only — undefined for PAC */
+  /** PV-only — shared across proposals */
   roofSlope?: 'simple' | 'moyen' | 'complexe'
   /** Free-text notes the AI thought relevant but couldn't structure */
   notes?: string
-  /** Issues the AI flagged (e.g. "no inverter matched, please check") */
-  warnings: string[]
+  /** Global warnings — not specific to one proposal */
+  globalWarnings: string[]
   /** Total input + output tokens — for monitoring cost */
   tokensUsed: number
 }
@@ -104,19 +123,42 @@ function formatCatalogForPrompt(products: CatalogProduct[]): string {
 
 // ─── Prompt construction ──────────────────────────────────────────────────────
 
-const SYSTEM_INTRO = `You are an assistant for a Swiss solar / heat-pump sales rep. The rep describes a customer project in free text (French or German); you propose a list of products from the rep's catalog that match the description.
+const SYSTEM_INTRO = `You are an assistant for a Swiss solar / heat-pump sales rep. The rep describes a customer project in free text (French or German); you generate UP TO THREE TIERED PROPOSALS so the rep can present options to the customer.
 
-Output rules:
-- Use ONLY product IDs that appear in the catalog. Never invent IDs.
-- For a 10 kWp PV system: pick panels totaling ~10000 Wp (typically 20-22 panels of 460-500 Wp). Pick a matching inverter (similar kW rating).
-- For PAC: pick ONE machine (heat pump unit). Add accessories, mounting/montage, electrical, and admin items as a typical install would need.
-- If the rep mentions a battery, add one. If they mention an EV/borne, add an EV charger.
-- If the rep mentions kWh consumption, include it in customerInfo.annualConsumptionKwh.
-- For PV roofType: tuile (most common), ardoise, bac_acier (metal), plat. For roofSlope: simple (≤30°), moyen (30-45°), complexe (>45°).
-- If you can't find a good match for something the rep wants, add a warning instead of guessing.
-- Be conservative — if unsure, leave it out and add a warning.
+The three tiers (always use these exact tier IDs and French labels):
+  - tier: "essentiel"   label: "Essentiel"    — cheapest viable. Smallest acceptable system, basic panels, no battery, no extras. The "minimum to deliver value" tier.
+  - tier: "recommande"  label: "Recommandé"   — balanced default. Mid-range panels, sized to the customer's stated needs. Battery only if mentioned. Best price/performance.
+  - tier: "premium"     label: "Premium"      — top-end. Highest-rated panels, larger system, battery + EV charger if applicable, premium accessories.
 
-Always call the propose_quote_items tool with your structured response.`
+If the customer's stated needs only fit one tier (e.g. they said "give me a 5 kWp system, no battery"), return a single proposal in the "recommande" slot rather than padding three.
+
+Each proposal needs:
+  - tier (one of the three above)
+  - label (the French label shown to the rep)
+  - rationale: ONE short French sentence explaining why this tier fits ("Système le plus abordable", "Système équilibré pour 4500 kWh/an", "Maximisation autoconsommation + recharge VE").
+  - items: array of {productId, quantity}. Use ONLY catalog IDs. Never invent.
+  - warnings: per-tier issues (e.g. "Pas de batterie >7 kWh disponible au catalogue").
+
+PV sizing rules:
+  - For a 10 kWp PV system: panels totaling ~10000 Wp (typically 20-22 panels of 460-500 Wp). Match inverter kW rating to panel total.
+  - "essentiel": 70-80% of stated kWp, cheapest panels in catalog
+  - "recommande": exactly the stated kWp, mid-priced panels (450-485 Wp typical)
+  - "premium": 110-120% of stated kWp, highest-Wp panels, add battery + EV charger
+  - Don't include products from PAC categories (PAC_*) on a PV scenario.
+
+PAC sizing rules:
+  - All proposals: ONE PAC_MACHINE (heat pump unit). Different brands across tiers if the catalog allows.
+  - "essentiel": cheapest machine matching the stated capacity, minimal accessories
+  - "recommande": balanced machine, full standard install (machine + accessories + electricite + montage + admin)
+  - "premium": top-tier brand, premium accessories, complete install
+  - Don't include products from PV categories (PANEL/INVERTER/...) on a PAC scenario.
+
+Customer info + roof attributes are SHARED across the three proposals (same site, same customer, same roof — only the equipment varies).
+
+If the rep mentions kWh consumption: include in customerInfo.annualConsumptionKwh.
+For PV roofType: tuile / ardoise / bac_acier / plat. For roofSlope: simple (≤30°) / moyen / complexe.
+
+Always call the propose_three_quote_tiers tool.`
 
 interface CallInput {
   scenarioType: 'PV' | 'PAC'
@@ -126,22 +168,59 @@ interface CallInput {
 
 async function callClaude(client: Anthropic, input: CallInput) {
   const tool: Anthropic.Tool = {
-    name: 'propose_quote_items',
+    name: 'propose_three_quote_tiers',
     description:
-      'Propose a list of catalog items, customer info, and PV-only roof attributes for the quote draft.',
+      'Propose up to three tier-labeled quote variants (Essentiel / Recommandé / Premium) based on the rep\'s description. Customer info and roof attributes are shared across tiers.',
     input_schema: {
       type: 'object',
       properties: {
-        items: {
+        proposals: {
           type: 'array',
-          description: 'Catalog items to add to the quote.',
+          minItems: 1,
+          maxItems: 3,
+          description:
+            'One to three tier-differentiated proposals. Always include "recommande" if you only return one. When returning three, order them by tier: essentiel, recommande, premium.',
           items: {
             type: 'object',
             properties: {
-              productId: { type: 'string', description: 'Catalog product ID (cuid).' },
-              quantity: { type: 'integer', minimum: 1, description: 'Quantity of this product.' },
+              tier: {
+                type: 'string',
+                enum: ['essentiel', 'recommande', 'premium'],
+              },
+              label: {
+                type: 'string',
+                description: 'French display label: "Essentiel", "Recommandé", or "Premium"',
+              },
+              rationale: {
+                type: 'string',
+                description:
+                  'One short French sentence explaining why this tier fits this customer.',
+              },
+              items: {
+                type: 'array',
+                description: 'Catalog items for this tier.',
+                items: {
+                  type: 'object',
+                  properties: {
+                    productId: {
+                      type: 'string',
+                      description: 'Catalog product ID (cuid).',
+                    },
+                    quantity: {
+                      type: 'integer',
+                      minimum: 1,
+                    },
+                  },
+                  required: ['productId', 'quantity'],
+                },
+              },
+              warnings: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'Per-tier issues to surface to the rep.',
+              },
             },
-            required: ['productId', 'quantity'],
+            required: ['tier', 'label', 'rationale', 'items', 'warnings'],
           },
         },
         customerInfo: {
@@ -162,14 +241,18 @@ async function callClaude(client: Anthropic, input: CallInput) {
           enum: ['simple', 'moyen', 'complexe'],
           description: 'PV-only. Omit for PAC.',
         },
-        notes: { type: 'string', description: 'Free-text notes the rep should see.' },
-        warnings: {
+        notes: {
+          type: 'string',
+          description: 'Free-text notes for the rep (not tied to any single tier).',
+        },
+        globalWarnings: {
           type: 'array',
           items: { type: 'string' },
-          description: 'Issues the rep should review (missing match, ambiguity, etc.).',
+          description:
+            'Warnings about the prompt or extraction itself — not tier-specific.',
         },
       },
-      required: ['items', 'warnings'],
+      required: ['proposals', 'globalWarnings'],
     },
   }
 
@@ -177,7 +260,7 @@ async function callClaude(client: Anthropic, input: CallInput) {
     model: MODEL,
     max_tokens: MAX_TOKENS,
     tools: [tool],
-    tool_choice: { type: 'tool', name: 'propose_quote_items' },
+    tool_choice: { type: 'tool', name: 'propose_three_quote_tiers' },
     system: [
       // Static intro — cached
       {
@@ -239,7 +322,13 @@ export async function parseProjectDescription(
   }
 
   type ToolInput = {
-    items?: { productId: string; quantity: number }[]
+    proposals?: {
+      tier: ProposalTier
+      label: string
+      rationale: string
+      items: { productId: string; quantity: number }[]
+      warnings?: string[]
+    }[]
     customerInfo?: {
       name?: string
       siteAddress?: string
@@ -248,47 +337,65 @@ export async function parseProjectDescription(
     roofType?: 'tuile' | 'ardoise' | 'bac_acier' | 'plat'
     roofSlope?: 'simple' | 'moyen' | 'complexe'
     notes?: string
-    warnings?: string[]
+    globalWarnings?: string[]
   }
   const raw = toolUse.input as ToolInput
 
-  // Validate every productId against the catalog. Drop unknowns (with a warning).
+  // Validate every productId in every proposal against the catalog.
   const catalogById = new Map(catalog.map((p) => [p.id, p]))
-  const items: AiParseItem[] = []
-  const validationWarnings: string[] = []
+  const globalWarnings: string[] = [...(raw.globalWarnings ?? [])]
 
-  for (const item of raw.items ?? []) {
-    const product = catalogById.get(item.productId)
-    if (!product) {
-      validationWarnings.push(
-        `L'IA a proposé un produit inconnu (${item.productId}) — ignoré.`
-      )
-      continue
+  const proposals: AiProposal[] = (raw.proposals ?? []).map((p) => {
+    const validatedItems: AiParseItem[] = []
+    const proposalWarnings: string[] = [...(p.warnings ?? [])]
+
+    for (const item of p.items ?? []) {
+      const product = catalogById.get(item.productId)
+      if (!product) {
+        proposalWarnings.push(
+          `Produit inconnu (${item.productId}) — ignoré.`
+        )
+        continue
+      }
+      if (input.scenarioType === 'PV' && product.category.startsWith('PAC_')) {
+        proposalWarnings.push(
+          `Produit PAC ${product.name} ignoré sur calculateur PV.`
+        )
+        continue
+      }
+      if (input.scenarioType === 'PAC' && !product.category.startsWith('PAC_')) {
+        proposalWarnings.push(
+          `Produit PV ${product.name} ignoré sur calculateur PAC.`
+        )
+        continue
+      }
+      validatedItems.push({
+        productId: product.id,
+        productName: product.name,
+        quantity: Math.max(1, Math.floor(item.quantity)),
+        category: product.category,
+      })
     }
-    if (
-      input.scenarioType === 'PV' &&
-      product.category.startsWith('PAC_')
-    ) {
-      validationWarnings.push(
-        `Produit PAC ${product.name} ignoré sur calculateur PV.`
-      )
-      continue
+
+    return {
+      tier: p.tier,
+      label: p.label,
+      rationale: p.rationale,
+      items: validatedItems,
+      warnings: proposalWarnings,
     }
-    if (
-      input.scenarioType === 'PAC' &&
-      !product.category.startsWith('PAC_')
-    ) {
-      validationWarnings.push(
-        `Produit PV ${product.name} ignoré sur calculateur PAC.`
-      )
-      continue
-    }
-    items.push({
-      productId: product.id,
-      productName: product.name,
-      quantity: Math.max(1, Math.floor(item.quantity)),
-      category: product.category,
-    })
+  })
+
+  // Sort tier order: essentiel → recommande → premium
+  const tierOrder: Record<ProposalTier, number> = {
+    essentiel: 0,
+    recommande: 1,
+    premium: 2,
+  }
+  proposals.sort((a, b) => tierOrder[a.tier] - tierOrder[b.tier])
+
+  if (proposals.length === 0) {
+    globalWarnings.push("Aucune proposition n'a pu être générée — réessayez avec plus de détails.")
   }
 
   // Token accounting — usage breakdown when caching is in play
@@ -304,12 +411,12 @@ export async function parseProjectDescription(
 
   return {
     scenarioType: input.scenarioType,
-    items,
+    proposals,
     customerInfo: raw.customerInfo ?? {},
     roofType: input.scenarioType === 'PV' ? raw.roofType : undefined,
     roofSlope: input.scenarioType === 'PV' ? raw.roofSlope : undefined,
     notes: raw.notes,
-    warnings: [...(raw.warnings ?? []), ...validationWarnings],
+    globalWarnings,
     tokensUsed,
   }
 }

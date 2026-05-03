@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
 
     // Log token usage for monitoring (visible in Vercel logs)
     console.log(
-      `[ai/parse-project] user=${session.user.id} type=${scenarioType} items=${result.items.length} tokens=${result.tokensUsed} ms=${ms} remaining=${remaining}`
+      `[ai/parse-project] user=${session.user.id} type=${scenarioType} proposals=${result.proposals.length} tokens=${result.tokensUsed} ms=${ms} remaining=${remaining}`
     )
 
     return NextResponse.json(result)

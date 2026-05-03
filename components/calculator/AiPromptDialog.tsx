@@ -1,10 +1,10 @@
 /**
  * AiPromptDialog — chat-style input that turns a free-text project description
- * into a structured quote draft.
+ * into UP TO THREE tier-labeled quote drafts (Essentiel / Recommandé / Premium).
  *
  *   Rep types: "Famille Müller à Yverdon, toit en tuile, 10 kWp avec batterie"
- *   AI responds with a list of catalog items + customer info + roof attrs.
- *   Rep reviews the proposed items (uncheck any), clicks "Appliquer", form fills.
+ *   AI responds with up to 3 tiered proposals.
+ *   Rep picks a tier (tabs), optionally unchecks items, clicks Appliquer.
  *
  * Stays out of the way: dismissible modal, never auto-applies. Rep is in
  * control. Failures show actionable error messages, not "something went wrong".
@@ -12,7 +12,6 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Card } from '@/components/ui'
 import { cn } from '@/lib/cn'
 
 export interface AiProposedItem {
@@ -22,6 +21,21 @@ export interface AiProposedItem {
   category: string
 }
 
+export type ProposalTier = 'essentiel' | 'recommande' | 'premium'
+
+export interface AiProposal {
+  tier: ProposalTier
+  label: string
+  rationale: string
+  items: AiProposedItem[]
+  warnings: string[]
+}
+
+/**
+ * Single proposal applied to the form. Same shape as before — the dialog
+ * reduces 3-tier → 1-tier internally, so the form's onApply doesn't need
+ * to know the tier system existed.
+ */
 export interface AiProposedDraft {
   items: AiProposedItem[]
   customerInfo: {
@@ -35,11 +49,20 @@ export interface AiProposedDraft {
   warnings: string[]
 }
 
+interface AiResponse {
+  proposals: AiProposal[]
+  customerInfo: AiProposedDraft['customerInfo']
+  roofType?: AiProposedDraft['roofType']
+  roofSlope?: AiProposedDraft['roofSlope']
+  notes?: string
+  globalWarnings: string[]
+}
+
 interface AiPromptDialogProps {
   scenarioType: 'PV' | 'PAC'
   open: boolean
   onClose: () => void
-  /** Called when the rep accepts a draft. Caller applies it to form state. */
+  /** Called when the rep applies a single chosen proposal. */
   onApply: (draft: AiProposedDraft) => void
 }
 
@@ -53,6 +76,26 @@ const EXAMPLES_PAC = [
   "Villa Genève, VAILLANT 10 kW, tranchée 15 m, raccordement électrique standard.",
 ]
 
+const TIER_ORDER: ProposalTier[] = ['essentiel', 'recommande', 'premium']
+
+const TIER_ACCENT: Record<ProposalTier, { active: string; idle: string; chip: string }> = {
+  essentiel: {
+    active: 'border-gray-700 text-gray-900 bg-gray-50',
+    idle: 'border-gray-200 text-gray-600 hover:border-gray-300',
+    chip: 'bg-gray-100 text-gray-700',
+  },
+  recommande: {
+    active: 'border-red-500 text-red-700 bg-red-50',
+    idle: 'border-gray-200 text-gray-600 hover:border-gray-300',
+    chip: 'bg-red-100 text-red-700',
+  },
+  premium: {
+    active: 'border-amber-600 text-amber-900 bg-amber-50',
+    idle: 'border-gray-200 text-gray-600 hover:border-gray-300',
+    chip: 'bg-amber-100 text-amber-800',
+  },
+}
+
 export default function AiPromptDialog({
   scenarioType,
   open,
@@ -60,19 +103,19 @@ export default function AiPromptDialog({
   onApply,
 }: AiPromptDialogProps) {
   const [description, setDescription] = useState('')
-  const [draft, setDraft] = useState<AiProposedDraft | null>(null)
+  const [response, setResponse] = useState<AiResponse | null>(null)
+  const [activeTier, setActiveTier] = useState<ProposalTier>('recommande')
   const [excluded, setExcluded] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // Focus textarea when opened; reset state when closed.
   useEffect(() => {
     if (open) {
       const t = setTimeout(() => textareaRef.current?.focus(), 50)
       return () => clearTimeout(t)
     } else {
-      setDraft(null)
+      setResponse(null)
       setError(null)
       setExcluded(new Set())
     }
@@ -91,13 +134,12 @@ export default function AiPromptDialog({
   if (!open) return null
 
   const examples = scenarioType === 'PAC' ? EXAMPLES_PAC : EXAMPLES_PV
-  const accentColor = scenarioType === 'PAC' ? 'orange' : 'red'
 
   async function handleGenerate() {
     if (!description.trim()) return
     setLoading(true)
     setError(null)
-    setDraft(null)
+    setResponse(null)
     setExcluded(new Set())
     try {
       const res = await fetch('/api/ai/parse-project', {
@@ -110,8 +152,12 @@ export default function AiPromptDialog({
         setError(typeof data.error === 'string' ? data.error : 'Erreur de génération')
         return
       }
-      setDraft(data as AiProposedDraft)
-    } catch (e) {
+      const r = data as AiResponse
+      setResponse(r)
+      // Default the active tier: recommande if present, else first available
+      const hasRecommande = r.proposals.some((p) => p.tier === 'recommande')
+      setActiveTier(hasRecommande ? 'recommande' : r.proposals[0]?.tier ?? 'recommande')
+    } catch {
       setError('Erreur réseau. Veuillez réessayer.')
     } finally {
       setLoading(false)
@@ -119,12 +165,18 @@ export default function AiPromptDialog({
   }
 
   function handleApply() {
-    if (!draft) return
-    const filtered: AiProposedDraft = {
-      ...draft,
-      items: draft.items.filter((it) => !excluded.has(it.productId)),
+    if (!response) return
+    const proposal = response.proposals.find((p) => p.tier === activeTier)
+    if (!proposal) return
+    const draft: AiProposedDraft = {
+      items: proposal.items.filter((it) => !excluded.has(it.productId)),
+      customerInfo: response.customerInfo,
+      roofType: response.roofType,
+      roofSlope: response.roofSlope,
+      notes: response.notes,
+      warnings: [...response.globalWarnings, ...proposal.warnings],
     }
-    onApply(filtered)
+    onApply(draft)
     onClose()
   }
 
@@ -136,6 +188,15 @@ export default function AiPromptDialog({
       return next
     })
   }
+
+  // Reset excluded items when switching tiers
+  function switchTier(tier: ProposalTier) {
+    setActiveTier(tier)
+    setExcluded(new Set())
+  }
+
+  const activeProposal = response?.proposals.find((p) => p.tier === activeTier) ?? null
+  const isPac = scenarioType === 'PAC'
 
   return (
     <div
@@ -149,7 +210,7 @@ export default function AiPromptDialog({
         {/* Header */}
         <div className={cn(
           'px-5 py-4 border-b border-gray-200 flex items-center justify-between',
-          accentColor === 'orange' ? 'bg-orange-50' : 'bg-red-50'
+          isPac ? 'bg-orange-50' : 'bg-red-50'
         )}>
           <div className="flex items-center gap-2">
             <span className="text-lg">✨</span>
@@ -170,11 +231,11 @@ export default function AiPromptDialog({
 
         {/* Body */}
         <div className="px-5 py-4 overflow-y-auto flex-1">
-          {!draft ? (
+          {!response ? (
             <>
               <p className="text-sm text-gray-600 mb-3">
-                Décrivez le projet du client. L&apos;assistant proposera les produits du
-                catalogue qui correspondent à votre description.
+                Décrivez le projet du client. L&apos;assistant proposera trois variantes
+                — Essentiel, Recommandé, Premium — pour discuter avec votre client.
               </p>
 
               <textarea
@@ -201,7 +262,6 @@ export default function AiPromptDialog({
                 </span>
               </div>
 
-              {/* Examples */}
               <div className="mt-4">
                 <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2">
                   Exemples
@@ -228,92 +288,145 @@ export default function AiPromptDialog({
               )}
             </>
           ) : (
-            // Result view — proposed items + warnings
-            <div className="space-y-4">
-              {draft.items.length === 0 ? (
+            // Result view — tier tabs + active proposal items
+            <div className="space-y-3">
+              {response.proposals.length === 0 ? (
                 <div className="text-sm text-gray-600 italic">
-                  Aucun produit n&apos;a pu être proposé d&apos;après cette description.
-                  Précisez davantage ou choisissez les produits manuellement.
+                  Aucune proposition n&apos;a pu être générée. Précisez davantage.
                 </div>
               ) : (
                 <>
-                  <div>
-                    <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                      Produits proposés ({draft.items.length})
-                    </p>
-                    <div className="space-y-1.5">
-                      {draft.items.map((item) => {
-                        const isExcluded = excluded.has(item.productId)
-                        return (
-                          <label
-                            key={item.productId}
-                            className={cn(
-                              'flex items-center gap-3 px-3 py-2 rounded border cursor-pointer transition-colors',
-                              isExcluded
-                                ? 'border-gray-200 bg-gray-50 opacity-60'
-                                : 'border-gray-200 bg-white hover:border-gray-300'
-                            )}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={!isExcluded}
-                              onChange={() => toggleItem(item.productId)}
-                              className="w-4 h-4 accent-red-500 cursor-pointer"
-                            />
-                            <span className="font-mono text-xs text-red-600 font-semibold tabular-nums w-8 text-right">
-                              {item.quantity}×
-                            </span>
-                            <span className={cn('text-sm flex-1', isExcluded ? 'text-gray-500 line-through' : 'text-gray-900')}>
-                              {item.productName}
-                            </span>
-                            <span className="text-[10px] text-gray-400 uppercase tracking-wider">
-                              {item.category.replace('PAC_', '')}
-                            </span>
-                          </label>
-                        )
-                      })}
-                    </div>
+                  {/* Tier tabs — only show tiers actually returned */}
+                  <div className="flex gap-2">
+                    {TIER_ORDER.filter((t) =>
+                      response.proposals.some((p) => p.tier === t)
+                    ).map((tier) => {
+                      const proposal = response.proposals.find((p) => p.tier === tier)!
+                      const accent = TIER_ACCENT[tier]
+                      const active = activeTier === tier
+                      return (
+                        <button
+                          key={tier}
+                          type="button"
+                          onClick={() => switchTier(tier)}
+                          className={cn(
+                            'flex-1 border rounded-md px-3 py-2 text-left transition-colors',
+                            active ? accent.active : accent.idle
+                          )}
+                        >
+                          <div className={cn(
+                            'text-[10px] font-semibold uppercase tracking-wider',
+                            active ? '' : 'text-gray-500'
+                          )}>
+                            {proposal.label}
+                          </div>
+                          <div className={cn(
+                            'text-xs mt-0.5',
+                            active ? '' : 'text-gray-500'
+                          )}>
+                            {proposal.items.length} produit{proposal.items.length !== 1 ? 's' : ''}
+                          </div>
+                        </button>
+                      )
+                    })}
                   </div>
 
-                  {/* Customer + roof inferred */}
-                  {(draft.customerInfo.name ||
-                    draft.customerInfo.siteAddress ||
-                    draft.customerInfo.annualConsumptionKwh ||
-                    draft.roofType ||
-                    draft.roofSlope) && (
+                  {/* Active proposal */}
+                  {activeProposal && (
+                    <>
+                      {activeProposal.rationale && (
+                        <div className="text-xs text-gray-700 italic px-1">
+                          {activeProposal.rationale}
+                        </div>
+                      )}
+
+                      <div>
+                        <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                          Produits ({activeProposal.items.length})
+                        </p>
+                        <div className="space-y-1.5">
+                          {activeProposal.items.map((item) => {
+                            const isExcluded = excluded.has(item.productId)
+                            return (
+                              <label
+                                key={item.productId}
+                                className={cn(
+                                  'flex items-center gap-3 px-3 py-2 rounded border cursor-pointer transition-colors',
+                                  isExcluded
+                                    ? 'border-gray-200 bg-gray-50 opacity-60'
+                                    : 'border-gray-200 bg-white hover:border-gray-300'
+                                )}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={!isExcluded}
+                                  onChange={() => toggleItem(item.productId)}
+                                  className="w-4 h-4 accent-red-500 cursor-pointer"
+                                />
+                                <span className="font-mono text-xs text-red-600 font-semibold tabular-nums w-8 text-right">
+                                  {item.quantity}×
+                                </span>
+                                <span className={cn(
+                                  'text-sm flex-1',
+                                  isExcluded ? 'text-gray-500 line-through' : 'text-gray-900'
+                                )}>
+                                  {item.productName}
+                                </span>
+                                <span className="text-[10px] text-gray-400 uppercase tracking-wider">
+                                  {item.category.replace('PAC_', '')}
+                                </span>
+                              </label>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Customer + roof inferred (shared across tiers) */}
+                  {(response.customerInfo.name ||
+                    response.customerInfo.siteAddress ||
+                    response.customerInfo.annualConsumptionKwh ||
+                    response.roofType ||
+                    response.roofSlope) && (
                     <div className="rounded border border-gray-200 bg-gray-50 px-3 py-2.5 text-xs text-gray-700 space-y-1">
-                      {draft.customerInfo.name && (
-                        <div><span className="text-gray-500">Client :</span> {draft.customerInfo.name}</div>
+                      {response.customerInfo.name && (
+                        <div><span className="text-gray-500">Client :</span> {response.customerInfo.name}</div>
                       )}
-                      {draft.customerInfo.siteAddress && (
-                        <div><span className="text-gray-500">Adresse :</span> {draft.customerInfo.siteAddress}</div>
+                      {response.customerInfo.siteAddress && (
+                        <div><span className="text-gray-500">Adresse :</span> {response.customerInfo.siteAddress}</div>
                       )}
-                      {draft.customerInfo.annualConsumptionKwh && (
-                        <div><span className="text-gray-500">Consommation :</span> {draft.customerInfo.annualConsumptionKwh.toLocaleString('fr-CH')} kWh/an</div>
+                      {response.customerInfo.annualConsumptionKwh && (
+                        <div><span className="text-gray-500">Consommation :</span> {response.customerInfo.annualConsumptionKwh.toLocaleString('fr-CH')} kWh/an</div>
                       )}
-                      {draft.roofType && (
-                        <div><span className="text-gray-500">Toiture :</span> {draft.roofType}</div>
+                      {response.roofType && (
+                        <div><span className="text-gray-500">Toiture :</span> {response.roofType}</div>
                       )}
-                      {draft.roofSlope && (
-                        <div><span className="text-gray-500">Pente :</span> {draft.roofSlope}</div>
+                      {response.roofSlope && (
+                        <div><span className="text-gray-500">Pente :</span> {response.roofSlope}</div>
                       )}
                     </div>
                   )}
                 </>
               )}
 
-              {draft.warnings.length > 0 && (
+              {/* Warnings */}
+              {(response.globalWarnings.length > 0 ||
+                (activeProposal && activeProposal.warnings.length > 0)) && (
                 <div className="rounded bg-amber-50 border border-amber-200 px-3 py-2.5 text-xs text-amber-800 space-y-1">
                   <p className="font-semibold uppercase tracking-wider text-[10px]">À vérifier</p>
-                  {draft.warnings.map((w, i) => (
-                    <div key={i}>· {w}</div>
+                  {response.globalWarnings.map((w, i) => (
+                    <div key={`g-${i}`}>· {w}</div>
+                  ))}
+                  {activeProposal?.warnings.map((w, i) => (
+                    <div key={`p-${i}`}>· {w}</div>
                   ))}
                 </div>
               )}
 
-              {draft.notes && (
+              {response.notes && (
                 <div className="text-xs text-gray-600 italic">
-                  Note de l&apos;assistant : {draft.notes}
+                  Note de l&apos;assistant : {response.notes}
                 </div>
               )}
             </div>
@@ -322,7 +435,7 @@ export default function AiPromptDialog({
 
         {/* Footer */}
         <div className="px-5 py-3 border-t border-gray-200 bg-gray-50 flex items-center justify-end gap-2">
-          {!draft ? (
+          {!response ? (
             <>
               <button
                 type="button"
@@ -344,7 +457,7 @@ export default function AiPromptDialog({
                     Analyse…
                   </>
                 ) : (
-                  '✨ Générer'
+                  '✨ Générer 3 propositions'
                 )}
               </button>
             </>
@@ -353,7 +466,7 @@ export default function AiPromptDialog({
               <button
                 type="button"
                 onClick={() => {
-                  setDraft(null)
+                  setResponse(null)
                   setExcluded(new Set())
                 }}
                 className="btn-secondary text-xs px-3 py-1.5"
@@ -363,10 +476,17 @@ export default function AiPromptDialog({
               <button
                 type="button"
                 onClick={handleApply}
-                disabled={draft.items.every((it) => excluded.has(it.productId)) && draft.items.length > 0}
+                disabled={
+                  !activeProposal ||
+                  (activeProposal.items.length > 0 &&
+                    activeProposal.items.every((it) => excluded.has(it.productId)))
+                }
                 className="btn-primary text-xs px-4 py-1.5"
               >
-                Appliquer ({draft.items.filter((it) => !excluded.has(it.productId)).length})
+                Appliquer{' '}
+                {activeProposal
+                  ? `${activeProposal.label} (${activeProposal.items.filter((it) => !excluded.has(it.productId)).length})`
+                  : ''}
               </button>
             </>
           )}
