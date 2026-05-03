@@ -37,7 +37,8 @@ interface RoofPopupData {
   lon: number
   loading: boolean
   found: boolean
-  totalAreaM2?: number
+  totalRoofAreaM2?: number
+  totalCollectorAreaM2?: number
   annualYieldKwh?: number
   bestIrradiationKwhPerM2?: number
   bestKlasseLabel?: string
@@ -112,7 +113,8 @@ export default function SiteMap({
           lon,
           loading: false,
           found: true,
-          totalAreaM2: data.totalAreaM2,
+          totalRoofAreaM2: data.totalRoofAreaM2,
+          totalCollectorAreaM2: data.totalCollectorAreaM2,
           annualYieldKwh: data.annualYieldKwh,
           bestIrradiationKwhPerM2: data.bestIrradiationKwhPerM2,
           bestKlasseLabel: data.bestKlasseLabel,
@@ -340,13 +342,21 @@ function RoofPopupContent({ data }: { data: RoofPopupData }) {
 
       <div className="space-y-1 text-xs">
         <div className="flex justify-between gap-3">
-          <span className="text-gray-500">Surface utile</span>
+          <span className="text-gray-500">Surface du toit</span>
           <span className="font-mono tabular-nums font-semibold text-gray-900">
-            {data.totalAreaM2?.toFixed(1)} m²
+            {data.totalRoofAreaM2?.toFixed(1)} m²
           </span>
         </div>
+        {data.totalCollectorAreaM2 != null && data.totalCollectorAreaM2 > 0 && (
+          <div className="flex justify-between gap-3 text-[10px] text-gray-400 -mt-0.5">
+            <span>dont installable PV</span>
+            <span className="font-mono tabular-nums">
+              {data.totalCollectorAreaM2.toFixed(1)} m²
+            </span>
+          </div>
+        )}
         <div className="flex justify-between gap-3">
-          <span className="text-gray-500">Production annuelle</span>
+          <span className="text-gray-500">Production estimée</span>
           <span className="font-mono tabular-nums font-semibold text-red-600">
             {data.annualYieldKwh?.toLocaleString('fr-CH')} kWh/an
           </span>

@@ -25,9 +25,23 @@ export interface RoofIdentifyInput {
 }
 
 export interface RoofInfo {
-  /** Total roof collector area in m² (sum across all surfaces of the same building) */
-  totalAreaM2: number
-  /** Total estimated annual electric yield in kWh/year */
+  /**
+   * Total roof surface area (m²), sum of `flaeche` across all surfaces of
+   * the same building. This matches what sonnendach.ch displays as
+   * "Dachfläche / Surface du toit" — the geometric roof area, not the
+   * collector subset.
+   */
+  totalRoofAreaM2: number
+  /**
+   * Total panelable / collector area (m²), sum of `flaeche_kollektoren`.
+   * Subset of totalRoofAreaM2 — accounts for setbacks, dormers, chimneys.
+   * Often 0 in the dataset for some buildings (then we hide it).
+   */
+  totalCollectorAreaM2: number
+  /**
+   * Estimated annual electric yield in kWh/year (sum of `stromertrag`).
+   * Computed by swisstopo assuming the panelable subset is fitted with PV.
+   */
   annualYieldKwh: number
   /** Total annual solar radiation reaching the roof (kWh) */
   annualRadiationKwh: number
@@ -144,7 +158,8 @@ export async function fetchRoofInfo(input: RoofIdentifyInput): Promise<RoofInfo 
     ? results.filter((r) => r.properties.building_id === buildingId)
     : [results[0]]
 
-  let totalArea = 0
+  let totalRoofArea = 0       // sum of flaeche  — full geometric roof
+  let totalCollectorArea = 0  // sum of flaeche_kollektoren — panelable subset
   let totalYield = 0
   let totalRadiation = 0
   let maxKlasse = 0
@@ -154,17 +169,17 @@ export async function fetchRoofInfo(input: RoofIdentifyInput): Promise<RoofInfo 
 
   for (const r of sameBuilding) {
     const p = r.properties
-    const area = num(p.flaeche_kollektoren) || num(p.flaeche)
+    const fullArea = num(p.flaeche)
+    const collectorArea = num(p.flaeche_kollektoren)
     const yieldKwh = num(p.stromertrag)
-    // Per-surface mean irradiation (kWh/m²/year). Prefer the explicit
-    // mstrahlung field; fall back to gstrahlung/area when missing.
+    // mstrahlung is the canonical per-m² irradiation for the surface
+    const meanIrradPerM2 = num(p.mstrahlung)
     const totalRadOnSurface = num(p.gstrahlung)
-    const meanIrradPerM2 =
-      num(p.mstrahlung) || (area > 0 ? totalRadOnSurface / area : 0)
     const klasse = Math.round(num(p.klasse))
     const tilt = num(p.neigung)
 
-    totalArea += area
+    totalRoofArea += fullArea
+    totalCollectorArea += collectorArea
     totalYield += yieldKwh
     totalRadiation += totalRadOnSurface
 
@@ -172,9 +187,7 @@ export async function fetchRoofInfo(input: RoofIdentifyInput): Promise<RoofInfo 
       maxKlasse = klasse
       bestKlasseLabel = pickFrenchLabel(p.klasse_text, klasse)
     }
-    // The "best face" is the surface with the highest per-m² irradiation —
-    // that's what a rep would actually quote ("your south roof gets 1300
-    // kWh/m²/year"). Track its tilt too.
+    // Best face: highest per-m² irradiation (what a rep would quote).
     if (meanIrradPerM2 > bestIrradiation) {
       bestIrradiation = meanIrradPerM2
       bestIrradiationTilt = tilt
@@ -182,7 +195,8 @@ export async function fetchRoofInfo(input: RoofIdentifyInput): Promise<RoofInfo 
   }
 
   return {
-    totalAreaM2: Math.round(totalArea * 10) / 10,
+    totalRoofAreaM2: Math.round(totalRoofArea * 10) / 10,
+    totalCollectorAreaM2: Math.round(totalCollectorArea * 10) / 10,
     annualYieldKwh: Math.round(totalYield),
     annualRadiationKwh: Math.round(totalRadiation),
     bestIrradiationKwhPerM2: Math.round(bestIrradiation),
