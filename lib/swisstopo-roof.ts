@@ -1,0 +1,174 @@
+/**
+ * Server-side proxy for swisstopo's Identify API on the
+ * `ch.bfe.solarenergie-eignung-daecher` layer.
+ *
+ *   GET https://api3.geo.admin.ch/rest/services/api/MapServer/identify
+ *
+ * A single click on a roof typically returns multiple features (one per
+ * roof surface — a building with a hipped roof has 4-6 surfaces). We
+ * aggregate by building_id: total area, total annual yield, weighted-avg
+ * tilt, and the BEST suitability class found on that building.
+ */
+
+const SWISS_LAT_MIN = 45.5, SWISS_LAT_MAX = 47.9
+const SWISS_LON_MIN = 5.9, SWISS_LON_MAX = 10.6
+
+export interface RoofIdentifyInput {
+  lat: number
+  lon: number
+  /** Map bbox in WGS84 (west, south, east, north) */
+  bounds: { west: number; south: number; east: number; north: number }
+  /** Image display width in pixels (used by swisstopo to size the tolerance) */
+  width: number
+  /** Image display height in pixels */
+  height: number
+}
+
+export interface RoofInfo {
+  /** Total roof collector area in m² (sum across all surfaces of the same building) */
+  totalAreaM2: number
+  /** Total estimated annual electric yield in kWh/year */
+  annualYieldKwh: number
+  /** Total annual solar radiation reaching the roof (kWh) */
+  annualRadiationKwh: number
+  /** Average radiation per m² per year (kWh/m²/year) */
+  avgRadiationPerM2: number
+  /** Highest suitability class found on the building (1=Faible … 5=Excellent) */
+  bestKlasse: number
+  /** Localized label for the best class ("Excellent", "Très bon", …) */
+  bestKlasseLabel: string
+  /** Weighted average tilt across surfaces (degrees) */
+  avgTiltDeg: number
+  /** Number of distinct roof surfaces aggregated */
+  surfaceCount: number
+  /** Swiss building ID (BFE/EGID — useful for cross-referencing) */
+  buildingId: number | null
+  /** GeoJSON Polygon/MultiPolygon of the union of all surfaces (for highlighting) */
+  geometry?: GeoJSON.Geometry | null
+}
+
+const SUITABILITY_LABEL_FR: Record<number, string> = {
+  1: 'Faible',
+  2: 'Moyen',
+  3: 'Bon',
+  4: 'Très bon',
+  5: 'Excellent',
+}
+
+function pickFrenchLabel(klasse_text: string | undefined, klasse: number): string {
+  // klasse_text format: "DE##FR##IT##EN##DE" — index 1 is French.
+  if (klasse_text) {
+    const parts = klasse_text.split('##')
+    if (parts[1]) return parts[1]
+  }
+  return SUITABILITY_LABEL_FR[klasse] ?? `Classe ${klasse}`
+}
+
+interface IdentifyFeature {
+  featureId: number | string
+  layerBodId: string
+  geometry?: GeoJSON.Geometry
+  properties: {
+    flaeche_kollektoren?: number | string
+    flaeche?: number | string
+    stromertrag?: number | string
+    gstrahlung?: number | string
+    klasse?: number | string
+    klasse_text?: string
+    neigung?: number | string
+    ausrichtung?: number | string
+    building_id?: number | null
+  }
+}
+
+interface IdentifyResponse {
+  results?: IdentifyFeature[]
+}
+
+function num(v: number | string | undefined | null): number {
+  if (v === null || v === undefined) return 0
+  const n = typeof v === 'string' ? parseFloat(v) : v
+  return Number.isFinite(n) ? n : 0
+}
+
+export async function fetchRoofInfo(input: RoofIdentifyInput): Promise<RoofInfo | null> {
+  const { lat, lon, bounds, width, height } = input
+
+  // Swiss bounds — guard against arbitrary coordinates being proxied
+  if (
+    lat < SWISS_LAT_MIN || lat > SWISS_LAT_MAX ||
+    lon < SWISS_LON_MIN || lon > SWISS_LON_MAX
+  ) {
+    return null
+  }
+
+  const params = new URLSearchParams({
+    geometry: `${lon},${lat}`,
+    geometryType: 'esriGeometryPoint',
+    geometryFormat: 'geojson',
+    imageDisplay: `${Math.max(1, Math.round(width))},${Math.max(1, Math.round(height))},96`,
+    mapExtent: `${bounds.west},${bounds.south},${bounds.east},${bounds.north}`,
+    layers: 'all:ch.bfe.solarenergie-eignung-daecher',
+    tolerance: '5',
+    lang: 'fr',
+    sr: '4326',
+  })
+
+  const url = `https://api3.geo.admin.ch/rest/services/api/MapServer/identify?${params}`
+
+  let json: IdentifyResponse
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) })
+    if (!res.ok) return null
+    json = (await res.json()) as IdentifyResponse
+  } catch {
+    return null
+  }
+
+  const results = json.results ?? []
+  if (results.length === 0) return null
+
+  // Filter to the same building as the first hit (don't conflate neighbours
+  // when the click tolerance bleeds across a property boundary).
+  const buildingId = results[0].properties.building_id ?? null
+  const sameBuilding = buildingId
+    ? results.filter((r) => r.properties.building_id === buildingId)
+    : [results[0]]
+
+  let totalArea = 0
+  let totalYield = 0
+  let totalRadiation = 0
+  let weightedTilt = 0
+  let maxKlasse = 0
+  let bestKlasseLabel = ''
+
+  for (const r of sameBuilding) {
+    const p = r.properties
+    const area = num(p.flaeche_kollektoren) || num(p.flaeche)
+    const yieldKwh = num(p.stromertrag)
+    const radiation = num(p.gstrahlung)
+    const klasse = Math.round(num(p.klasse))
+    const tilt = num(p.neigung)
+
+    totalArea += area
+    totalYield += yieldKwh
+    totalRadiation += radiation
+    weightedTilt += tilt * area
+    if (klasse > maxKlasse) {
+      maxKlasse = klasse
+      bestKlasseLabel = pickFrenchLabel(p.klasse_text, klasse)
+    }
+  }
+
+  return {
+    totalAreaM2: Math.round(totalArea * 10) / 10,
+    annualYieldKwh: Math.round(totalYield),
+    annualRadiationKwh: Math.round(totalRadiation),
+    avgRadiationPerM2: totalArea > 0 ? Math.round(totalRadiation / totalArea) : 0,
+    bestKlasse: maxKlasse,
+    bestKlasseLabel: bestKlasseLabel || pickFrenchLabel(undefined, maxKlasse),
+    avgTiltDeg: totalArea > 0 ? Math.round(weightedTilt / totalArea) : 0,
+    surfaceCount: sameBuilding.length,
+    buildingId,
+  }
+}

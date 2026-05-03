@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useCallback, useEffect, useState } from 'react'
-import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap } from 'react-leaflet'
 import type { LatLng } from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
@@ -32,6 +32,21 @@ interface SiteMapProps {
   enableSolarLayer?: boolean
 }
 
+interface RoofPopupData {
+  lat: number
+  lon: number
+  loading: boolean
+  found: boolean
+  totalAreaM2?: number
+  annualYieldKwh?: number
+  avgRadiationPerM2?: number
+  bestKlasseLabel?: string
+  bestKlasse?: number
+  avgTiltDeg?: number
+  surfaceCount?: number
+  error?: string
+}
+
 export default function SiteMap({
   initialLat,
   initialLon,
@@ -43,6 +58,8 @@ export default function SiteMap({
   const posRef = useRef({ lat: initialLat, lon: initialLon })
   // Solar overlay toggle — default ON when the feature is enabled
   const [showSolar, setShowSolar] = useState(enableSolarLayer)
+  // Currently-displayed roof popup (null = no popup open)
+  const [roofPopup, setRoofPopup] = useState<RoofPopupData | null>(null)
 
   // Keep posRef in sync when address autocomplete changes the coordinates
   useEffect(() => {
@@ -55,6 +72,59 @@ export default function SiteMap({
       onPositionChange(latlng.lat, latlng.lng, zoom)
     },
     [onPositionChange]
+  )
+
+  // When the user clicks anywhere on the map, fetch roof info from
+  // swisstopo's Identify API. Show a popup with the aggregated data, or a
+  // friendly "no roof here" message if the click missed.
+  const handleMapClick = useCallback(
+    async (latlng: LatLng, bounds: L.LatLngBounds, size: { x: number; y: number }) => {
+      const lat = latlng.lat
+      const lon = latlng.lng
+
+      // Open popup immediately in loading state
+      setRoofPopup({ lat, lon, loading: true, found: false })
+
+      const params = new URLSearchParams({
+        lat: String(lat),
+        lon: String(lon),
+        west: String(bounds.getWest()),
+        south: String(bounds.getSouth()),
+        east: String(bounds.getEast()),
+        north: String(bounds.getNorth()),
+        w: String(size.x),
+        h: String(size.y),
+      })
+
+      try {
+        const res = await fetch(`/api/swisstopo/roof?${params}`)
+        if (!res.ok) {
+          setRoofPopup({ lat, lon, loading: false, found: false, error: 'Erreur de récupération' })
+          return
+        }
+        const data = await res.json()
+        if (!data.found) {
+          setRoofPopup({ lat, lon, loading: false, found: false })
+          return
+        }
+        setRoofPopup({
+          lat,
+          lon,
+          loading: false,
+          found: true,
+          totalAreaM2: data.totalAreaM2,
+          annualYieldKwh: data.annualYieldKwh,
+          avgRadiationPerM2: data.avgRadiationPerM2,
+          bestKlasseLabel: data.bestKlasseLabel,
+          bestKlasse: data.bestKlasse,
+          avgTiltDeg: data.avgTiltDeg,
+          surfaceCount: data.surfaceCount,
+        })
+      } catch {
+        setRoofPopup({ lat, lon, loading: false, found: false, error: 'Erreur réseau' })
+      }
+    },
+    []
   )
 
   return (
@@ -98,6 +168,19 @@ export default function SiteMap({
               onPositionChange(posRef.current.lat, posRef.current.lon, zoom)
             }
           />
+          {/* Click handler — only attached when the solar layer is enabled */}
+          {enableSolarLayer && <MapClickHandler onClick={handleMapClick} />}
+          {/* Roof info popup */}
+          {enableSolarLayer && roofPopup && (
+            <Popup
+              position={[roofPopup.lat, roofPopup.lon]}
+              eventHandlers={{ remove: () => setRoofPopup(null) }}
+              autoClose={false}
+              closeOnClick={false}
+            >
+              <RoofPopupContent data={roofPopup} />
+            </Popup>
+          )}
         </MapContainer>
       </div>
 
@@ -186,5 +269,110 @@ function InnerMarker({
         },
       }}
     />
+  )
+}
+
+// Captures map clicks (separate from the marker — the marker has its own
+// drag handler but needs to NOT consume map clicks). Forwards lat/lon, the
+// current visible bounds, and the pixel size to the parent.
+function MapClickHandler({
+  onClick,
+}: {
+  onClick: (latlng: LatLng, bounds: L.LatLngBounds, size: { x: number; y: number }) => void
+}) {
+  const map = useMapEvents({
+    click(e) {
+      // Skip clicks on Leaflet UI controls / markers (they don't bubble through
+      // .leaflet-marker-pane, but pop-overs may interpose). Defensive check.
+      const target = e.originalEvent.target as HTMLElement
+      if (target.closest('.leaflet-marker-icon')) return
+      const sz = map.getSize()
+      onClick(e.latlng, map.getBounds(), { x: sz.x, y: sz.y })
+    },
+  })
+  return null
+}
+
+// Popup content — handles loading / not-found / found states.
+function RoofPopupContent({ data }: { data: RoofPopupData }) {
+  if (data.loading) {
+    return (
+      <div className="text-xs text-gray-600 py-1">
+        <span className="inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1.5 align-text-bottom" />
+        Lecture du potentiel solaire…
+      </div>
+    )
+  }
+
+  if (data.error) {
+    return <div className="text-xs text-red-600 py-1">{data.error}</div>
+  }
+
+  if (!data.found) {
+    return (
+      <div className="text-xs text-gray-600 py-1">
+        Aucun toit cadastré ici. Cliquez sur un bâtiment.
+      </div>
+    )
+  }
+
+  const klasseColors: Record<number, string> = {
+    1: 'bg-yellow-100 text-yellow-800',
+    2: 'bg-amber-100 text-amber-800',
+    3: 'bg-orange-100 text-orange-800',
+    4: 'bg-red-100 text-red-800',
+    5: 'bg-red-200 text-red-900',
+  }
+  const klasseClass = klasseColors[data.bestKlasse ?? 0] ?? 'bg-gray-100 text-gray-800'
+
+  return (
+    <div className="min-w-[220px] py-1" style={{ fontFamily: 'Geist, system-ui, sans-serif' }}>
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-base">☀</span>
+        <span className="text-xs font-semibold text-gray-900 uppercase tracking-wider">
+          Potentiel solaire
+        </span>
+      </div>
+
+      <div className={`inline-block text-[11px] font-semibold uppercase tracking-wider rounded px-2 py-0.5 mb-3 ${klasseClass}`}>
+        {data.bestKlasseLabel} (classe {data.bestKlasse}/5)
+      </div>
+
+      <div className="space-y-1 text-xs">
+        <div className="flex justify-between gap-3">
+          <span className="text-gray-500">Surface utile</span>
+          <span className="font-mono tabular-nums font-semibold text-gray-900">
+            {data.totalAreaM2?.toFixed(1)} m²
+          </span>
+        </div>
+        <div className="flex justify-between gap-3">
+          <span className="text-gray-500">Production annuelle</span>
+          <span className="font-mono tabular-nums font-semibold text-red-600">
+            {data.annualYieldKwh?.toLocaleString('fr-CH')} kWh/an
+          </span>
+        </div>
+        <div className="flex justify-between gap-3">
+          <span className="text-gray-500">Irradiation</span>
+          <span className="font-mono tabular-nums text-gray-700">
+            {data.avgRadiationPerM2?.toLocaleString('fr-CH')} kWh/m²/an
+          </span>
+        </div>
+        <div className="flex justify-between gap-3">
+          <span className="text-gray-500">Inclinaison</span>
+          <span className="font-mono tabular-nums text-gray-700">
+            {data.avgTiltDeg}°
+          </span>
+        </div>
+        {data.surfaceCount && data.surfaceCount > 1 && (
+          <div className="text-[10px] text-gray-400 mt-1.5">
+            Agrégé sur {data.surfaceCount} pans de toiture
+          </div>
+        )}
+      </div>
+
+      <p className="text-[10px] text-gray-400 mt-2 pt-2 border-t border-gray-100">
+        Source : SuisseEnergie / OFEN
+      </p>
+    </div>
   )
 }
