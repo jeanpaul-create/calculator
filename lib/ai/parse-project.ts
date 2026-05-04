@@ -5,16 +5,29 @@
  *   Input:  "Famille Müller à Yverdon, toit en tuile, 10 kWp avec batterie"
  *   Output: { items: [{productId, quantity}], roofType: 'tuile', ... }
  *
- * Approach:
+ * Approach (ASCII):
+ *
+ *     rep description ──> Anthropic tool_use ──> validateAndShape ──> 3 sorted proposals
+ *                              │                       │                 │
+ *                          (cached catalog        zod parse +        essentiel→reco→premium
+ *                           system prompt)        catalog match
+ *                                                 + cross-category
+ *                                                 filter
+ *
  *   - Anthropic Claude with tool_use to constrain output to a typed schema
  *   - Catalog passed as a SYSTEM prompt with cache_control: { type: "ephemeral" }
  *     so repeated calls within 5 min reuse the cached catalog tokens
  *     (≈ 70-90% cost reduction vs uncached)
- *   - Result is validated against the live catalog before being returned —
- *     no hallucinated product IDs reach the form
+ *   - Tool input is parsed by zod at runtime — guards against model drift
+ *     (e.g. extra fields, wrong types) producing a clean error rather than
+ *     a TypeScript-level runtime crash.
+ *   - Validated against the live catalog before being returned — no
+ *     hallucinated product IDs reach the form. Cross-category SKUs (a PV
+ *     panel proposed in a PAC quote) are dropped with a warning.
  */
 
 import Anthropic from '@anthropic-ai/sdk'
+import { z } from 'zod'
 import { prisma } from '@/lib/db'
 import type { ProductCategory } from '@prisma/client'
 
@@ -284,6 +297,157 @@ async function callClaude(client: Anthropic, input: CallInput) {
   })
 }
 
+// ─── Tool-input schema (zod runtime validation) ──────────────────────────────
+
+/**
+ * Mirror of the Anthropic tool input_schema as a zod schema. Anthropic's
+ * SDK does NOT validate tool_use.input against the JSON Schema we supply
+ * — it hands back whatever the model produced. Parsing with zod at runtime
+ * means a model drift (extra fields, wrong types, missing proposals) yields
+ * a clean error + globalWarning rather than a TypeError inside `.map()`.
+ *
+ * Keep this schema in sync with the input_schema in `callClaude()` above.
+ */
+const ToolInputItemSchema = z.object({
+  productId: z.string(),
+  quantity: z.number(),
+})
+
+const ToolInputProposalSchema = z.object({
+  tier: z.enum(['essentiel', 'recommande', 'premium']),
+  label: z.string(),
+  rationale: z.string(),
+  items: z.array(ToolInputItemSchema),
+  warnings: z.array(z.string()).optional(),
+})
+
+const ToolInputSchema = z.object({
+  proposals: z.array(ToolInputProposalSchema).optional(),
+  customerInfo: z
+    .object({
+      name: z.string().optional(),
+      siteAddress: z.string().optional(),
+      annualConsumptionKwh: z.number().optional(),
+    })
+    .optional(),
+  roofType: z.enum(['tuile', 'ardoise', 'bac_acier', 'plat']).optional(),
+  roofSlope: z.enum(['simple', 'moyen', 'complexe']).optional(),
+  notes: z.string().optional(),
+  globalWarnings: z.array(z.string()).optional(),
+})
+
+export type ToolInput = z.infer<typeof ToolInputSchema>
+
+// ─── Pure validator + shaper (unit-testable) ──────────────────────────────────
+
+/**
+ * Validate the AI-produced tool input against the live catalog and shape it
+ * into the public AiParseResult contract. Pure — no I/O, no Anthropic calls.
+ *
+ * Drops items with:
+ *   - unknown productId (not in catalog)
+ *   - wrong category for the scenario (PAC product on PV scenario, vice versa)
+ *
+ * Each drop adds a warning to the proposal's warnings[] so the rep can see
+ * what the AI tried that we couldn't honor.
+ *
+ * If tool input fails zod parsing, returns a result with empty proposals
+ * + a globalWarning rather than throwing.
+ *
+ * @param raw           tool_use.input from Anthropic (untrusted shape)
+ * @param catalog       active products available in the DB
+ * @param scenarioType  'PV' | 'PAC' — used for cross-category filtering
+ * @param tokensUsed    optional Anthropic token total to pass through
+ */
+export function validateAndShape(
+  raw: unknown,
+  catalog: CatalogProduct[],
+  scenarioType: 'PV' | 'PAC',
+  tokensUsed = 0
+): AiParseResult {
+  // zod parse — clean error path on model drift
+  const parsed = ToolInputSchema.safeParse(raw)
+  if (!parsed.success) {
+    return {
+      scenarioType,
+      proposals: [],
+      customerInfo: {},
+      globalWarnings: [
+        "Format inattendu de l'IA — réessayez avec une description plus précise.",
+        ...parsed.error.errors.slice(0, 3).map((e) => `${e.path.join('.')}: ${e.message}`),
+      ],
+      tokensUsed,
+    }
+  }
+
+  const input = parsed.data
+  const catalogById = new Map(catalog.map((p) => [p.id, p]))
+  const globalWarnings: string[] = [...(input.globalWarnings ?? [])]
+
+  const proposals: AiProposal[] = (input.proposals ?? []).map((p) => {
+    const validatedItems: AiParseItem[] = []
+    const proposalWarnings: string[] = [...(p.warnings ?? [])]
+
+    for (const item of p.items) {
+      const product = catalogById.get(item.productId)
+      if (!product) {
+        proposalWarnings.push(`Produit inconnu (${item.productId}) — ignoré.`)
+        continue
+      }
+      if (scenarioType === 'PV' && product.category.startsWith('PAC_')) {
+        proposalWarnings.push(`Produit PAC ${product.name} ignoré sur calculateur PV.`)
+        continue
+      }
+      if (scenarioType === 'PAC' && !product.category.startsWith('PAC_')) {
+        proposalWarnings.push(`Produit PV ${product.name} ignoré sur calculateur PAC.`)
+        continue
+      }
+      validatedItems.push({
+        productId: product.id,
+        productName: product.name,
+        quantity: Math.max(1, Math.floor(item.quantity)),
+        category: product.category,
+      })
+    }
+
+    return {
+      tier: p.tier,
+      label: p.label,
+      rationale: p.rationale,
+      items: validatedItems,
+      warnings: proposalWarnings,
+    }
+  })
+
+  // Sort tier order: essentiel → recommande → premium
+  const tierOrder: Record<ProposalTier, number> = {
+    essentiel: 0,
+    recommande: 1,
+    premium: 2,
+  }
+  proposals.sort((a, b) => tierOrder[a.tier] - tierOrder[b.tier])
+
+  if (proposals.length === 0) {
+    globalWarnings.push(
+      "Aucune proposition n'a pu être générée — réessayez avec plus de détails."
+    )
+  }
+
+  return {
+    scenarioType,
+    proposals,
+    customerInfo: input.customerInfo ?? {},
+    roofType: scenarioType === 'PV' ? input.roofType : undefined,
+    roofSlope: scenarioType === 'PV' ? input.roofSlope : undefined,
+    notes: input.notes,
+    globalWarnings,
+    tokensUsed,
+  }
+}
+
+// Re-export catalog type for tests
+export type { CatalogProduct }
+
 // ─── Main entry ───────────────────────────────────────────────────────────────
 
 export async function parseProjectDescription(
@@ -321,83 +485,6 @@ export async function parseProjectDescription(
     throw new Error('No tool_use in response')
   }
 
-  type ToolInput = {
-    proposals?: {
-      tier: ProposalTier
-      label: string
-      rationale: string
-      items: { productId: string; quantity: number }[]
-      warnings?: string[]
-    }[]
-    customerInfo?: {
-      name?: string
-      siteAddress?: string
-      annualConsumptionKwh?: number
-    }
-    roofType?: 'tuile' | 'ardoise' | 'bac_acier' | 'plat'
-    roofSlope?: 'simple' | 'moyen' | 'complexe'
-    notes?: string
-    globalWarnings?: string[]
-  }
-  const raw = toolUse.input as ToolInput
-
-  // Validate every productId in every proposal against the catalog.
-  const catalogById = new Map(catalog.map((p) => [p.id, p]))
-  const globalWarnings: string[] = [...(raw.globalWarnings ?? [])]
-
-  const proposals: AiProposal[] = (raw.proposals ?? []).map((p) => {
-    const validatedItems: AiParseItem[] = []
-    const proposalWarnings: string[] = [...(p.warnings ?? [])]
-
-    for (const item of p.items ?? []) {
-      const product = catalogById.get(item.productId)
-      if (!product) {
-        proposalWarnings.push(
-          `Produit inconnu (${item.productId}) — ignoré.`
-        )
-        continue
-      }
-      if (input.scenarioType === 'PV' && product.category.startsWith('PAC_')) {
-        proposalWarnings.push(
-          `Produit PAC ${product.name} ignoré sur calculateur PV.`
-        )
-        continue
-      }
-      if (input.scenarioType === 'PAC' && !product.category.startsWith('PAC_')) {
-        proposalWarnings.push(
-          `Produit PV ${product.name} ignoré sur calculateur PAC.`
-        )
-        continue
-      }
-      validatedItems.push({
-        productId: product.id,
-        productName: product.name,
-        quantity: Math.max(1, Math.floor(item.quantity)),
-        category: product.category,
-      })
-    }
-
-    return {
-      tier: p.tier,
-      label: p.label,
-      rationale: p.rationale,
-      items: validatedItems,
-      warnings: proposalWarnings,
-    }
-  })
-
-  // Sort tier order: essentiel → recommande → premium
-  const tierOrder: Record<ProposalTier, number> = {
-    essentiel: 0,
-    recommande: 1,
-    premium: 2,
-  }
-  proposals.sort((a, b) => tierOrder[a.tier] - tierOrder[b.tier])
-
-  if (proposals.length === 0) {
-    globalWarnings.push("Aucune proposition n'a pu être générée — réessayez avec plus de détails.")
-  }
-
   // Token accounting — usage breakdown when caching is in play
   const usage = response.usage as Anthropic.Usage & {
     cache_creation_input_tokens?: number
@@ -409,14 +496,5 @@ export async function parseProjectDescription(
     (usage.cache_read_input_tokens ?? 0) +
     (usage.output_tokens ?? 0)
 
-  return {
-    scenarioType: input.scenarioType,
-    proposals,
-    customerInfo: raw.customerInfo ?? {},
-    roofType: input.scenarioType === 'PV' ? raw.roofType : undefined,
-    roofSlope: input.scenarioType === 'PV' ? raw.roofSlope : undefined,
-    notes: raw.notes,
-    globalWarnings,
-    tokensUsed,
-  }
+  return validateAndShape(toolUse.input, catalog, input.scenarioType, tokensUsed)
 }
