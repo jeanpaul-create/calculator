@@ -32,7 +32,11 @@ export async function GET(req: NextRequest) {
 
     const result = await fetchNearbyBuildings(lat, lon, radius)
 
-    return NextResponse.json(result)
+    // Backwards-compatible response shape: { buildings, warning? }. The lib
+    // now uses { data, warning? } internally for consistency with the
+    // swisstopo libs, but the route output stays stable so SiteMap.tsx
+    // doesn't need to change.
+    return NextResponse.json({ buildings: result.data, warning: result.warning })
   } catch (err) {
     if (err instanceof Response) return err
     console.error('[GET /api/buildings/nearby]', err)

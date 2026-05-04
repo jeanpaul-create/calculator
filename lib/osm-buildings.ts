@@ -7,8 +7,7 @@
  * the cadastral parcel polygon.
  */
 
-const SWISS_LAT_MIN = 45.5, SWISS_LAT_MAX = 47.9
-const SWISS_LON_MIN = 5.9, SWISS_LON_MAX = 10.6
+import { isInSwissBounds } from '@/lib/geo'
 
 // Public Overpass instance — fine for our volume (one query per site selection)
 const OVERPASS_URL = 'https://overpass-api.de/api/interpreter'
@@ -40,6 +39,19 @@ interface OverpassResponse {
 }
 
 /**
+ * Result shape — mirrors `IdentifyResult<T[]>` from swisstopo-identify so
+ * callers handle both Swiss-data sources uniformly.
+ *
+ *   data === [] + no warning   → Overpass returned no buildings (legitimate)
+ *   data === [] + warning set  → upstream failure (HTTP, timeout, blocked)
+ *   data !== []                → list of building footprints
+ */
+export interface NearbyBuildingsResult {
+  data: OsmBuilding[]
+  warning?: string
+}
+
+/**
  * Fetch all building footprints within `radiusMeters` of (lat, lon).
  *
  * Logs failures to the server console (visible in Vercel logs) so we can
@@ -50,12 +62,9 @@ export async function fetchNearbyBuildings(
   lat: number,
   lon: number,
   radiusMeters: number = 80
-): Promise<{ buildings: OsmBuilding[]; warning?: string }> {
-  if (
-    lat < SWISS_LAT_MIN || lat > SWISS_LAT_MAX ||
-    lon < SWISS_LON_MIN || lon > SWISS_LON_MAX
-  ) {
-    return { buildings: [], warning: 'out-of-bounds' }
+): Promise<NearbyBuildingsResult> {
+  if (!isInSwissBounds(lat, lon)) {
+    return { data: [], warning: 'out-of-bounds' }
   }
   const r = Math.max(10, Math.min(500, radiusMeters))
   const query = `[out:json][timeout:10];way["building"](around:${r},${lat},${lon});out geom;`
@@ -74,13 +83,13 @@ export async function fetchNearbyBuildings(
     })
     if (!res.ok) {
       console.error(`[overpass] HTTP ${res.status}: ${await res.text().catch(() => '')}`)
-      return { buildings: [], warning: `overpass-http-${res.status}` }
+      return { data: [], warning: `overpass-http-${res.status}` }
     }
     json = (await res.json()) as OverpassResponse
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error(`[overpass] fetch failed: ${msg}`)
-    return { buildings: [], warning: `overpass-error: ${msg}` }
+    return { data: [], warning: `overpass-error: ${msg}` }
   }
 
   const elements = json.elements ?? []
@@ -108,5 +117,5 @@ export async function fetchNearbyBuildings(
     buildings.push({ id: el.id, ring: coords, address })
   }
 
-  return { buildings }
+  return { data: buildings }
 }

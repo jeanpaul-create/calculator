@@ -1,27 +1,40 @@
-// build-stamp: 2026-05-03  area-fields-fix
 /**
- * Server-side proxy for swisstopo's Identify API on the
- * `ch.bfe.solarenergie-eignung-daecher` layer.
- *
- *   GET https://api3.geo.admin.ch/rest/services/api/MapServer/identify
+ * Roof-info aggregator on top of `ch.bfe.solarenergie-eignung-daecher`.
  *
  * A single click on a roof typically returns multiple features (one per
  * roof surface — a building with a hipped roof has 4-6 surfaces). We
- * aggregate by building_id: total area, total annual yield, weighted-avg
- * tilt, and the BEST suitability class found on that building.
+ * aggregate by building_id: total area, total annual yield, max-irradiation
+ * surface (the headline number a rep would quote), and best suitability
+ * class on that building.
+ *
+ *   Architecture (ASCII):
+ *
+ *     fetchRoofInfo(input)
+ *           │
+ *           └─► swisstopoIdentify(layer='ch.bfe.solarenergie-eignung-daecher')
+ *                     │
+ *                     └─► aggregateBuilding(features)  ← pure, unit-testable
+ *                               │
+ *                               ├─► filter to first building_id
+ *                               ├─► sum flaeche / flaeche_kollektoren
+ *                               ├─► sum stromertrag / gstrahlung
+ *                               ├─► max(mstrahlung) for headline irradiation
+ *                               └─► best klasse + label
  */
 
-const SWISS_LAT_MIN = 45.5, SWISS_LAT_MAX = 47.9
-const SWISS_LON_MIN = 5.9, SWISS_LON_MAX = 10.6
+import {
+  swisstopoIdentify,
+  type IdentifyFeature,
+  type IdentifyResult,
+} from '@/lib/swisstopo-identify'
+
+const LAYER = 'ch.bfe.solarenergie-eignung-daecher'
 
 export interface RoofIdentifyInput {
   lat: number
   lon: number
-  /** Map bbox in WGS84 (west, south, east, north) */
   bounds: { west: number; south: number; east: number; north: number }
-  /** Image display width in pixels (used by swisstopo to size the tolerance) */
   width: number
-  /** Image display height in pixels */
   height: number
 }
 
@@ -88,25 +101,17 @@ function pickFrenchLabel(klasse_text: string | undefined, klasse: number): strin
   return SUITABILITY_LABEL_FR[klasse] ?? `Classe ${klasse}`
 }
 
-interface IdentifyFeature {
-  featureId: number | string
-  layerBodId: string
-  properties: {
-    flaeche_kollektoren?: number | string
-    flaeche?: number | string
-    stromertrag?: number | string
-    gstrahlung?: number | string  // total kWh/year on this surface (= area × mstrahlung)
-    mstrahlung?: number | string  // mean kWh/m²/year for this surface — directly per m²
-    klasse?: number | string
-    klasse_text?: string
-    neigung?: number | string
-    ausrichtung?: number | string
-    building_id?: number | null
-  }
-}
-
-interface IdentifyResponse {
-  results?: IdentifyFeature[]
+interface RoofProps {
+  flaeche_kollektoren?: number | string
+  flaeche?: number | string
+  stromertrag?: number | string
+  gstrahlung?: number | string
+  mstrahlung?: number | string
+  klasse?: number | string
+  klasse_text?: string
+  neigung?: number | string
+  ausrichtung?: number | string
+  building_id?: number | null
 }
 
 function num(v: number | string | undefined | null): number {
@@ -115,52 +120,28 @@ function num(v: number | string | undefined | null): number {
   return Number.isFinite(n) ? n : 0
 }
 
-export async function fetchRoofInfo(input: RoofIdentifyInput): Promise<RoofInfo | null> {
-  const { lat, lon, bounds, width, height } = input
+// ─── Pure aggregator (unit-testable) ──────────────────────────────────────────
 
-  // Swiss bounds — guard against arbitrary coordinates being proxied
-  if (
-    lat < SWISS_LAT_MIN || lat > SWISS_LAT_MAX ||
-    lon < SWISS_LON_MIN || lon > SWISS_LON_MAX
-  ) {
-    return null
-  }
-
-  const params = new URLSearchParams({
-    geometry: `${lon},${lat}`,
-    geometryType: 'esriGeometryPoint',
-    geometryFormat: 'geojson',
-    imageDisplay: `${Math.max(1, Math.round(width))},${Math.max(1, Math.round(height))},96`,
-    mapExtent: `${bounds.west},${bounds.south},${bounds.east},${bounds.north}`,
-    layers: 'all:ch.bfe.solarenergie-eignung-daecher',
-    tolerance: '5',
-    lang: 'fr',
-    sr: '4326',
-  })
-
-  const url = `https://api3.geo.admin.ch/rest/services/api/MapServer/identify?${params}`
-
-  let json: IdentifyResponse
-  try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(8000) })
-    if (!res.ok) return null
-    json = (await res.json()) as IdentifyResponse
-  } catch {
-    return null
-  }
-
-  const results = json.results ?? []
-  if (results.length === 0) return null
+/**
+ * Aggregate raw Identify features into a single RoofInfo by filtering to
+ * the building under the click and computing area / yield / irradiation
+ * totals. Pure — no I/O. T4 covers this with regression tests.
+ */
+export function aggregateBuilding(
+  features: IdentifyFeature[]
+): RoofInfo | null {
+  if (features.length === 0) return null
 
   // Filter to the same building as the first hit (don't conflate neighbours
   // when the click tolerance bleeds across a property boundary).
-  const buildingId = results[0].properties.building_id ?? null
+  const firstProps = (features[0].properties ?? {}) as RoofProps
+  const buildingId = firstProps.building_id ?? null
   const sameBuilding = buildingId
-    ? results.filter((r) => r.properties.building_id === buildingId)
-    : [results[0]]
+    ? features.filter((r) => (r.properties as RoofProps | undefined)?.building_id === buildingId)
+    : [features[0]]
 
-  let totalRoofArea = 0       // sum of flaeche  — full geometric roof
-  let totalCollectorArea = 0  // sum of flaeche_kollektoren — panelable subset
+  let totalRoofArea = 0
+  let totalCollectorArea = 0
   let totalYield = 0
   let totalRadiation = 0
   let maxKlasse = 0
@@ -169,11 +150,10 @@ export async function fetchRoofInfo(input: RoofIdentifyInput): Promise<RoofInfo 
   let bestIrradiationTilt = 0
 
   for (const r of sameBuilding) {
-    const p = r.properties
+    const p = (r.properties ?? {}) as RoofProps
     const fullArea = num(p.flaeche)
     const collectorArea = num(p.flaeche_kollektoren)
     const yieldKwh = num(p.stromertrag)
-    // mstrahlung is the canonical per-m² irradiation for the surface
     const meanIrradPerM2 = num(p.mstrahlung)
     const totalRadOnSurface = num(p.gstrahlung)
     const klasse = Math.round(num(p.klasse))
@@ -188,7 +168,6 @@ export async function fetchRoofInfo(input: RoofIdentifyInput): Promise<RoofInfo 
       maxKlasse = klasse
       bestKlasseLabel = pickFrenchLabel(p.klasse_text, klasse)
     }
-    // Best face: highest per-m² irradiation (what a rep would quote).
     if (meanIrradPerM2 > bestIrradiation) {
       bestIrradiation = meanIrradPerM2
       bestIrradiationTilt = tilt
@@ -207,4 +186,21 @@ export async function fetchRoofInfo(input: RoofIdentifyInput): Promise<RoofInfo 
     surfaceCount: sameBuilding.length,
     buildingId,
   }
+}
+
+// ─── Effectful entry ──────────────────────────────────────────────────────────
+
+export async function fetchRoofInfo(
+  input: RoofIdentifyInput
+): Promise<IdentifyResult<RoofInfo>> {
+  const result = await swisstopoIdentify({ ...input, layer: LAYER })
+
+  // Upstream error or out-of-bounds → propagate the warning.
+  if (result.warning) return { data: null, warning: result.warning }
+  // Empty result (no features) → null data, no warning. Customer just clicked
+  // off a roof.
+  if (!result.data) return { data: null }
+
+  const aggregated = aggregateBuilding(result.data)
+  return { data: aggregated }
 }

@@ -13,6 +13,36 @@
 const EARTH_RADIUS_M = 6_371_000
 
 /**
+ * Bounding box of Switzerland (WGS84). Used by every Swiss-data lib (roof,
+ * parcel, OSM buildings) to short-circuit out-of-bounds requests so we don't
+ * proxy arbitrary world coordinates to swisstopo / Overpass.
+ *
+ *   south: 45.5°N (Mendrisio area)
+ *   north: 47.9°N (Schaffhausen area)
+ *   west : 5.9°E  (Geneva area)
+ *   east : 10.6°E (Müstair area)
+ *
+ * Padded slightly outside the actual border to account for cross-border
+ * properties on the French / German / Italian frontier.
+ */
+export const SWISS_BOUNDS = {
+  latMin: 45.5,
+  latMax: 47.9,
+  lonMin: 5.9,
+  lonMax: 10.6,
+} as const
+
+/** True if the (lat, lon) pair is within (or near) the Swiss bbox. */
+export function isInSwissBounds(lat: number, lon: number): boolean {
+  return (
+    lat >= SWISS_BOUNDS.latMin &&
+    lat <= SWISS_BOUNDS.latMax &&
+    lon >= SWISS_BOUNDS.lonMin &&
+    lon <= SWISS_BOUNDS.lonMax
+  )
+}
+
+/**
  * Distance between two WGS84 points in meters using the haversine formula.
  * Accurate at any scale.
  */

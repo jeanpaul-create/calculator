@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Missing or invalid coordinates' }, { status: 422 })
     }
 
-    const parcel = await fetchParcel({
+    const result = await fetchParcel({
       lat,
       lon,
       bounds: { west, south, east, north },
@@ -46,11 +46,11 @@ export async function GET(req: NextRequest) {
       height,
     })
 
-    if (!parcel) {
-      return NextResponse.json({ found: false })
+    if (!result.data) {
+      return NextResponse.json({ found: false, warning: result.warning })
     }
 
-    return NextResponse.json({ found: true, ...parcel })
+    return NextResponse.json({ found: true, ...result.data })
   } catch (err) {
     if (err instanceof Response) return err
     console.error('[GET /api/swisstopo/parcel]', err)

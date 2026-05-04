@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Missing or invalid coordinates' }, { status: 422 })
     }
 
-    const info = await fetchRoofInfo({
+    const result = await fetchRoofInfo({
       lat,
       lon,
       bounds: { west, south, east, north },
@@ -46,11 +46,14 @@ export async function GET(req: NextRequest) {
       height,
     })
 
-    if (!info) {
-      return NextResponse.json({ found: false })
+    if (!result.data) {
+      // Distinguish "no roof at click" (no warning) from upstream failure
+      // (warning set) — surface the warning to the client so the UI can
+      // tell the user "swisstopo indisponible" instead of silently nothing.
+      return NextResponse.json({ found: false, warning: result.warning })
     }
 
-    return NextResponse.json({ found: true, ...info })
+    return NextResponse.json({ found: true, ...result.data })
   } catch (err) {
     if (err instanceof Response) return err
     console.error('[GET /api/swisstopo/roof]', err)

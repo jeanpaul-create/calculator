@@ -1,13 +1,30 @@
 /**
- * Server-side proxy for swisstopo's Identify API on the
- * `ch.kantone.cadastralwebmap-farbe` layer — Swiss cadastre.
+ * Cadastre parcel lookup on top of `ch.kantone.cadastralwebmap-farbe`.
  *
- * Used to identify the property parcel under a click point and return
- * its polygon for distance-to-edge calculations on the PAC map.
+ * Identifies the property parcel under a click point and returns its outer
+ * polygon ring for distance-to-edge calculations on the PAC map.
+ *
+ *   Architecture (ASCII):
+ *
+ *     fetchParcel(input)
+ *           │
+ *           └─► swisstopoIdentify(layer='ch.kantone.cadastralwebmap-farbe')
+ *                     │
+ *                     └─► extractParcel(features)  ← pure, unit-testable
+ *                               │
+ *                               ├─► find first Polygon/MultiPolygon feature
+ *                               ├─► Polygon → outer ring
+ *                               └─► MultiPolygon → largest polygon's outer ring
  */
 
-const SWISS_LAT_MIN = 45.5, SWISS_LAT_MAX = 47.9
-const SWISS_LON_MIN = 5.9, SWISS_LON_MAX = 10.6
+import {
+  swisstopoIdentify,
+  type IdentifyFeature,
+  type IdentifyResult,
+} from '@/lib/swisstopo-identify'
+import { isPointInRing } from '@/lib/geo'
+
+const LAYER = 'ch.kantone.cadastralwebmap-farbe'
 
 export interface ParcelIdentifyInput {
   lat: number
@@ -29,84 +46,64 @@ export interface ParcelInfo {
   bbox: [number, number, number, number]
 }
 
-interface IdentifyFeature {
-  featureId: number | string
-  layerBodId: string
-  bbox?: [number, number, number, number]
-  geometry?: GeoJSON.Polygon | GeoJSON.MultiPolygon
-}
+// ─── Pure feature → ParcelInfo extraction (unit-testable) ─────────────────────
 
-interface IdentifyResponse {
-  results?: IdentifyFeature[]
-}
-
-export async function fetchParcel(input: ParcelIdentifyInput): Promise<ParcelInfo | null> {
-  const { lat, lon, bounds, width, height } = input
-
-  if (
-    lat < SWISS_LAT_MIN || lat > SWISS_LAT_MAX ||
-    lon < SWISS_LON_MIN || lon > SWISS_LON_MAX
-  ) {
-    return null
-  }
-
-  const params = new URLSearchParams({
-    geometry: `${lon},${lat}`,
-    geometryType: 'esriGeometryPoint',
-    geometryFormat: 'geojson',
-    imageDisplay: `${Math.max(1, Math.round(width))},${Math.max(1, Math.round(height))},96`,
-    mapExtent: `${bounds.west},${bounds.south},${bounds.east},${bounds.north}`,
-    layers: 'all:ch.kantone.cadastralwebmap-farbe',
-    tolerance: '5',
-    lang: 'fr',
-    sr: '4326',
-  })
-
-  const url = `https://api3.geo.admin.ch/rest/services/api/MapServer/identify?${params}`
-
-  let json: IdentifyResponse
-  try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(8000) })
-    if (!res.ok) return null
-    json = (await res.json()) as IdentifyResponse
-  } catch {
-    return null
-  }
-
-  const results = json.results ?? []
-  if (results.length === 0) return null
-
-  // The cadastre layer returns the first parcel that contains the click
-  // point. Take the first feature with a polygon geometry — small overlapping
-  // features (e.g. building footprints) can show up but parcels are the
-  // primary feature type on this layer.
-  const feature = results.find((r) =>
-    r.geometry && (r.geometry.type === 'Polygon' || r.geometry.type === 'MultiPolygon')
+/**
+ * Pick the right parcel polygon for the click point.
+ *
+ *   Single Polygon → outer ring
+ *   MultiPolygon   → polygon containing the click (point-in-ring); falls
+ *                    back to largest by bbox area if no ring contains the
+ *                    click (edge case — click on shared boundary).
+ *
+ * The previous version always picked the largest polygon by bbox area,
+ * which silently misidentified the parcel when the click was inside a
+ * smaller polygon of a MultiPolygon parcel. Fixed (covered by T4 tests).
+ *
+ * @param features  Identify features for the layer at the click.
+ * @param clickPoint  Lat/lon of the click — used to disambiguate MultiPolygon.
+ */
+export function extractParcel(
+  features: IdentifyFeature[],
+  clickPoint: { lat: number; lon: number }
+): ParcelInfo | null {
+  const feature = features.find(
+    (r) =>
+      r.geometry &&
+      (r.geometry.type === 'Polygon' || r.geometry.type === 'MultiPolygon')
   )
   if (!feature || !feature.geometry) return null
 
-  // Take the OUTER ring of the (Multi)Polygon, ignoring holes.
   let ring: [number, number][]
   if (feature.geometry.type === 'Polygon') {
     ring = feature.geometry.coordinates[0] as [number, number][]
   } else {
-    // For MultiPolygon, take the polygon containing the click point.
-    // Rough heuristic: the largest one (parcels are usually one polygon
-    // anyway; this is just a defensive fallback).
+    // MultiPolygon: prefer the polygon whose outer ring contains the click
+    // point. Fall back to the largest by bbox area if none contains the
+    // click (e.g. click landed exactly on a shared edge).
     const polygons = feature.geometry.coordinates as [number, number][][][]
-    let bestArea = 0
-    let bestRing: [number, number][] = polygons[0][0]
-    for (const poly of polygons) {
-      const ring0 = poly[0]
-      const xs = ring0.map((c) => c[0])
-      const ys = ring0.map((c) => c[1])
-      const a = (Math.max(...xs) - Math.min(...xs)) * (Math.max(...ys) - Math.min(...ys))
-      if (a > bestArea) {
-        bestArea = a
-        bestRing = ring0
+    const containing = polygons.find((poly) =>
+      isPointInRing(clickPoint, poly[0])
+    )
+    if (containing) {
+      ring = containing[0]
+    } else {
+      let bestArea = 0
+      let bestRing: [number, number][] = polygons[0][0]
+      for (const poly of polygons) {
+        const ring0 = poly[0]
+        const xs = ring0.map((c) => c[0])
+        const ys = ring0.map((c) => c[1])
+        const a =
+          (Math.max(...xs) - Math.min(...xs)) *
+          (Math.max(...ys) - Math.min(...ys))
+        if (a > bestArea) {
+          bestArea = a
+          bestRing = ring0
+        }
       }
+      ring = bestRing
     }
-    ring = bestRing
   }
 
   // Compute bbox if not provided
@@ -124,4 +121,18 @@ export async function fetchParcel(input: ParcelIdentifyInput): Promise<ParcelInf
     ring,
     bbox,
   }
+}
+
+// ─── Effectful entry ──────────────────────────────────────────────────────────
+
+export async function fetchParcel(
+  input: ParcelIdentifyInput
+): Promise<IdentifyResult<ParcelInfo>> {
+  const result = await swisstopoIdentify({ ...input, layer: LAYER })
+
+  if (result.warning) return { data: null, warning: result.warning }
+  if (!result.data) return { data: null }
+
+  const parcel = extractParcel(result.data, { lat: input.lat, lon: input.lon })
+  return { data: parcel }
 }
