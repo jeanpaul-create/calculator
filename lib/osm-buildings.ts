@@ -7,6 +7,7 @@
  * the cadastral parcel polygon.
  */
 
+import { unstable_cache } from 'next/cache'
 import { isInSwissBounds } from '@/lib/geo'
 
 // Public Overpass instance — fine for our volume (one query per site selection)
@@ -58,7 +59,7 @@ export interface NearbyBuildingsResult {
  * tell the difference between "Overpass returned 0" and "Overpass blocked
  * us / timed out / errored".
  */
-export async function fetchNearbyBuildings(
+async function fetchNearbyBuildingsUncached(
   lat: number,
   lon: number,
   radiusMeters: number = 80
@@ -119,3 +120,15 @@ export async function fetchNearbyBuildings(
 
   return { data: buildings }
 }
+
+/**
+ * Cached entry: identical (lat, lon, radius) calls within 60s reuse the
+ * same Overpass response. Buildings rarely change; caching protects the
+ * public Overpass API from buggy useEffect loops and reduces our chance
+ * of getting our egress IP rate-limited.
+ */
+export const fetchNearbyBuildings = unstable_cache(
+  fetchNearbyBuildingsUncached,
+  ['osm-buildings'],
+  { revalidate: 60 }
+)

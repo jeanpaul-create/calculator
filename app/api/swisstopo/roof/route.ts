@@ -9,6 +9,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { fetchRoofInfo } from '@/lib/swisstopo-roof'
+import { enforceRateLimit } from '@/lib/rate-limit'
+
+const RATE_LIMIT_PER_MIN = 100
+const ONE_MIN_MS = 60_000
 
 function numParam(url: URL, key: string): number | null {
   const v = url.searchParams.get(key)
@@ -19,7 +23,18 @@ function numParam(url: URL, key: string): number | null {
 
 export async function GET(req: NextRequest) {
   try {
-    await requireAuth()
+    const session = await requireAuth()
+
+    // Per-user rate limit (100/min). Prevents buggy useEffect loops or
+    // abusive auth'd users from blowing through swisstopo's API limits.
+    const { ok } = await enforceRateLimit({
+      key: `swisstopo-roof:user:${session.user.id}`,
+      windowMs: ONE_MIN_MS,
+      max: RATE_LIMIT_PER_MIN,
+    })
+    if (!ok) {
+      return NextResponse.json({ error: 'Trop de requêtes' }, { status: 429 })
+    }
 
     const url = new URL(req.url)
     const lat = numParam(url, 'lat')

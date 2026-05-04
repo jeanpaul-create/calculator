@@ -17,6 +17,7 @@
  *                               └─► MultiPolygon → largest polygon's outer ring
  */
 
+import { unstable_cache } from 'next/cache'
 import {
   swisstopoIdentify,
   type IdentifyFeature,
@@ -123,9 +124,9 @@ export function extractParcel(
   }
 }
 
-// ─── Effectful entry ──────────────────────────────────────────────────────────
+// ─── Effectful entry (uncached) ───────────────────────────────────────────────
 
-export async function fetchParcel(
+async function fetchParcelUncached(
   input: ParcelIdentifyInput
 ): Promise<IdentifyResult<ParcelInfo>> {
   const result = await swisstopoIdentify({ ...input, layer: LAYER })
@@ -136,3 +137,15 @@ export async function fetchParcel(
   const parcel = extractParcel(result.data, { lat: input.lat, lon: input.lon })
   return { data: parcel }
 }
+
+/**
+ * Cached entry: identical inputs within 60s reuse the same response.
+ * Cadastral data is essentially static, so caching is safe and protects
+ * swisstopo's API from buggy useEffect loops and repeated quotes for the
+ * same address.
+ */
+export const fetchParcel = unstable_cache(
+  fetchParcelUncached,
+  ['swisstopo-parcel'],
+  { revalidate: 60 }
+)

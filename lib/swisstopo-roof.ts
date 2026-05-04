@@ -22,6 +22,7 @@
  *                               └─► best klasse + label
  */
 
+import { unstable_cache } from 'next/cache'
 import {
   swisstopoIdentify,
   type IdentifyFeature,
@@ -188,9 +189,9 @@ export function aggregateBuilding(
   }
 }
 
-// ─── Effectful entry ──────────────────────────────────────────────────────────
+// ─── Effectful entry (uncached) ───────────────────────────────────────────────
 
-export async function fetchRoofInfo(
+async function fetchRoofInfoUncached(
   input: RoofIdentifyInput
 ): Promise<IdentifyResult<RoofInfo>> {
   const result = await swisstopoIdentify({ ...input, layer: LAYER })
@@ -204,3 +205,15 @@ export async function fetchRoofInfo(
   const aggregated = aggregateBuilding(result.data)
   return { data: aggregated }
 }
+
+/**
+ * Cached entry: identical (lat, lon, bounds, w, h) calls within 60s reuse
+ * the same response. Swisstopo data is static (yearly updates at most), so
+ * caching is safe. Protects swisstopo's API from buggy useEffect loops on
+ * the client and reduces redundant cross-region traffic.
+ */
+export const fetchRoofInfo = unstable_cache(
+  fetchRoofInfoUncached,
+  ['swisstopo-roof'],
+  { revalidate: 60 }
+)
