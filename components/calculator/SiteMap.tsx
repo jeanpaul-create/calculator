@@ -1,3 +1,48 @@
+/**
+ * SiteMap — Leaflet aerial-view component for both PV and PAC calculators.
+ *
+ *   Architecture (ASCII):
+ *
+ *     ┌──────────────────────────────────────────────────────────────────┐
+ *     │ MapContainer (with optional Fullscreen wrapper)                   │
+ *     │                                                                   │
+ *     │  TileLayer (swisstopo SwissImage satellite — base layer)          │
+ *     │   │                                                               │
+ *     │   ├─ SolarOverlay      (PV mode, toggleable, OFEN suitability)   │
+ *     │   │                                                               │
+ *     │   ├─ CadastreOverlay   (PAC mode, parcel boundaries)             │
+ *     │   │                                                               │
+ *     │   ├─ ParcelPolygon     (red, on PAC click — own parcel ring)    │
+ *     │   │                                                               │
+ *     │   ├─ NeighborPolygon   (blue, nearest neighbor building)         │
+ *     │   │                                                               │
+ *     │   ├─ DistanceLines     (orange dashed → property edge,           │
+ *     │   │                     blue solid → neighbor)                    │
+ *     │   │                                                               │
+ *     │   ├─ SiteMarker        (red, draggable — always)                 │
+ *     │   │                                                               │
+ *     │   ├─ PacUnitMarker     (orange divIcon, draggable, PAC only)    │
+ *     │   │                                                               │
+ *     │   └─ RoofPopup         (PV click → swisstopo Identify)          │
+ *     │                                                                   │
+ *     └──────────────────────────────────────────────────────────────────┘
+ *           │
+ *           └─► DistancePanel (below the map: "Limite: X m / Voisin: Y m")
+ *
+ *   Data flows out via:
+ *     - onSiteMarkerMove → parent stores lat/lon for the quote
+ *     - onPacUnitMove    → parent stores PAC unit lat/lon for the quote
+ *
+ *   Data flows in:
+ *     - swisstopo /api/swisstopo/roof   on roof click  (PV)
+ *     - swisstopo /api/swisstopo/parcel on PAC click   (PAC)
+ *     - OSM /api/buildings/nearby       on PAC click   (PAC)
+ *
+ * NOTE: This file is intentionally large (>800 lines). A future refactor (see
+ * TODOS.md "Split SiteMap.tsx into composable layer components") will break
+ * each layer above into its own component. Until then, tests via T1
+ * (lib/geo) and T4 (swisstopo aggregators) protect the underlying math.
+ */
 'use client'
 
 import { useRef, useCallback, useEffect, useState } from 'react'
