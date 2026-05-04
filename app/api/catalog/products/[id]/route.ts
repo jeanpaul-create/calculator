@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { ProductCategory } from '@prisma/client'
 import { z } from 'zod'
+import { invalidateAiCatalog } from '@/lib/ai/parse-project'
 
 const UpdateProductSchema = z.object({
   name: z.string().min(1).optional(),
@@ -28,6 +29,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       data,
     })
 
+    // Invalidate the cached AI catalog snapshot — the AI prompt should
+    // reflect the new price/name/active status on the next call (A4 + P2).
+    invalidateAiCatalog()
+
     return NextResponse.json(product)
   } catch (err) {
     if (err instanceof Response) return err
@@ -48,6 +53,9 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
       where: { id: params.id },
       data: { active: false },
     })
+
+    // Soft-deleted product should disappear from the AI catalog snapshot.
+    invalidateAiCatalog()
 
     return new NextResponse(null, { status: 204 })
   } catch (err) {

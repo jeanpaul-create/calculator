@@ -27,9 +27,23 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk'
+import { unstable_cache, revalidateTag } from 'next/cache'
 import { z } from 'zod'
 import { prisma } from '@/lib/db'
 import type { ProductCategory } from '@prisma/client'
+
+/**
+ * Cache tag used for the AI catalog snapshot. Admin product write routes
+ * call `invalidateAiCatalog()` after a Product create/update/delete so the
+ * next AI call rebuilds the catalog from DB. Without this, the AI could
+ * propose a renamed/removed SKU for up to ~24h (default unstable_cache TTL).
+ */
+const AI_CATALOG_TAG = 'ai-catalog'
+
+/** Revalidate the cached catalog. Call from any Product mutation route. */
+export function invalidateAiCatalog(): void {
+  revalidateTag(AI_CATALOG_TAG)
+}
 
 // Model: the project's CLAUDE.md uses sonnet 4.7; configurable via env.
 // Keep sonnet (not opus) — this is structured extraction, not deep reasoning.
@@ -100,7 +114,19 @@ interface CatalogProduct {
   powerWp: number | null
 }
 
-async function fetchCatalog(scenarioType: 'PV' | 'PAC'): Promise<CatalogProduct[]> {
+/**
+ * Fetch the active catalog for a given scenario type. Wrapped in
+ * unstable_cache + tag('ai-catalog') so repeated AI calls within the
+ * cache window don't re-query Prisma each time (P2). Admin Product
+ * mutations call invalidateAiCatalog() to revalidate the tag — see
+ * /api/catalog/products/[POST,PATCH,DELETE].
+ *
+ * The natural content-addressable Anthropic prompt cache (5-min TTL) sits
+ * downstream — when our cached catalog text changes, the prompt content
+ * changes, and Anthropic creates a new cache entry on its side too (A4).
+ * No risk of "stale cache" — both layers react to the catalog tag.
+ */
+async function fetchCatalogFromDb(scenarioType: 'PV' | 'PAC'): Promise<CatalogProduct[]> {
   const pvCategories: ProductCategory[] = [
     'PANEL', 'INVERTER', 'BATTERY', 'MOUNTING', 'ACCESSORY', 'EV_CHARGER',
   ]
@@ -122,6 +148,17 @@ async function fetchCatalog(scenarioType: 'PV' | 'PAC'): Promise<CatalogProduct[
     orderBy: [{ category: 'asc' }, { name: 'asc' }],
   })
 }
+
+const fetchCatalog = unstable_cache(
+  fetchCatalogFromDb,
+  ['ai-catalog'],
+  {
+    tags: [AI_CATALOG_TAG],
+    // Long revalidate window — we rely on tag-based invalidation from admin
+    // routes for freshness, not time-based.
+    revalidate: 3600,
+  }
+)
 
 function formatCatalogForPrompt(products: CatalogProduct[]): string {
   // Compact format — one line per product. Token-efficient.

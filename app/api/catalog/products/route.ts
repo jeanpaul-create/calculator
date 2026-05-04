@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db'
 import { requireAuth, requireAdmin } from '@/lib/auth'
 import { ProductCategory } from '@prisma/client'
 import { z } from 'zod'
+import { invalidateAiCatalog } from '@/lib/ai/parse-project'
 
 const CreateProductSchema = z.object({
   name: z.string().min(1),
@@ -41,6 +42,9 @@ export async function POST(req: NextRequest) {
     const data = CreateProductSchema.parse(body)
 
     const product = await prisma.product.create({ data })
+    // Invalidate the cached AI catalog snapshot so the next /api/ai/parse-project
+    // call sees the new product (A4 + P2).
+    invalidateAiCatalog()
     return NextResponse.json(product, { status: 201 })
   } catch (err) {
     if (err instanceof Response) return err
