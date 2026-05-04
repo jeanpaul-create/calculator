@@ -21,28 +21,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/db'
+import { enforceRateLimit } from '@/lib/rate-limit'
 
 const Schema = z.object({
   action: z.enum(['accept', 'decline']),
   reason: z.string().max(500).optional(),
 })
 
-// Per-token attempt counter (memory). Resets on cold start.
-const attempts = new Map<string, { count: number; resetAt: number }>()
 const PER_QUOTE_LIMIT = 10
 const WINDOW_MS = 60_000
-
-function checkRate(token: string): boolean {
-  const now = Date.now()
-  const entry = attempts.get(token)
-  if (!entry || now >= entry.resetAt) {
-    attempts.set(token, { count: 1, resetAt: now + WINDOW_MS })
-    return true
-  }
-  if (entry.count >= PER_QUOTE_LIMIT) return false
-  entry.count++
-  return true
-}
 
 export async function POST(
   req: NextRequest,
@@ -53,7 +40,13 @@ export async function POST(
   const token = params.id
 
   try {
-    if (!checkRate(token)) {
+    // Rate limit — per-token, per-minute (DB-backed)
+    const { ok } = await enforceRateLimit({
+      key: `respond:tok:${token}`,
+      windowMs: WINDOW_MS,
+      max: PER_QUOTE_LIMIT,
+    })
+    if (!ok) {
       return NextResponse.json(
         { error: 'Trop de tentatives. Veuillez réessayer dans une minute.' },
         { status: 429 }

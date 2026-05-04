@@ -319,3 +319,28 @@ model Setting {
   value     String
   updatedAt DateTime @updatedAt
 }
+
+// ─── Rate limiting (DB-backed counters) ───────────────────────────────────────
+
+/// Per-key sliding-window counter consumed by `lib/rate-limit.ts`.
+///
+/// Key format is conventionally `{namespace}:{identifier}`, e.g.
+///   "ai:user:cmf9..."   — AI parse calls per user per day
+///   "respond:tok:abc..." — public quote respond per token per minute
+///
+/// Replaces the per-route in-memory `Map` rate limiters, which lost state on
+/// every Vercel cold start (50 calls/day promise was unenforceable in
+/// practice). DB-backed counters survive cold starts and scale across
+/// concurrent Lambda instances.
+///
+/// Cleanup: rows are upserted in-place when the window rolls. Old rows that
+/// no one queries again can stay around — they're tiny. A periodic prune of
+/// `resetAt < now() - 7d` keeps the table small (cron, future work).
+model RateBucket {
+  key      String   @id
+  count    Int
+  /// Unix timestamp at which `count` resets to 0 on the next call.
+  resetAt  DateTime
+
+  @@index([resetAt])
+}

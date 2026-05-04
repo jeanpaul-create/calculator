@@ -5,38 +5,23 @@
  * Returns: AiParseResult (see lib/ai/parse-project.ts)
  *
  * Auth: any authenticated user.
- * Rate limit: 50 calls per user per day (in-memory; reset on cold start —
- * acceptable for now since Vercel cold-starts our routes regularly).
+ * Rate limit: 50 calls per user per day (DB-backed via lib/rate-limit.ts so
+ * the limit survives Vercel cold starts and is shared across instances).
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth } from '@/lib/auth'
 import { parseProjectDescription } from '@/lib/ai/parse-project'
+import { enforceRateLimit } from '@/lib/rate-limit'
 
 const Schema = z.object({
   scenarioType: z.enum(['PV', 'PAC']),
   description: z.string().min(5).max(2000),
 })
 
-// Per-user daily call counts. Map user id → { count, resetAt }.
 const RATE_LIMIT_PER_DAY = 50
-const counts = new Map<string, { count: number; resetAt: number }>()
-
-function checkAndIncrementRate(userId: string): { ok: boolean; remaining: number } {
-  const now = Date.now()
-  const tomorrow = now + 24 * 60 * 60 * 1000
-  const entry = counts.get(userId)
-  if (!entry || now >= entry.resetAt) {
-    counts.set(userId, { count: 1, resetAt: tomorrow })
-    return { ok: true, remaining: RATE_LIMIT_PER_DAY - 1 }
-  }
-  if (entry.count >= RATE_LIMIT_PER_DAY) {
-    return { ok: false, remaining: 0 }
-  }
-  entry.count++
-  return { ok: true, remaining: RATE_LIMIT_PER_DAY - entry.count }
-}
+const ONE_DAY_MS = 24 * 60 * 60 * 1000
 
 export async function POST(req: NextRequest) {
   try {
@@ -45,8 +30,12 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { scenarioType, description } = Schema.parse(body)
 
-    // Rate limit
-    const { ok, remaining } = checkAndIncrementRate(session.user.id)
+    // Rate limit — per-user, per-day (DB-backed)
+    const { ok, remaining } = await enforceRateLimit({
+      key: `ai:user:${session.user.id}`,
+      windowMs: ONE_DAY_MS,
+      max: RATE_LIMIT_PER_DAY,
+    })
     if (!ok) {
       return NextResponse.json(
         {
