@@ -1,18 +1,20 @@
 /**
  * POST /api/public/quotes/[id]/respond
  *
- * No auth — the quote ID acts as the share token. Body:
+ * No auth — the dynamic segment value is a `shareToken`, not Quote.id.
+ * Decoupling the public URL from the row primary key lets the rep revoke a
+ * leaked link by rotating the token. Body:
  *   { action: 'accept' | 'decline', reason?: string }
  *
  * Pre-conditions:
- *   - Quote exists
+ *   - Quote exists (shareToken match)
  *   - Quote.status === 'SENT' (DRAFT can't respond, ACCEPTED/DECLINED is final)
  *   - Quote not expired (expiresAt is in the future or null)
  *
  * On success: updates the quote, returns { ok: true, status }.
  * On already-responded or expired: returns 409 with a clear message.
  *
- * Rate limited: 10 attempts per quote per minute (in-memory; resets on cold
+ * Rate limited: 10 attempts per token per minute (in-memory; resets on cold
  * start). Prevents trivial abuse via the public URL.
  */
 
@@ -25,16 +27,16 @@ const Schema = z.object({
   reason: z.string().max(500).optional(),
 })
 
-// Per-quote attempt counter (memory). Resets on cold start.
+// Per-token attempt counter (memory). Resets on cold start.
 const attempts = new Map<string, { count: number; resetAt: number }>()
 const PER_QUOTE_LIMIT = 10
 const WINDOW_MS = 60_000
 
-function checkRate(quoteId: string): boolean {
+function checkRate(token: string): boolean {
   const now = Date.now()
-  const entry = attempts.get(quoteId)
+  const entry = attempts.get(token)
   if (!entry || now >= entry.resetAt) {
-    attempts.set(quoteId, { count: 1, resetAt: now + WINDOW_MS })
+    attempts.set(token, { count: 1, resetAt: now + WINDOW_MS })
     return true
   }
   if (entry.count >= PER_QUOTE_LIMIT) return false
@@ -46,8 +48,12 @@ export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  // Rename for clarity — the path segment is named "id" for legacy reasons,
+  // but the value passed by the client is a shareToken.
+  const token = params.id
+
   try {
-    if (!checkRate(params.id)) {
+    if (!checkRate(token)) {
       return NextResponse.json(
         { error: 'Trop de tentatives. Veuillez réessayer dans une minute.' },
         { status: 429 }
@@ -58,7 +64,7 @@ export async function POST(
     const { action, reason } = Schema.parse(body)
 
     const quote = await prisma.quote.findUnique({
-      where: { id: params.id },
+      where: { shareToken: token },
       select: { id: true, status: true, expiresAt: true },
     })
 
@@ -89,7 +95,7 @@ export async function POST(
 
     const now = new Date()
     const updated = await prisma.quote.update({
-      where: { id: params.id },
+      where: { id: quote.id },
       data:
         action === 'accept'
           ? { status: 'ACCEPTED', acceptedAt: now, updatedAt: now }

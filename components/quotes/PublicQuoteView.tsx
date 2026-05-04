@@ -14,7 +14,16 @@ import { useState } from 'react'
 import { cn } from '@/lib/cn'
 
 export interface PublicQuoteVM {
+  /**
+   * Internal Quote.id — used for the customer-facing copy header only.
+   * NEVER passed to public APIs — those keys on `shareToken`.
+   */
   id: string
+  /**
+   * Public share token. Used by every outbound URL on this page (respond,
+   * PDF download). Decoupled from Quote.id so a leaked link can be revoked.
+   */
+  shareToken: string
   quoteNumber: string
   status: string
   customerName: string | null
@@ -75,7 +84,7 @@ export default function PublicQuoteView({ quote }: { quote: PublicQuoteVM }) {
     setPending(action)
     setError(null)
     try {
-      const res = await fetch(`/api/public/quotes/${quote.id}/respond`, {
+      const res = await fetch(`/api/public/quotes/${quote.shareToken}/respond`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -114,7 +123,7 @@ export default function PublicQuoteView({ quote }: { quote: PublicQuoteVM }) {
             </div>
           </div>
           <a
-            href={`/api/quotes/${quote.id}/pdf`}
+            href={`/api/public/quotes/${quote.shareToken}/pdf`}
             className="text-xs text-red-600 hover:text-red-700 font-medium underline decoration-red-300 underline-offset-2"
           >
             Télécharger PDF

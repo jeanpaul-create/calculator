@@ -103,6 +103,9 @@ export default async function QuoteDetailPage({ params }: Props) {
     followUpAt: quote.followUpAt?.toISOString() ?? null,
     repName: quote.rep?.name ?? null,
     repEmail: quote.rep?.email ?? null,
+    shareToken: quote.shareToken ?? null,
+    firstViewedAt: quote.firstViewedAt?.toISOString() ?? null,
+    viewCount: quote.viewCount ?? 0,
     scenarios,
   }
 

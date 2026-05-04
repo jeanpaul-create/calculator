@@ -194,12 +194,25 @@ model Quote {
   sentAt      DateTime?   // when the quote was first marked SENT (email or manual)
   expiresAt   DateTime?   // offer validity end-date (defaults to sentAt + 30 days at send)
   followUpAt  DateTime?   // next follow-up due (rep-set or auto-scheduled)
-  // Customer response — set via the public /q/[id] route. acceptedAt is the
+  // Customer response — set via the public /q/[token] route. acceptedAt is the
   // moment the customer clicked "Accepter"; declinedAt is the same for decline.
   // declineReason captures optional context the customer provided.
   acceptedAt    DateTime?
   declinedAt    DateTime?
   declineReason String?     @db.Text
+  // Public share URL token. Generated on first SENT transition (or backfilled
+  // from `id` for legacy quotes during migration). Decoupled from `id` so the
+  // rep can revoke a leaked link without rebuilding the quote: set to null or
+  // rotate the value, and the old URL stops resolving. NULL on DRAFT quotes
+  // (never been sent).
+  shareToken    String?     @unique
+  // Customer-engagement tracking — driven by the public /q/[token] page.
+  // firstViewedAt: timestamp the customer first opened the public link.
+  //                Stays null until the link is opened.
+  // viewCount    : incremented on every page load of /q/[token]; lets the
+  //                rep see "viewed 3x" as a follow-up signal.
+  firstViewedAt DateTime?
+  viewCount     Int         @default(0)
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 

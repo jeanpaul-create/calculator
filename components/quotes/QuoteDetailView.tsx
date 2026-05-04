@@ -76,6 +76,19 @@ export interface QuoteDetailVM {
   followUpAt: string | null
   repName: string | null
   repEmail: string | null
+  /**
+   * Public share token. Null on DRAFT quotes (no public URL until SENT).
+   * Used to build the "Lien client" copy-to-clipboard URL.
+   */
+  shareToken: string | null
+  /**
+   * Customer-engagement signals from the public URL (TODO1):
+   *   firstViewedAt — when the customer first opened /q/{shareToken}
+   *   viewCount     — total number of times the public link has been loaded
+   * Both null/0 until the customer opens the link at least once.
+   */
+  firstViewedAt: string | null
+  viewCount: number
   scenarios: ScenarioVM[]
 }
 
@@ -204,7 +217,10 @@ export default function QuoteDetailView({ quote, isAdmin }: QuoteDetailViewProps
             ↓ PDF
           </a>
           <EmailButton quoteId={quote.id} hasEmail={!!quote.customerEmail} />
-          <ShareLinkButton quoteId={quote.id} disabled={quote.status === 'DRAFT'} />
+          <ShareLinkButton shareToken={quote.shareToken} disabled={quote.status === 'DRAFT'} />
+          {quote.firstViewedAt && (
+            <ViewedIndicator firstViewedAt={quote.firstViewedAt} viewCount={quote.viewCount} />
+          )}
           <Link
             href={`/calculator${quote.scenarios[0]?.scenarioType === 'PAC' ? '/pac' : ''}?quoteId=${quote.id}`}
             className="btn-secondary text-xs px-3 py-1.5"
@@ -626,22 +642,30 @@ function buildActivityFeed(quote: QuoteDetailVM): ActivityItem[] {
 
 // ─── ShareLinkButton ──────────────────────────────────────────────────────────
 
-function ShareLinkButton({ quoteId, disabled }: { quoteId: string; disabled?: boolean }) {
+function ShareLinkButton({
+  shareToken,
+  disabled,
+}: {
+  shareToken: string | null
+  disabled?: boolean
+}) {
   const [copied, setCopied] = useState(false)
 
   async function copy() {
+    if (!shareToken) return
     try {
-      const url = `${window.location.origin}/q/${quoteId}`
+      const url = `${window.location.origin}/q/${shareToken}`
       await navigator.clipboard.writeText(url)
       setCopied(true)
       setTimeout(() => setCopied(false), 2500)
     } catch {
       // Fallback: select+show URL in a prompt for manual copy
-      window.prompt('Copiez ce lien :', `${window.location.origin}/q/${quoteId}`)
+      window.prompt('Copiez ce lien :', `${window.location.origin}/q/${shareToken}`)
     }
   }
 
-  if (disabled) {
+  // Disabled: no shareToken yet (DRAFT) OR explicitly disabled by caller
+  if (disabled || !shareToken) {
     return (
       <button
         disabled
@@ -664,4 +688,56 @@ function ShareLinkButton({ quoteId, disabled }: { quoteId: string; disabled?: bo
       {copied ? '✓ Lien copié' : '🔗 Lien client'}
     </button>
   )
+}
+
+// ─── ViewedIndicator ──────────────────────────────────────────────────────────
+
+/**
+ * Small chip showing that the customer has opened the public quote URL,
+ * with a relative timestamp ("vu il y a 3h"). Hidden when the customer has
+ * never opened the link.
+ */
+function ViewedIndicator({
+  firstViewedAt,
+  viewCount,
+}: {
+  firstViewedAt: string
+  viewCount: number
+}) {
+  const ago = relativeTime(firstViewedAt)
+  const tooltip =
+    viewCount > 1
+      ? `Première ouverture : ${new Date(firstViewedAt).toLocaleString('fr-CH')} (${viewCount} ouvertures)`
+      : `Ouvert le ${new Date(firstViewedAt).toLocaleString('fr-CH')}`
+
+  return (
+    <span
+      title={tooltip}
+      className="inline-flex items-center gap-1 text-[11px] text-emerald-700 bg-emerald-50 ring-1 ring-emerald-200 rounded px-1.5 py-0.5 font-medium"
+    >
+      👁 Vu {ago}
+      {viewCount > 1 && (
+        <span className="text-emerald-600 tabular-nums">· {viewCount}×</span>
+      )}
+    </span>
+  )
+}
+
+/**
+ * Compact relative time formatter ("il y a 3h", "hier", "il y a 4j").
+ * For older-than-7-days dates falls back to a short date.
+ */
+function relativeTime(iso: string): string {
+  const then = new Date(iso).getTime()
+  const now = Date.now()
+  const diffMs = Math.max(0, now - then)
+  const min = Math.floor(diffMs / 60_000)
+  if (min < 1) return "à l'instant"
+  if (min < 60) return `il y a ${min} min`
+  const h = Math.floor(min / 60)
+  if (h < 24) return `il y a ${h} h`
+  const d = Math.floor(h / 24)
+  if (d === 1) return 'hier'
+  if (d < 7) return `il y a ${d} j`
+  return new Date(iso).toLocaleDateString('fr-CH', { day: '2-digit', month: '2-digit' })
 }

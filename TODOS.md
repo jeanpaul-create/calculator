@@ -70,6 +70,20 @@
 **Context:** Found by /design-review on 2026-03-24. Fixed as FINDING-002 by hardcoding French. The i18n translations already exist in `lib/i18n.ts` for both FR and DE. Need to set `lang` cookie on `setLang()` in `LanguageContext.tsx`, then read via `cookies()` in server components.
 **Effort:** M
 
+## Calculator / Map UX
+
+**Split SiteMap.tsx into composable layer components**
+**Priority:** P2
+**What:** Refactor `components/calculator/SiteMap.tsx` (831 lines) into smaller composable pieces: `<SolarOverlay/>`, `<CadastreOverlay/>`, `<PacUnitMarker/>`, `<RoofPopup/>`, `<FullscreenWrapper/>`, `<DistancePanel/>`. The base `<SiteMap/>` becomes a slim composition root.
+**Why:** The file mixes 6+ concerns (base layer, 4 overlays, 2 markers, click→popup, distance computation, fullscreen modal + ESC + invalidateSize choreography). Adding a 7th overlay (e.g., shading mask) or fixing a Leaflet race becomes risky because state is global to one component. Hard to unit-test individual pieces.
+**Pros:** Each layer becomes independently testable. New overlays land as additive files. Future devs can navigate by feature, not line number.
+**Cons:** Pure restructuring — no user-visible value. Risky without test coverage; should land AFTER T1 (geo tests) ships.
+**Context:** Found by /plan-eng-review on 2026-05-04. Decision A3.A. Defer because: shipped & working, not blocking new work, refactoring without unit tests is risky. Deferred until T1 (geo) and T4 (swisstopo aggregator) land — those tests will give the refactor a safety net.
+**Effort:** M (~3-4h)
+**Depends on:** T1 + T4 tests landing
+
+---
+
 ## Performance / Infrastructure
 
 **Cache PVGIS solar yield API responses**

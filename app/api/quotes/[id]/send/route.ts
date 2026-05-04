@@ -1,11 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { renderToBuffer } from '@react-pdf/renderer'
 import React from 'react'
+import { randomBytes } from 'crypto'
 import { Resend } from 'resend'
 import { requireOwnerOrAdmin } from '@/lib/auth'
 import { getFullQuoteForPdf, buildPricedScenarios, fetchMapImageBase64 } from '@/lib/quote-pdf'
 import { prisma } from '@/lib/db'
 import QuotePdf from '@/components/pdf/QuotePdf'
+
+/**
+ * Generates a cryptographically random share token (32 hex chars = 128 bits).
+ * Decoupled from Quote.id so the rep can revoke a leaked link by rotating
+ * the token without rebuilding the quote.
+ */
+function generateShareToken(): string {
+  return randomBytes(16).toString('hex')
+}
 
 type Params = { params: { id: string } }
 
@@ -65,7 +75,12 @@ export async function POST(_req: NextRequest, { params }: Params) {
     const baseUrl =
       process.env.NEXTAUTH_URL?.replace(/\/$/, '') ||
       (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://calculatorsolarch.vercel.app')
-    const publicQuoteUrl = `${baseUrl}/q/${quote.id}`
+
+    // shareToken: existing token if already set (re-send case), or a fresh
+    // crypto-random token on first SENT transition. The customer's email URL
+    // points to /q/{shareToken}, never /q/{id}, so the id stays internal.
+    const shareToken = quote.shareToken ?? generateShareToken()
+    const publicQuoteUrl = `${baseUrl}/q/${shareToken}`
 
     const { error: resendError } = await resend.emails.send({
       from: fromEmail,
@@ -129,15 +144,27 @@ export async function POST(_req: NextRequest, { params }: Params) {
     }
 
     // Fire-and-forget status update
-    // Stamps sentAt + expiresAt (sentAt + 30 days) on first SENT transition.
+    // Stamps sentAt + expiresAt (sentAt + 30 days) on first SENT transition,
+    // and persists the shareToken (whether freshly generated or pre-existing).
+    // Idempotent: if the quote is already SENT, only the shareToken is touched
+    // and only when missing.
     const sentAt = new Date()
     const expiresAt = new Date(sentAt.getTime() + 30 * 24 * 60 * 60 * 1000)
-    prisma.quote
-      .update({
-        where: { id: params.id, status: 'DRAFT' },
-        data: { status: 'SENT', sentAt, expiresAt },
-      })
-      .catch((err) => console.error('[send/route] status update failed', err))
+    if (quote.status === 'DRAFT') {
+      prisma.quote
+        .update({
+          where: { id: params.id, status: 'DRAFT' },
+          data: { status: 'SENT', sentAt, expiresAt, shareToken },
+        })
+        .catch((err) => console.error('[send/route] status update failed', err))
+    } else if (!quote.shareToken) {
+      // Re-send of an already-SENT quote that pre-dates the shareToken column.
+      // Persist the freshly-generated token so subsequent /q/{token} lookups
+      // succeed.
+      prisma.quote
+        .update({ where: { id: params.id }, data: { shareToken } })
+        .catch((err) => console.error('[send/route] shareToken backfill failed', err))
+    }
 
     return NextResponse.json({ success: true })
   } catch (err) {
