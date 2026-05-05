@@ -218,6 +218,26 @@ export default function QuoteDetailView({ quote, isAdmin }: QuoteDetailViewProps
           </a>
           <EmailButton quoteId={quote.id} hasEmail={!!quote.customerEmail} />
           <ShareLinkButton shareToken={quote.shareToken} disabled={quote.status === 'DRAFT'} />
+          {/* Démo client — launches the customer-facing meeting mode at
+              /present/[id]. Disabled on DRAFT (the route 404s pre-send so
+              reps can't accidentally demo unfinished pricing). */}
+          {quote.status === 'DRAFT' ? (
+            <button
+              type="button"
+              disabled
+              className="btn-secondary text-xs px-3 py-1.5 opacity-50 cursor-not-allowed"
+              title="Disponible après l'envoi de l'offre"
+            >
+              ▸ Démo client
+            </button>
+          ) : (
+            <Link
+              href={`/present/${quote.id}`}
+              className="btn-secondary text-xs px-3 py-1.5"
+            >
+              ▸ Démo client
+            </Link>
+          )}
           {quote.firstViewedAt && (
             <ViewedIndicator firstViewedAt={quote.firstViewedAt} viewCount={quote.viewCount} />
           )}
