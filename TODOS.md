@@ -70,6 +70,32 @@
 **Context:** Found by /design-review on 2026-03-24. Fixed as FINDING-002 by hardcoding French. The i18n translations already exist in `lib/i18n.ts` for both FR and DE. Need to set `lang` cookie on `setLang()` in `LanguageContext.tsx`, then read via `cookies()` in server components.
 **Effort:** M
 
+## /present/ Customer Meeting Mode
+
+**Customer-side telemetry on /present/**
+**Priority:** P1 — required to measure v1 success
+**What:** Add a `PresentSession` table (id, quoteId, repId, startedAt, screensViewed[], durationSeconds). Log on screen entry/exit via fire-and-forget POST. Dashboard widget shows last 30 days.
+**Why:** Office-hours design doc primary success signals are "≥60% reps used /present/, ≥1 rep used ≥10 times" plus the hard-fail signal "0 reps used it 30 days post-v1 → kill the feature." Without telemetry, the 30-day measurement window is anecdotal. Ship blind = guess later.
+**Pros:** Cheap with CC (~1-2h); unblocks data-driven measurement; dashboard widget useful for ongoing PM signal.
+**Cons:** Privacy review may want to redact details; one more table; needs basic dashboard UI.
+**Context:** Found by /plan-eng-review on 2026-05-05. Build immediately after v1 of /present/ ships, parallel to first rep-shadow follow-up. Design doc at `~/.gstack/projects/jeanpaul-create-calculator/jeanp-master-design-customer-meeting-mode-20260504-232427.md` defines the success criteria this telemetry serves.
+**Effort:** S (~1-2h CC)
+**Depends on:** /present/ v1 shipped
+
+---
+
+**v1.5: Status-quo comparison screen (Screen 4 of /present/)**
+**Priority:** P2 — gated on v1 hitting success signals
+**What:** Add Screen 4 to `/present/[quoteId]` — side-by-side 25-year lifetime cost "with solar" vs "without solar" using ElCom (electricity) and BFE (gas/oil) escalation curves. Source citations on-screen ("Source : ElCom 2026, BFE 2026"). Schema: new `Setting` keys for `status_quo_oil_chf_per_kwh`, `status_quo_oil_escalation_bps`, `status_quo_gas_chf_per_kwh`, `status_quo_gas_escalation_bps`, `status_quo_grid_chf_per_kwh`, `status_quo_grid_escalation_bps`.
+**Why:** The most differentiated of the 4 frictions identified in office-hours. Every other solar tool only shows "with solar"; we show "vs. doing nothing." Catches customers wavering on the gas/oil status quo. Highest commercial impact of the 4 design-doc frictions.
+**Pros:** Design is fully specified (schema locked, source citations defined, math composition stated); no design work needed at v1.5 start; differentiated externally.
+**Cons:** ~1-2 weeks human / ~1-2 days CC; gated on v1 success.
+**Context:** Found by /office-hours on 2026-05-04 + /plan-eng-review on 2026-05-05. Full spec at `~/.gstack/projects/jeanpaul-create-calculator/jeanp-master-design-customer-meeting-mode-20260504-232427.md` under "Status-Quo Data Spec (v1.5)". Math: status-quo lifetime cost = Σ_year (annual_kWh × rate_year × (1 + escalation)^year), discounted at 0% for v1.5 simplicity.
+**Effort:** M (1-2 weeks human / 1-2 days CC)
+**Depends on:** /present/ v1 shipped + hitting primary success signals (≥60% rep adoption, ≥1 rep at ≥10 uses)
+
+---
+
 ## Calculator / Map UX
 
 **Split SiteMap.tsx into composable layer components**
