@@ -167,6 +167,19 @@ enum QuoteStatus {
   EXPIRED
 }
 
+/// AI-proposed tier for a QuoteScenario. NULL for non-AI quotes (rep built
+/// the scenario manually). Set on all 3 scenarios when the AI quote builder
+/// produces tiered proposals (Essentiel / Recommandé / Premium).
+///
+/// Used by /present/[shareToken] Screen 2 to render the 3 swipeable tier
+/// cards. Display order is essentiel(0) → recommande(1) → premium(2),
+/// canonical via `sortOrder` (set at save time).
+enum ScenarioTier {
+  essentiel
+  recommande
+  premium
+}
+
 model Quote {
   id          String      @id @default(cuid())
   // Human-readable: QUO-2026-0001
@@ -277,6 +290,14 @@ model QuoteScenario {
   installationRappen       Int?
   servicesRappen           Int?
   marginRappen             Int?
+  /// AI-proposed tier ('essentiel' | 'recommande' | 'premium'). NULL on
+  /// non-AI quotes (rep built the scenario manually) and on legacy quotes
+  /// from before this column was added. Set on all 3 scenarios when the
+  /// AI builder produces tiered proposals.
+  ///
+  /// Used by /present/[shareToken] Screen 2 to render the 3 tier cards.
+  /// Filter: `WHERE tier IS NOT NULL` to get the AI-proposed scenarios.
+  tier                     ScenarioTier?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
