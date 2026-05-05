@@ -14,7 +14,7 @@ import {
 import { useLanguage } from '@/context/LanguageContext'
 import { Card, EmptyState, SectionHeader } from '@/components/ui'
 import AddressSearch from './AddressSearch'
-import AiPromptDialog, { type AiProposedDraft } from './AiPromptDialog'
+import AiPromptDialog, { type AiProposedDraft, type AiSibling } from './AiPromptDialog'
 
 // SiteMap uses Leaflet (DOM-only) — load client-side only
 const SiteMap = dynamic(() => import('./SiteMap'), { ssr: false })
@@ -125,6 +125,13 @@ export default function PacCalculatorForm({
   const [fetchingSiteInfo, setFetchingSiteInfo] = useState(false)
   /** AI prompt dialog open state */
   const [aiOpen, setAiOpen] = useState(false)
+  /**
+   * AI tier metadata (mirrors CalculatorForm). Set when the rep applies
+   * an AI proposal; travels with the save payload so the PUT handler can
+   * persist all 3 scenarios with tier values for /present/ Screen 2.
+   */
+  const [aiTier, setAiTier] = useState<'essentiel' | 'recommande' | 'premium' | null>(null)
+  const [aiSiblings, setAiSiblings] = useState<AiSibling[] | null>(null)
 
   /**
    * Apply an AI-proposed draft. Replaces selected products with the AI's
@@ -146,6 +153,10 @@ export default function PacCalculatorForm({
       customerName: p.customerName || draft.customerInfo.name || '',
       siteAddress: p.siteAddress || draft.customerInfo.siteAddress || '',
     }))
+
+    // Track tier + siblings for save-time multi-scenario persistence.
+    setAiTier(draft.tier ?? null)
+    setAiSiblings(draft.aiSiblings ?? null)
   }
 
   // Group products by category, then by brand within category
@@ -254,6 +265,11 @@ export default function PacCalculatorForm({
       productId: sp.product.id,
       quantity: sp.quantity,
     })),
+    // AI multi-scenario fields. When `tier` + `aiSiblings` are set, the PUT
+    // handler creates 3 scenarios (the primary from form state + 2 siblings
+    // as-AI-proposed). When absent, legacy 1-scenario behavior preserved.
+    tier: aiTier ?? undefined,
+    aiSiblings: aiSiblings ?? undefined,
   })
 
   const handleSave = useCallback(async () => {

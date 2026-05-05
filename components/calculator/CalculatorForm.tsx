@@ -7,7 +7,7 @@ import { calculateIonPrice, calculateRoi, estimateAnnualYield, estimateSelfConsu
 import PriceSummaryCard from './PriceSummaryCard'
 import { useLanguage } from '@/context/LanguageContext'
 import AddressSearch from './AddressSearch'
-import AiPromptDialog, { type AiProposedDraft } from './AiPromptDialog'
+import AiPromptDialog, { type AiProposedDraft, type AiSibling } from './AiPromptDialog'
 import { Card, EmptyState, SectionHeader } from '@/components/ui'
 
 const SiteMap = dynamic(() => import('./SiteMap'), { ssr: false })
@@ -84,6 +84,14 @@ export default function CalculatorForm({
   const [discountReason, setDiscountReason] = useState<string>('')
   /** AI prompt dialog open state */
   const [aiOpen, setAiOpen] = useState(false)
+  /**
+   * AI tier metadata. Set when the rep applies an AI proposal; cleared when
+   * the rep manually adjusts products to a non-AI configuration. Travels with
+   * the save payload so the PUT handler can persist all 3 scenarios with
+   * tier values for /present/[shareToken] Screen 2.
+   */
+  const [aiTier, setAiTier] = useState<'essentiel' | 'recommande' | 'premium' | null>(null)
+  const [aiSiblings, setAiSiblings] = useState<AiSibling[] | null>(null)
 
   /**
    * Apply an AI-proposed draft to the form. Replaces selected products with
@@ -118,6 +126,10 @@ export default function CalculatorForm({
 
     if (draft.roofType) setRoofType(draft.roofType)
     if (draft.roofSlope) setRoofSlope(draft.roofSlope)
+
+    // Track tier + siblings for save-time multi-scenario persistence.
+    setAiTier(draft.tier ?? null)
+    setAiSiblings(draft.aiSiblings ?? null)
   }
 
   const ionProducts = selectedProducts.map((sp) => ({
@@ -307,6 +319,11 @@ export default function CalculatorForm({
       quantity: sp.quantity,
     })),
     options: Array.from(selectedOptions).map((id) => ({ optionId: id })),
+    // AI multi-scenario fields. When `tier` + `aiSiblings` are set, the PUT
+    // handler creates 3 scenarios (the primary from form state + 2 siblings
+    // from the as-AI-proposed items). When absent, legacy 1-scenario behavior.
+    tier: aiTier ?? undefined,
+    aiSiblings: aiSiblings ?? undefined,
   })
 
   // Save to existing quote

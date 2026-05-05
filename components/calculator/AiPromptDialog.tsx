@@ -32,9 +32,29 @@ export interface AiProposal {
 }
 
 /**
- * Single proposal applied to the form. Same shape as before — the dialog
- * reduces 3-tier → 1-tier internally, so the form's onApply doesn't need
- * to know the tier system existed.
+ * The "ghost" tier proposals that ride alongside the applied tier when the
+ * rep saves. These are the 2 tiers the rep DID NOT pick, captured as the AI
+ * proposed them. They're persisted as-is at save time so /present/ Screen 2
+ * can render all 3 cards from real catalog data.
+ */
+export interface AiSibling {
+  tier: ProposalTier
+  items: AiProposedItem[]
+}
+
+/**
+ * Single proposal applied to the form, plus shadow data for the other 2 tiers.
+ *
+ * `items` and the customer/roof fields are flattened from the rep-chosen tier
+ * (so the form's existing applyAiDraft logic still works unchanged). The new
+ * `tier` and `aiSiblings` fields carry the durable record needed by S2's
+ * 3-scenario save: the form keeps them in state and includes them in the PUT
+ * payload, and the PUT handler creates 1 scenario from form state (the
+ * applied + edited tier) plus N from the siblings (the as-AI-proposed tiers).
+ *
+ * Non-AI applies (when this struct isn't used at all) → save behaves as
+ * legacy: one scenario, tier=null. /present/ falls back to render the single
+ * scenario as Recommandé per the design doc empty state.
  */
 export interface AiProposedDraft {
   items: AiProposedItem[]
@@ -47,6 +67,10 @@ export interface AiProposedDraft {
   roofSlope?: 'simple' | 'moyen' | 'complexe'
   notes?: string
   warnings: string[]
+  /** Tier the rep applied to the form (the editable one). */
+  tier?: ProposalTier
+  /** The OTHER tiers from the same AI response, for save-time persistence. */
+  aiSiblings?: AiSibling[]
 }
 
 interface AiResponse {
@@ -168,6 +192,16 @@ export default function AiPromptDialog({
     if (!response) return
     const proposal = response.proposals.find((p) => p.tier === activeTier)
     if (!proposal) return
+    // The OTHER tiers from this AI response — saved as-is alongside the applied
+    // tier so /present/ Screen 2 has real catalog data for all 3 cards.
+    // Excluded items only filter the APPLIED tier (rep's editable view); the
+    // siblings keep the AI proposal intact.
+    const aiSiblings: AiSibling[] = response.proposals
+      .filter((p) => p.tier !== activeTier)
+      .map((p) => ({
+        tier: p.tier,
+        items: p.items,
+      }))
     const draft: AiProposedDraft = {
       items: proposal.items.filter((it) => !excluded.has(it.productId)),
       customerInfo: response.customerInfo,
@@ -175,6 +209,8 @@ export default function AiPromptDialog({
       roofSlope: response.roofSlope,
       notes: response.notes,
       warnings: [...response.globalWarnings, ...proposal.warnings],
+      tier: activeTier,
+      aiSiblings: aiSiblings.length > 0 ? aiSiblings : undefined,
     }
     onApply(draft)
     onClose()
