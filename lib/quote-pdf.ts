@@ -80,6 +80,15 @@ export interface PricedScenario {
   paybackYearsWithSubsidy: number | null
   /** ElCom tariff used for ROI calculation (ct/kWh), null if not saved */
   rateRappenPerKwh: number | null
+  /**
+   * AI-proposed tier ('essentiel' | 'recommande' | 'premium') or null for
+   * non-AI / legacy scenarios. Used by /present/[id] Screen 2 to render the
+   * tier-card flow. NULL across the array → fall back to single-scenario
+   * legacy display (per design doc Screen 2 empty state).
+   */
+  tier: 'essentiel' | 'recommande' | 'premium' | null
+  /** Display order: essentiel=0, recommande=1, premium=2 (canonical). */
+  sortOrder: number
   items: Array<{ name: string; quantity: number; category: string }>
   options: Array<{ name: string }>
 }
@@ -339,6 +348,8 @@ export async function buildPricedScenarios(quote: FullQuote): Promise<PricedScen
       effectiveInvestmentRappen,
       paybackYearsWithSubsidy,
       rateRappenPerKwh: rateRappenPerKwh ?? null,
+      tier: (scenario.tier as 'essentiel' | 'recommande' | 'premium' | null) ?? null,
+      sortOrder: scenario.sortOrder ?? 0,
       items: items.map(({ name, quantity, category }) => ({ name, quantity, category })),
       options,
     }

@@ -72,6 +72,8 @@ const mockScenario: PricedScenario = {
   exportRevenueRappen: 21120,
   feedInRateRappenPerKwh: 8,
   annualConsumptionKwh: 4000,
+  tier: null,
+  sortOrder: 0,
   items: [
     { name: 'Jinko Tiger Neo 440W', quantity: 10, category: 'PANEL' },
     { name: 'Huawei SUN2000-5KTL-M1', quantity: 1, category: 'INVERTER' },
