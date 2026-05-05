@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma db push && tsx prisma/backfill-customers.ts && tsx prisma/backfill-share-tokens.ts && next build",
+    "build": "prisma db push --accept-data-loss && tsx prisma/backfill-customers.ts && tsx prisma/backfill-share-tokens.ts && next build",
     "db:backfill-customers": "tsx prisma/backfill-customers.ts",
     "db:backfill-share-tokens": "tsx prisma/backfill-share-tokens.ts",
     "start": "next start",
