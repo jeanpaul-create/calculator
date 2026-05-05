@@ -23,6 +23,9 @@
 import Link from 'next/link'
 import { forwardRef, useEffect, useRef, useState, useCallback } from 'react'
 import type { CustomerFr } from '@/lib/i18n/customer-fr'
+import Screen1Roof from './Screen1Roof'
+import Screen2Tiers from './Screen2Tiers'
+import Screen3Numbers from './Screen3Numbers'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -50,6 +53,12 @@ export type PresentVM = {
     lon: number | null
     zoom: number
   }
+  /**
+   * Pre-fetched satellite image as a data URL (or null if no map position
+   * or fetch failed). Done server-side via cached fetchMapImageBase64 so
+   * Screen 1 paints instantly without an extra round trip.
+   */
+  mapImageDataUrl: string | null
   tiers: PresentTier[]
   hero: {
     paybackYears: number | null
@@ -162,13 +171,18 @@ export default function PresentScreens({ vm }: { vm: PresentVM }) {
         style={{ scrollSnapStop: 'always' }}
       >
         <ScreenContainer ref={screen1Ref} keyName="screen1">
-          <Screen1Placeholder vm={vm} />
+          <Screen1Roof
+            mapImageDataUrl={vm.mapImageDataUrl}
+            hasMapPosition={vm.map.lat != null && vm.map.lon != null}
+            customerFirstName={vm.customerFirstName}
+            strings={vm.strings}
+          />
         </ScreenContainer>
         <ScreenContainer ref={screen2Ref} keyName="screen2">
-          <Screen2Placeholder vm={vm} />
+          <Screen2Tiers tiers={vm.tiers} strings={vm.strings} />
         </ScreenContainer>
         <ScreenContainer ref={screen3Ref} keyName="screen3">
-          <Screen3Placeholder vm={vm} />
+          <Screen3Numbers hero={vm.hero} strings={vm.strings} />
         </ScreenContainer>
       </main>
 
@@ -213,67 +227,3 @@ const ScreenContainer = forwardRef<
   )
 })
 
-// ─── Placeholder screens (S4 / S5 / S6 will replace) ───────────────────────
-
-function Screen1Placeholder({ vm }: { vm: PresentVM }) {
-  return (
-    <>
-      <h1
-        tabIndex={-1}
-        className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3"
-      >
-        {vm.strings.screen1.title}
-      </h1>
-      <div className="flex-1 flex items-center justify-center bg-gray-100 border border-gray-200 rounded-lg">
-        <div className="text-center text-gray-400">
-          <div className="font-mono text-sm mb-2">Screen 1 — Your roof</div>
-          <div className="text-xs">Static satellite + roof outline (S4)</div>
-        </div>
-      </div>
-    </>
-  )
-}
-
-function Screen2Placeholder({ vm }: { vm: PresentVM }) {
-  return (
-    <>
-      <h1
-        tabIndex={-1}
-        className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3"
-      >
-        {vm.strings.screen2.title}
-      </h1>
-      <div className="flex-1 flex items-center justify-center bg-gray-100 border border-gray-200 rounded-lg">
-        <div className="text-center text-gray-400">
-          <div className="font-mono text-sm mb-2">Screen 2 — Your tiers</div>
-          <div className="text-xs">
-            {vm.tiers.length} tier{vm.tiers.length === 1 ? '' : 's'} loaded · S5 will render the cards
-          </div>
-        </div>
-      </div>
-    </>
-  )
-}
-
-function Screen3Placeholder({ vm }: { vm: PresentVM }) {
-  return (
-    <>
-      <h1
-        tabIndex={-1}
-        className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3"
-      >
-        {vm.strings.screen3.title}
-      </h1>
-      <div className="flex-1 flex items-center justify-center bg-gray-100 border border-gray-200 rounded-lg">
-        <div className="text-center text-gray-400">
-          <div className="font-mono text-sm mb-2">Screen 3 — Your numbers</div>
-          <div className="text-xs">
-            {vm.hero?.paybackYears != null
-              ? `Hero number ready: ${vm.hero.paybackYears} ans · S6 will render`
-              : 'No ROI data — empty state per design (S6)'}
-          </div>
-        </div>
-      </div>
-    </>
-  )
-}

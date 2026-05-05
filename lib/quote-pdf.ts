@@ -16,6 +16,7 @@
  *      rate   ──► calculateRoi() ──► { paybackYears, annualSavingsRappen }
  */
 
+import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/db'
 import {
   calculateIonPrice,
@@ -103,7 +104,7 @@ export type FullQuote = NonNullable<Awaited<ReturnType<typeof getFullQuoteForPdf
 const SWISS_LAT_MIN = 45.5, SWISS_LAT_MAX = 47.9
 const SWISS_LON_MIN = 5.9,  SWISS_LON_MAX = 10.6
 
-export async function fetchMapImageBase64(
+async function fetchMapImageBase64Uncached(
   lat: number,
   lon: number,
   zoom: number
@@ -129,6 +130,25 @@ export async function fetchMapImageBase64(
     return null
   }
 }
+
+/**
+ * Cached wrapper around fetchMapImageBase64Uncached. Per eng review P2.B:
+ * 24h revalidate, keyed on (lat, lon, zoom). Same address → same image,
+ * fetched at most once per 24h. Protects swisstopo's WMS endpoint from
+ * abuse and makes /present/ Screen 1 instant on repeat opens.
+ *
+ * The PDF + email send routes also benefit — they currently fetch fresh
+ * on every render; now they hit the cache.
+ *
+ * Cache key derives from the function arguments. unstable_cache stringifies
+ * them, so (46.5, 6.6, 17) and (46.5000001, 6.6, 17) produce different
+ * keys. Caller is responsible for rounding lat/lon if cache hit rate matters.
+ */
+export const fetchMapImageBase64 = unstable_cache(
+  fetchMapImageBase64Uncached,
+  ['swisstopo-wms-image'],
+  { revalidate: 86400 }
+)
 
 export async function getFullQuoteForPdf(id: string) {
   return prisma.quote.findUnique({

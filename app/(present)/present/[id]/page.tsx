@@ -23,7 +23,13 @@
 import { notFound } from 'next/navigation'
 import { cache } from 'react'
 import { requireOwnerOrAdmin } from '@/lib/auth'
-import { getFullQuoteForPdf, buildPricedScenarios, type FullQuote, type PricedScenario } from '@/lib/quote-pdf'
+import {
+  getFullQuoteForPdf,
+  buildPricedScenarios,
+  fetchMapImageBase64,
+  type FullQuote,
+  type PricedScenario,
+} from '@/lib/quote-pdf'
 import { customerFr } from '@/lib/i18n/customer-fr'
 import PresentScreens, { type PresentVM, type PresentTier } from '@/components/present/PresentScreens'
 
@@ -65,11 +71,19 @@ export default async function PresentPage({ params }: Props) {
   // the PDF route uses, so the numbers are identical.
   const pricedScenarios = await buildPricedScenarios(quote)
 
+  // Pre-fetch the satellite image server-side. fetchMapImageBase64 is wrapped
+  // in unstable_cache (24h revalidate) per eng review P2.B — first /present/
+  // for an address pays the swisstopo round-trip; subsequent loads instant.
+  const mapImageDataUrl =
+    quote.mapLat != null && quote.mapLon != null
+      ? await fetchMapImageBase64(quote.mapLat, quote.mapLon, quote.mapZoom ?? 17)
+      : null
+
   // Build the customer-facing view-model. Filter to AI-tier scenarios when
   // present (any scenario with tier!=null); fall back to all scenarios for
   // legacy / non-AI quotes (single-scenario fallback per design doc empty
   // state).
-  const vm: PresentVM = buildPresentVM(quote, pricedScenarios)
+  const vm: PresentVM = buildPresentVM(quote, pricedScenarios, mapImageDataUrl)
 
   return <PresentScreens vm={vm} />
 }
@@ -86,7 +100,11 @@ function extractFirstName(fullName: string | null): string | null {
   return first.length > 0 ? first : null
 }
 
-function buildPresentVM(quote: FullQuote, pricedScenarios: PricedScenario[]): PresentVM {
+function buildPresentVM(
+  quote: FullQuote,
+  pricedScenarios: PricedScenario[],
+  mapImageDataUrl: string | null
+): PresentVM {
   const firstName = extractFirstName(quote.customerName)
 
   // AI-tier scenarios (the 3 tiers from the AI builder) come first; fall back
@@ -130,6 +148,7 @@ function buildPresentVM(quote: FullQuote, pricedScenarios: PricedScenario[]): Pr
       lon: quote.mapLon,
       zoom: quote.mapZoom ?? 17,
     },
+    mapImageDataUrl,
     tiers,
     hero: heroPriced
       ? {
