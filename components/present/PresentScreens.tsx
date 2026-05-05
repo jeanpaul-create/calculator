@@ -22,7 +22,7 @@
 
 import Link from 'next/link'
 import { forwardRef, useEffect, useRef, useState, useCallback } from 'react'
-import type { CustomerFr } from '@/lib/i18n/customer-fr'
+import { customerFr } from '@/lib/i18n/customer-fr'
 import Screen1Roof from './Screen1Roof'
 import Screen2Tiers from './Screen2Tiers'
 import Screen3Numbers from './Screen3Numbers'
@@ -66,7 +66,11 @@ export type PresentVM = {
     lifetimeSavingsRappen: number | null
     installedKwp: number | null
   } | null
-  strings: CustomerFr
+  // NOTE: do NOT add `strings: CustomerFr` here — the i18n object contains
+  // arrow functions (greeting, lifetimeSavings, payback, screenIndicator
+  // helpers) which can't cross the RSC server→client serialization boundary.
+  // Each client component imports customerFr directly. The server passes
+  // only data; strings are resolved on the client.
 }
 
 const SCREEN_TITLES = ['screen1', 'screen2', 'screen3'] as const
@@ -110,17 +114,18 @@ export default function PresentScreens({ vm }: { vm: PresentVM }) {
   // Format: "Écran 2 sur 3 : Vos options"
   useEffect(() => {
     const titles = [
-      vm.strings.screen1.title,
-      vm.strings.screen2.title,
-      vm.strings.screen3.title,
+      customerFr.screen1.title,
+      customerFr.screen2.title,
+      customerFr.screen3.title,
     ]
     const t = setTimeout(() => {
       setAnnounce(
-        vm.strings.screenIndicator.announce(activeScreen + 1, 3, titles[activeScreen])
+        customerFr.screenIndicator.announce(activeScreen + 1, 3, titles[activeScreen])
       )
     }, 200)
     return () => clearTimeout(t)
-  }, [activeScreen, vm.strings])
+    // customerFr is a static module import, not a dep
+  }, [activeScreen])
 
   const scrollToScreen = useCallback((index: 0 | 1 | 2) => {
     const refs = [screen1Ref, screen2Ref, screen3Ref]
@@ -131,8 +136,8 @@ export default function PresentScreens({ vm }: { vm: PresentVM }) {
   }, [])
 
   const greeting = vm.customerFirstName
-    ? vm.strings.greeting(vm.customerFirstName)
-    : vm.strings.greetingFallback
+    ? customerFr.greeting(vm.customerFirstName)
+    : customerFr.greetingFallback
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
@@ -141,7 +146,7 @@ export default function PresentScreens({ vm }: { vm: PresentVM }) {
         href="#present-main"
         className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:bg-white focus:text-gray-900 focus:px-4 focus:py-2 focus:rounded focus:ring-2 focus:ring-red-500"
       >
-        {vm.strings.skipLink}
+        {customerFr.skipLink}
       </a>
 
       {/* aria-live region for screen-reader announcements (visually hidden) */}
@@ -159,7 +164,7 @@ export default function PresentScreens({ vm }: { vm: PresentVM }) {
           href={vm.backUrl}
           className="text-xs text-gray-500 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 rounded px-1"
         >
-          {vm.strings.backLink}
+          {customerFr.backLink}
         </Link>
       </header>
 
@@ -175,28 +180,28 @@ export default function PresentScreens({ vm }: { vm: PresentVM }) {
             mapImageDataUrl={vm.mapImageDataUrl}
             hasMapPosition={vm.map.lat != null && vm.map.lon != null}
             customerFirstName={vm.customerFirstName}
-            strings={vm.strings}
+            strings={customerFr}
           />
         </ScreenContainer>
         <ScreenContainer ref={screen2Ref} keyName="screen2">
-          <Screen2Tiers tiers={vm.tiers} strings={vm.strings} />
+          <Screen2Tiers tiers={vm.tiers} strings={customerFr} />
         </ScreenContainer>
         <ScreenContainer ref={screen3Ref} keyName="screen3">
-          <Screen3Numbers hero={vm.hero} strings={vm.strings} />
+          <Screen3Numbers hero={vm.hero} strings={customerFr} />
         </ScreenContainer>
       </main>
 
       {/* Bottom chrome — screen indicator (tap to jump) */}
       <nav
         className="flex items-center justify-center gap-2 px-6 py-4 border-t border-gray-100 bg-white"
-        aria-label={vm.strings.screenIndicator.label(activeScreen + 1, 3)}
+        aria-label={customerFr.screenIndicator.label(activeScreen + 1, 3)}
       >
         {([0, 1, 2] as const).map((i) => (
           <button
             key={i}
             type="button"
             onClick={() => scrollToScreen(i)}
-            aria-label={vm.strings.screenIndicator.jumpAria(i + 1)}
+            aria-label={customerFr.screenIndicator.jumpAria(i + 1)}
             aria-current={activeScreen === i ? 'true' : undefined}
             className={
               activeScreen === i

@@ -20,9 +20,9 @@
  * the (present) layout, which is intentionally minimal). Per design doc.
  */
 
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { cache } from 'react'
-import { requireOwnerOrAdmin } from '@/lib/auth'
+import { auth } from '@/lib/auth'
 import {
   getFullQuoteForPdf,
   buildPricedScenarios,
@@ -30,7 +30,6 @@ import {
   type FullQuote,
   type PricedScenario,
 } from '@/lib/quote-pdf'
-import { customerFr } from '@/lib/i18n/customer-fr'
 import PresentScreens, { type PresentVM, type PresentTier } from '@/components/present/PresentScreens'
 
 export const dynamic = 'force-dynamic'
@@ -63,9 +62,15 @@ export default async function PresentPage({ params }: Props) {
   // Unknown id → 404.
   if (!quote || quote.status === 'DRAFT') notFound()
 
-  // Auth: rep must own the quote, or be an admin.
-  // Throws Response on failure (404/403); Next.js handles it.
-  await requireOwnerOrAdmin(quote.repId)
+  // Auth: must use Next-native control flow in server components.
+  // requireOwnerOrAdmin throws a raw Response which Next.js doesn't unwrap
+  // outside Route Handlers — it cascades to the error boundary and renders
+  // the generic "Application error" page. redirect()/notFound() are the
+  // server-component-safe equivalents (matches /quotes/[id]/page.tsx).
+  const session = await auth()
+  if (!session) redirect('/login')
+  const isAdmin = session.user.role === 'ADMIN'
+  if (!isAdmin && quote.repId !== session.user.id) notFound()
 
   // Compute priced scenarios (ROI math, savings curve data) — same helper
   // the PDF route uses, so the numbers are identical.
@@ -161,7 +166,6 @@ function buildPresentVM(
           installedKwp: heroPriced.installedKwp ?? null,
         }
       : null,
-    strings: customerFr,
   }
 }
 

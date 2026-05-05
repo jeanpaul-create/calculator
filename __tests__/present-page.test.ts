@@ -25,10 +25,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const mockGetFullQuoteForPdf = vi.fn()
 const mockBuildPricedScenarios = vi.fn()
 const mockFetchMapImageBase64 = vi.fn()
-const mockRequireOwnerOrAdmin = vi.fn()
+const mockAuth = vi.fn()
 const mockNotFound = vi.fn(() => {
   const err = new Error('NEXT_NOT_FOUND')
   ;(err as Error & { digest?: string }).digest = 'NEXT_NOT_FOUND'
+  throw err
+})
+const mockRedirect = vi.fn((url: string) => {
+  const err = new Error(`NEXT_REDIRECT;replace;${url}`)
+  ;(err as Error & { digest?: string }).digest = `NEXT_REDIRECT;replace;${url}`
   throw err
 })
 
@@ -39,11 +44,12 @@ vi.mock('@/lib/quote-pdf', () => ({
 }))
 
 vi.mock('@/lib/auth', () => ({
-  requireOwnerOrAdmin: (...args: unknown[]) => mockRequireOwnerOrAdmin(...args),
+  auth: () => mockAuth(),
 }))
 
 vi.mock('next/navigation', () => ({
   notFound: () => mockNotFound(),
+  redirect: (url: string) => mockRedirect(url),
 }))
 
 // React `cache` is a no-op in tests — passthrough.
@@ -127,11 +133,12 @@ beforeEach(() => {
   mockGetFullQuoteForPdf.mockReset()
   mockBuildPricedScenarios.mockReset()
   mockFetchMapImageBase64.mockReset()
-  mockRequireOwnerOrAdmin.mockReset()
+  mockAuth.mockReset()
   mockNotFound.mockClear()
+  mockRedirect.mockClear()
 
-  // Defaults: auth passes, no map fetched (overridden per-test).
-  mockRequireOwnerOrAdmin.mockResolvedValue({
+  // Defaults: auth returns a session for the quote owner, no map (overridden).
+  mockAuth.mockResolvedValue({
     user: { id: 'rep_user_1', role: 'REP' },
   })
   mockFetchMapImageBase64.mockResolvedValue('data:image/jpeg;base64,abc')
@@ -189,16 +196,44 @@ describe('PresentPage — visibility', () => {
     await expect(
       PresentPage({ params: { id: 'quote_id_1' } })
     ).rejects.toThrow(/NEXT_NOT_FOUND/)
-    // Auth gate should not be reached for DRAFT
-    expect(mockRequireOwnerOrAdmin).not.toHaveBeenCalled()
+    // Auth check should not be reached for DRAFT
+    expect(mockAuth).not.toHaveBeenCalled()
   })
 
-  it('calls requireOwnerOrAdmin for non-DRAFT quote', async () => {
-    mockGetFullQuoteForPdf.mockResolvedValue(makeQuote({ repId: 'rep_user_1' }))
+  it('redirects to /login when no session', async () => {
+    mockGetFullQuoteForPdf.mockResolvedValue(makeQuote())
+    mockAuth.mockResolvedValue(null)
 
-    await PresentPage({ params: { id: 'quote_id_1' } })
+    await expect(
+      PresentPage({ params: { id: 'quote_id_1' } })
+    ).rejects.toThrow(/NEXT_REDIRECT.*\/login/)
+    expect(mockRedirect).toHaveBeenCalledWith('/login')
+  })
 
-    expect(mockRequireOwnerOrAdmin).toHaveBeenCalledWith('rep_user_1')
+  it('returns 404 when rep is not the quote owner and not admin', async () => {
+    mockGetFullQuoteForPdf.mockResolvedValue(
+      makeQuote({ repId: 'rep_user_OTHER' })
+    )
+    mockAuth.mockResolvedValue({
+      user: { id: 'rep_user_1', role: 'REP' },
+    })
+
+    await expect(
+      PresentPage({ params: { id: 'quote_id_1' } })
+    ).rejects.toThrow(/NEXT_NOT_FOUND/)
+  })
+
+  it('admins can view any rep\'s quote', async () => {
+    mockGetFullQuoteForPdf.mockResolvedValue(
+      makeQuote({ repId: 'rep_user_OTHER' })
+    )
+    mockAuth.mockResolvedValue({
+      user: { id: 'admin_user', role: 'ADMIN' },
+    })
+
+    const result = await PresentPage({ params: { id: 'quote_id_1' } })
+    const vm = getVm(result)
+    expect(vm.quoteId).toBe('quote_id_1')
   })
 
   it('renders SENT quote', async () => {
