@@ -1,5 +1,19 @@
 # TODOS
 
+## Permit-Pack Pipeline
+
+**Validate Heat-Load PDF Acceptability with One Real Canton VD Permit Submission**
+**Priority:** P0 — blocks wide rollout of the heat-load feature
+**What:** Before reps use the in-app heat-load sizing PDF on real permits at scale, submit ONE real PAC permit using our generated PDF (instead of the suissetec xlsx output) and confirm the canton VD permit office accepts it. If rejected, capture what's missing and adjust the PDF layout.
+**Why:** We're matching the suissetec V6.6 layout closely, but no canton has confirmed our generated version is permit-acceptable. Cost of being wrong is rep frustration + permit-cycle delays + reputation hit.
+**Pros:** Single test submission de-risks the entire feature. Confirms the math + layout port is real-world correct.
+**Cons:** Adds a coordinator step before rollout. One rep must volunteer to use the new PDF on a real submission and own the feedback loop with the permit office.
+**Context:** Found by /plan-eng-review on 2026-05-06 during the permit-pack pipeline review. The heat-load doc is built on the suissetec V6.6 xlsx (juni 2021). Permit acceptance has never been independently validated for a non-suissetec-generated version of the same layout.
+**Effort:** S (one rep, one submission, one wait)
+**Depends on:** Permit-pack v1 PR (heat-load feature shipped to staging)
+
+---
+
 ## PAC / Heat Pump Calculator
 
 **CECB/OFEN Heat Pump Subsidy Rates**
