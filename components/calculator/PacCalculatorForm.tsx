@@ -529,6 +529,30 @@ export default function PacCalculatorForm({
             })}
           </div>
 
+          {/* Heat-power sizing helper — shown only on the Machine tab.
+              Out-link to suissetec's burner-replacement calculator (the
+              official Swiss tool reps use to size a heat pump from
+              building characteristics). v1: rep opens it in a new tab,
+              fills it, comes back and picks the matching machine from
+              our catalog. v2 (future): reimplement SIA 384/2 locally so
+              the rep doesn't leave our app. */}
+          {activeCategory === 'PAC_MACHINE' && (
+            <div className="mb-4 -mx-1 flex items-center gap-2 rounded-md border border-orange-100 bg-orange-50/60 px-3 py-2 text-xs text-orange-900">
+              <span aria-hidden="true">ℹ️</span>
+              <span className="flex-1">
+                Besoin de calculer la puissance nécessaire ?
+              </span>
+              <a
+                href="https://burner-replacement.suissetec.ch/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium underline underline-offset-2 hover:text-orange-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-1 rounded"
+              >
+                Calculateur suissetec ↗
+              </a>
+            </div>
+          )}
+
           {/* Active category — products grouped by brand */}
           <div className="space-y-5">
             {Object.keys(byCategory[activeCategory] ?? {})
