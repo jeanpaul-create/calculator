@@ -33,6 +33,8 @@ const mockQuote: FullQuote = {
   shareToken: null,
   firstViewedAt: null,
   viewCount: 0,
+  noEca: null,
+  buildingAssignment: null,
   createdAt: new Date('2026-03-19'),
   updatedAt: new Date('2026-03-19'),
   rep: { name: 'Alice Müller', email: 'alice@ionenergy.ch' },
