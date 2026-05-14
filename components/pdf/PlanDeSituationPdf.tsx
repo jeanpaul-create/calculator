@@ -50,6 +50,8 @@ import {
   Line,
   Circle,
   Rect,
+  G,
+  Text as SvgText,
 } from '@react-pdf/renderer'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -104,8 +106,10 @@ const GRAY_DARK = '#1c1917'
 const GRAY_MID = '#6b7280'
 const GRAY_LIGHT = '#d6d3d1'
 const BLACK = '#000000'
-const RED_FILL = '#d9212722'  // ~13% alpha — light wash so cadastral lines underneath stay readable
-const BUILDING_FILL = '#6b728033'  // gray wash for adjacent buildings
+// Customer's parcel: red border, almost-transparent fill so cadastral
+// parcel numbers + edges underneath stay clearly readable. Was ~13%
+// alpha (#22) which was washing out the labels — dropped to ~6% (#10).
+const RED_FILL = '#d9212710'
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
@@ -235,33 +239,67 @@ export function PlanDeSituationPdf(props: PlanDeSituationProps) {
                   />
                 )}
 
-                {/* Adjacent-parcel buildings only (filtered by the filler) */}
+                {/* Adjacent-parcel buildings — OUTLINE ONLY (no fill).
+                    Keeps the cadastre's own house rendering (white with
+                    light gray fill, including parcel numbers + house
+                    numbers) fully visible. The red outline marks WHICH
+                    buildings the distance lines refer to. */}
                 {neighbors.map((n) => (
                   <Polygon
                     key={`b-${n.id}`}
                     points={n.ring
                       .map(([lon, lat]) => project(lon, lat, bbox).join(','))
                       .join(' ')}
-                    fill={BUILDING_FILL}
-                    stroke={GRAY_DARK}
-                    strokeWidth={1.5}
+                    fill="none"
+                    stroke={RED}
+                    strokeWidth={2}
+                    strokeDasharray="4,3"
                   />
                 ))}
 
-                {/* Distance lines from PAC location to each adjacent-building closest edge */}
+                {/* Distance lines + inline value labels from PAC to each
+                    building's closest edge. Label is drawn at the
+                    midpoint with a white halo so it reads cleanly on
+                    the cadastral background. */}
                 {neighbors.map((n) => {
                   const [nx, ny] = project(n.anchor[0], n.anchor[1], bbox)
+                  const midX = (pacX + nx) / 2
+                  const midY = (pacY + ny) / 2
+                  const label = `${n.distanceM.toFixed(1)} m`
                   return (
-                    <Line
-                      key={`d-${n.id}`}
-                      x1={pacX}
-                      y1={pacY}
-                      x2={nx}
-                      y2={ny}
-                      stroke={RED}
-                      strokeWidth={1.2}
-                      strokeDasharray="6,4"
-                    />
+                    <G key={`d-${n.id}`}>
+                      <Line
+                        x1={pacX}
+                        y1={pacY}
+                        x2={nx}
+                        y2={ny}
+                        stroke={RED}
+                        strokeWidth={1.5}
+                        strokeDasharray="6,4"
+                      />
+                      {/* White halo under the text so it reads on any
+                          cadastre background (streets, lawn, etc.) */}
+                      <SvgText
+                        x={midX}
+                        y={midY}
+                        fill="white"
+                        stroke="white"
+                        strokeWidth={6}
+                        textAnchor="middle"
+                        style={{ fontFamily: 'Helvetica-Bold', fontSize: 20 }}
+                      >
+                        {label}
+                      </SvgText>
+                      <SvgText
+                        x={midX}
+                        y={midY}
+                        fill={RED}
+                        textAnchor="middle"
+                        style={{ fontFamily: 'Helvetica-Bold', fontSize: 20 }}
+                      >
+                        {label}
+                      </SvgText>
+                    </G>
                   )
                 })}
 
