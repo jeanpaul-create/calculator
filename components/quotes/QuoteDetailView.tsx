@@ -90,6 +90,20 @@ export interface QuoteDetailVM {
   firstViewedAt: string | null
   viewCount: number
   scenarios: ScenarioVM[]
+  /**
+   * Per-quote available documents from lib/documents/registry.
+   * Server-side computes which documents apply (e.g. annonce-pac only
+   * shows when at least one PAC scenario exists). Client just renders
+   * DocRows pointing at /api/quotes/[id]/documents/[slug].
+   */
+  availableDocuments: AvailableDocument[]
+}
+
+export interface AvailableDocument {
+  slug: string
+  title: string
+  description: string
+  icon: string
 }
 
 interface QuoteDetailViewProps {
@@ -529,6 +543,7 @@ function DocumentsTab({ quote }: { quote: QuoteDetailVM }) {
         Documents disponibles
       </h3>
       <div className="space-y-2">
+        {/* Always-on: the quote PDF (the offer document itself) */}
         <DocRow
           icon="📄"
           title={`${quote.quoteNumber}.pdf`}
@@ -536,6 +551,18 @@ function DocumentsTab({ quote }: { quote: QuoteDetailVM }) {
           href={`/api/quotes/${quote.id}/pdf`}
           download={`${quote.quoteNumber}.pdf`}
         />
+        {/* Conditional: documents from lib/documents/registry that apply
+            to this quote (computed server-side per per-doc predicates) */}
+        {quote.availableDocuments.map((doc) => (
+          <DocRow
+            key={doc.slug}
+            icon={doc.icon}
+            title={doc.title}
+            description={doc.description}
+            href={`/api/quotes/${quote.id}/documents/${doc.slug}`}
+            download={`${doc.slug}-${quote.quoteNumber}.pdf`}
+          />
+        ))}
       </div>
     </Card>
   )

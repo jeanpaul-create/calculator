@@ -100,6 +100,21 @@ model Product {
   // Labor cost in Rappen per unit — used for PAC products where labor is itemized separately
   // from material (e.g. machine installation, piping labor per meter). Null = no labor.
   laborRappen Int?
+  /// PAC machine installation context — 'interior' (e.g. PAC sol/eau in basement)
+  /// or 'exterior' (e.g. PAC air/eau outside unit). Drives the
+  /// "Pompe à chaleur intérieure/extérieure" checkbox on Vaud annonce
+  /// form. Null for non-PAC products.
+  installType String?
+  /// Acoustic power level in dB(A) measured at 2°C outdoor reference temperature.
+  /// Required input for OPB (Ordonnance sur la protection contre le bruit)
+  /// compliance check + the "fiche technique" requirement of cantonal forms.
+  /// Sourced from manufacturer datasheet. Null for non-PAC products.
+  acousticPowerDb2C Float?
+  /// Refrigerant type ('R32', 'R290', 'R410A', etc.) — drives Formulaire 75
+  /// (Déclaration HFC) generation. R290 (propane) is HFC-free; R32 and
+  /// R410A are HFC-stable and require the declaration. Null = unknown
+  /// or not a PAC.
+  refrigerantType String?
   active      Boolean         @default(true)
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
@@ -226,12 +241,25 @@ model Quote {
   //                rep see "viewed 3x" as a follow-up signal.
   firstViewedAt DateTime?
   viewCount     Int         @default(0)
+  /// Cantonal building registration number (No ECA in Vaud, EGID in
+  /// federal RegBL). Rep-entered, required on cantonal permit forms.
+  /// Null on legacy quotes and DRAFTs that haven't reached permit-pack
+  /// generation yet.
+  noEca           String?
+  /// Building type / affectation ('maison_individuelle', 'immeuble',
+  /// 'mixte', 'commercial'). Drives "Affectation bâtiment" field on
+  /// Vaud annonce form and EN-VD-3.
+  buildingAssignment String?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
-  rep       User            @relation(fields: [repId], references: [id])
-  customer  Customer?       @relation(fields: [customerId], references: [id])
-  scenarios QuoteScenario[]
+  rep         User            @relation(fields: [repId], references: [id])
+  customer    Customer?       @relation(fields: [customerId], references: [id])
+  scenarios   QuoteScenario[]
+  /// One heat-load input per quote (the building's heat demand doesn't
+  /// vary between PAC scenarios — same building, different machines).
+  /// Drives EN-VD-3 + dimensioning of all PAC scenarios.
+  heatLoadInput HeatLoadInput?
 
   @@index([repId])
   @@index([status])
@@ -298,6 +326,14 @@ model QuoteScenario {
   /// Used by /present/[shareToken] Screen 2 to render the 3 tier cards.
   /// Filter: `WHERE tier IS NOT NULL` to get the AI-proposed scenarios.
   tier                     ScenarioTier?
+  /// Heat-load result applied to this PAC scenario (kW thermal).
+  /// Distinct from `installedKwp` which is PV peak power — different
+  /// physical concept. Populated by the rep's "Apply" action in the
+  /// heat-load modal; can diverge from the linked HeatLoadInput's
+  /// computed value if the rep manually adjusted (e.g. rounded up
+  /// for next-larger machine size).
+  /// Null on PV scenarios and PAC scenarios pre-heat-load-calc.
+  thermalLoadKw            Float?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -306,6 +342,60 @@ model QuoteScenario {
   options QuoteScenarioOption[]
 
   @@index([quoteId])
+}
+
+/// Heat-load calculation input — one row per Quote (1:1). Captures the
+/// rep's entry of building data (climate region, m², fuel history, current
+/// generator) used by the suissetec V6.6 methodology to compute the
+/// building's thermal demand. The result lives in `computedHeatLoadKw`
+/// and feeds EN-VD-3 (Justificatif des mesures énergétiques — chauffage),
+/// plus drives the rep's PAC machine selection via the per-scenario
+/// `thermalLoadKw` (rep-confirmed).
+///
+/// Per-Quote (not per-scenario) because the math depends on building
+/// data, not on which PAC machine is being quoted. Three PAC variants
+/// for the same building share one HeatLoadInput.
+///
+/// `consumptionYears` is JSON [{year:Int, djc:Float, consumption:Float}]
+/// — typically 3 entries from the last 3 heating seasons. JSON instead
+/// of a separate model because we never query into it (it's an opaque
+/// snapshot for the calc).
+model HeatLoadInput {
+  id                  String   @id @default(cuid())
+  quoteId             String   @unique
+  /// Swiss meteo station name (e.g. "Lausanne-Pully", "Payerne",
+  /// "Neuchâtel"). Whitelisted against `lib/heat-load/climate-data.ts`
+  /// at the API boundary.
+  climateRegion       String
+  /// Building type — drives operating-hours lookup. Values:
+  /// 'maison_individuelle' | 'immeuble' | 'mixte'.
+  buildingType        String
+  /// Surface de référence énergétique in m².
+  energyAreaM2        Int
+  /// Hot water source — 'with_heating' | 'separate_pac' | 'separate_electric'.
+  /// Drives the suissetec operating-hours lookup table (different rows
+  /// for shared vs separate DHW).
+  hotWaterSource      String
+  /// Current fuel type — 'mazout_l' | 'gaz_m3' | 'pellets_kg' | 'electrique_kwh' | 'bois_ster_fichte' | 'bois_ster_buche'.
+  /// Drives the caloric value + DJC-normalization formula.
+  fuelType            String
+  /// Current generator type — e.g. 'chaudiere_mazout_ancien',
+  /// 'chaudiere_mazout_neuf', 'chaudiere_gaz_condensation', 'pellets',
+  /// 'electrique_direct'. Drives the efficiency lookup.
+  generatorType       String
+  /// 3-year consumption history (snapshotted from rep entry).
+  /// Shape: Array<{year: number, djc: number, consumption: number}>
+  /// where `djc` is the heating-degree-day value for the climate region
+  /// in that year and `consumption` is the rep-entered fuel usage.
+  consumptionYears    Json
+  /// Result of `calculateHeatLoadKw(input)` cached at save time.
+  /// Recomputed on every PUT; cleared if input fields change. Null on
+  /// pre-Phase-1 rows (none expected; this model is born in Phase 1).
+  computedHeatLoadKw  Float?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  quote               Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
 }
 
 model QuoteItem {

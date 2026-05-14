@@ -6,6 +6,7 @@ import QuoteDetailView, {
   type QuoteDetailVM,
   type ScenarioVM,
 } from '@/components/quotes/QuoteDetailView'
+import { getDocumentsForQuote } from '@/lib/documents/registry'
 import type { QuoteStatusValue } from '@/components/ui'
 
 export const dynamic = 'force-dynamic'
@@ -107,6 +108,17 @@ export default async function QuoteDetailPage({ params }: Props) {
     firstViewedAt: quote.firstViewedAt?.toISOString() ?? null,
     viewCount: quote.viewCount ?? 0,
     scenarios,
+    // Compute available documents server-side using the FullQuote shape.
+    // The registry's appliesTo predicates need the full scenario/items
+    // structure, which the client VM doesn't carry verbatim.
+    availableDocuments: fullQuote
+      ? getDocumentsForQuote(fullQuote).map((d) => ({
+          slug: d.slug,
+          title: d.title,
+          description: d.description,
+          icon: d.icon,
+        }))
+      : [],
   }
 
   return (
