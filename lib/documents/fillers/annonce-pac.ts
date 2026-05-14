@@ -34,7 +34,7 @@
  *     Fluides frigorigènes                  ← needs Product.refrigerantType
  */
 
-import { PDFDocument } from 'pdf-lib'
+import { PDFDocument, StandardFonts } from 'pdf-lib'
 import { readFile } from 'fs/promises'
 import path from 'path'
 import type { DocumentTemplate } from '../types'
@@ -88,6 +88,14 @@ export const annoncePacV10: DocumentTemplate = {
     const templatePath = path.join(process.cwd(), 'lib/documents/templates/annonce-pac-v10.pdf')
     const templateBuf = await readFile(templatePath)
     const doc = await PDFDocument.load(templateBuf, { ignoreEncryption: true })
+
+    // Embed Helvetica for regenerated appearance streams. Covers Latin-1
+    // (é à ô ç) via WinAnsiEncoding — sufficient for French names + Swiss
+    // street addresses. If we hit a name with characters outside Latin-1
+    // (extended-extended Latin, e.g. ł, š, đ), we'd need to embed a more
+    // complete font like Noto Sans.
+    const helvetica = await doc.embedFont(StandardFonts.Helvetica)
+
     const form = doc.getForm()
 
     const commune = extractCommune(quote.siteAddress)
@@ -129,6 +137,15 @@ export const annoncePacV10: DocumentTemplate = {
     // Lieu / date blocks (auto-filled with today's date + commune)
     trySetText('RequérantsLieu date', lieuDate)
     trySetText('Entreprise installateurLieu date', lieuDate)
+
+    // CRITICAL — pdf-lib gotcha: setText writes the value to the data
+    // stream but does NOT regenerate the visual appearance. Without this
+    // call, many viewers (Chrome's built-in renderer, mobile Safari) show
+    // the original empty template even though the values are stored. The
+    // explicit font argument also ensures accented French chars render.
+    // The PDF remains fillable — rep can still hand-edit unmapped fields
+    // like "No ECA" and the acoustic checkboxes in Acrobat.
+    form.updateFieldAppearances(helvetica)
 
     const buffer = await doc.save()
     const filename = `annonce-pac-${quote.quoteNumber}.pdf`
