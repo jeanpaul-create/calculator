@@ -10,13 +10,16 @@
  */
 
 import { annoncePacV10 } from './fillers/annonce-pac'
+import { planDeSituation } from './fillers/plan-de-situation'
+import { attestationBruit } from './fillers/attestation-bruit'
 import type { DocumentTemplate } from './types'
 import type { FullQuote } from '@/lib/quote-pdf'
 
 const REGISTRY: DocumentTemplate[] = [
   annoncePacV10,
-  // Future: en-vd-3, en-vd-72 (xlsx), formulaire-p, formulaire-75,
-  //         plan-de-situation, attestation-bruit
+  planDeSituation,
+  attestationBruit,
+  // Future (Phase 1+): en-vd-3, en-vd-72 (xlsx), formulaire-p, formulaire-75
 ]
 
 /** All documents that apply to this quote (filtered by per-doc predicate) */
