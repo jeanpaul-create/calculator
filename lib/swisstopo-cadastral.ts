@@ -109,11 +109,18 @@ async function fetchCadastralMapBase64Uncached(
     pageWidthMm,
     aspect,
   })
-  // WMS 1.3.0 with CRS:EPSG:4326 conventionally uses lat,lon axis order.
-  // The existing aerial fetcher uses lon,lat order against the same
-  // swisstopo endpoint and works, so swisstopo's server tolerates
-  // lon,lat for EPSG:4326. Match that pattern for consistency.
-  const bboxStr = `${bbox.lonMin},${bbox.latMin},${bbox.lonMax},${bbox.latMax}`
+  // WMS 1.3.0 with CRS=EPSG:4326 REQUIRES lat,lon axis order per the
+  // spec — and swisstopo's cadastre layer enforces it. (The
+  // ch.swisstopo.swissimage aerial layer happens to tolerate lon,lat
+  // — probably because it's a global pyramid layer and the server's
+  // tile cache lookups are permissive — but cadastre returns a 960-
+  // byte black PNG with lon,lat order. Empirically verified against
+  // wms.geo.admin.ch on 2026-05-14.)
+  //
+  // If you ever extend the existing lib/quote-pdf.ts:fetchMapImageBase64
+  // (which uses lon,lat against swissimage and works) to a different
+  // layer, check whether that layer is strict and flip accordingly.
+  const bboxStr = `${bbox.latMin},${bbox.lonMin},${bbox.latMax},${bbox.lonMax}`
   const pixelHeight = Math.round(pixelWidth / aspect)
   const url =
     `https://wms.geo.admin.ch/?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap` +
