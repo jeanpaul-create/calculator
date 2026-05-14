@@ -170,3 +170,31 @@ export function isPointInRing(
   }
   return inside
 }
+
+/**
+ * Minimum distance (meters) between any two closed polygon rings.
+ * Used to test "adjacency" between a building footprint and a parcel:
+ * if min-ring-distance < ~20m, the building sits on an adjacent
+ * (boundary-sharing) parcel for typical Swiss residential lots.
+ *
+ * Approach: for each vertex of ringA, compute its distance to ringB's
+ * edges; take the overall minimum. Sufficient for the adjacency-filter
+ * use case — the building polygon is typically densely-vertexed enough
+ * that sampling its vertices captures the closest approach.
+ *
+ * Returns Infinity if either ring is degenerate (< 2 vertices).
+ */
+export function minDistanceBetweenRings(
+  ringA: [number, number][],
+  ringB: [number, number][]
+): number {
+  if (ringA.length < 2 || ringB.length < 2) return Infinity
+  let minDist = Infinity
+  for (const [lon, lat] of ringA) {
+    const result = distancePointToPolygonEdge({ lat, lon }, ringB)
+    if (result && result.distanceMeters < minDist) {
+      minDist = result.distanceMeters
+    }
+  }
+  return minDist
+}

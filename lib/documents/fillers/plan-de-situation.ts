@@ -1,35 +1,56 @@
 /**
- * Plan de situation filler — composes existing infrastructure into a PDF
- * that shows the customer's parcel + adjacent buildings + distance
- * annotations on the cached swisstopo aerial.
+ * Plan de situation filler — composes existing infrastructure into a
+ * cantonal-permit-ready cadastral plan at 1:500 scale.
  *
  * Reuse:
- *   - lib/quote-pdf.ts:fetchMapImageBase64()  — cached WMS image (24h)
- *   - lib/swisstopo-parcel.ts:fetchParcel()   — cadastral polygon
- *   - lib/osm-buildings.ts:fetchNearbyBuildings() — OSM neighbor footprints
- *   - lib/geo.ts:distancePointToPolygonEdge()  — distance + nearest point
+ *   - lib/swisstopo-cadastral.ts   — NEW: cadastral webmap WMS at scale
+ *   - lib/swisstopo-parcel.ts      — cadastral polygon (customer's parcel)
+ *   - lib/osm-buildings.ts         — neighbor building footprints
+ *   - lib/geo.ts                   — distance + adjacency math
  *
- * All three external fetches are cached server-side; the rep can re-
- * download the plan de situation without waiting on swisstopo/Overpass.
+ * v1.1 changes (from user feedback after preview test):
+ *   1. Cadastral webmap layer instead of aerial swissimage — matches
+ *      cantonal permit convention (a "plan de situation" is the line-
+ *      art cadastre, not the photograph)
+ *   2. 1:500 scale — page-print scale guarantee. Bbox computed from
+ *      A4 content width × 500.
+ *   3. Adjacent parcels only — buildings within ~20m of the customer's
+ *      parcel boundary, approximating "on a parcel that shares an edge
+ *      with mine." Replaces the previous 80m PAC-location radius which
+ *      brought in too many distant buildings.
  *
  * `appliesTo`: any PAC scenario + quote has map position (mapLat+mapLon).
- * Without map position, no plan to draw.
  */
 
 import { renderToBuffer } from '@react-pdf/renderer'
 import React from 'react'
 import type { DocumentTemplate } from '../types'
-import type { FullQuote } from '@/lib/quote-pdf'
-import { fetchMapImageBase64 } from '@/lib/quote-pdf'
+import {
+  fetchCadastralMapBase64,
+  computeBboxForScale,
+} from '@/lib/swisstopo-cadastral'
 import { fetchParcel } from '@/lib/swisstopo-parcel'
-import { fetchNearbyBuildings } from '@/lib/osm-buildings'
-import { distancePointToPolygonEdge } from '@/lib/geo'
+import { fetchNearbyBuildings, type OsmBuilding } from '@/lib/osm-buildings'
+import {
+  distancePointToPolygonEdge,
+  minDistanceBetweenRings,
+  isPointInRing,
+} from '@/lib/geo'
 import { PlanDeSituationPdf } from '@/components/pdf/PlanDeSituationPdf'
+
+const SCALE_DENOMINATOR = 500
+/** Distance threshold (meters) below which a building is treated as "on
+ *  an adjacent parcel." Calibrated for typical Swiss residential lots
+ *  where the customer's house sits 5-10m from the property line and
+ *  neighbors' houses likewise — total neighbor-house-to-our-parcel-edge
+ *  distance is usually 5-15m. 20m catches all adjacents plus a small
+ *  buffer; further buildings are typically 2+ parcels away. */
+const ADJACENT_THRESHOLD_M = 20
 
 export const planDeSituation: DocumentTemplate = {
   slug: 'plan-de-situation',
   title: 'Plan de situation',
-  description: "Extrait swisstopo + parcelle + voisins (annexe permis)",
+  description: 'Plan cadastral 1:500 avec parcelles adjacentes (permis)',
   icon: '🗺️',
 
   appliesTo: (quote) => {
@@ -43,53 +64,82 @@ export const planDeSituation: DocumentTemplate = {
   },
 
   fill: async (quote) => {
-    // Both checked in appliesTo, but be defensive — caller might invoke fill()
-    // directly without going through the route's appliesTo gate.
     if (quote.mapLat == null || quote.mapLon == null) {
       throw new Error('Plan de situation requires mapLat/mapLon on the quote')
     }
     const lat = quote.mapLat
     const lon = quote.mapLon
-    const zoom = quote.mapZoom ?? 17
 
-    // Build the swisstopo Identify bounds — mirrors the WMS bbox so the
-    // parcel polygon comes back in the same coordinate window as the
-    // aerial image.
-    const degOffset = 0.005 * Math.pow(2, 17 - Math.min(Math.max(zoom, 14), 20))
+    // Compute the bbox for 1:500 scale on A4. Single source of truth —
+    // the cadastral fetch + the PDF's SVG projection share this bbox so
+    // overlays align with the underlying map image.
+    const bbox = computeBboxForScale(lat, lon, {
+      scaleDenominator: SCALE_DENOMINATOR,
+    })
+
+    // Identify-API call bounds — same as the WMS bbox, in the shape
+    // swisstopo-parcel.ts expects (west/south/east/north).
     const identifyBounds = {
-      west: lon - degOffset,
-      south: lat - degOffset,
-      east: lon + degOffset,
-      north: lat + degOffset,
+      west: bbox.lonMin,
+      south: bbox.latMin,
+      east: bbox.lonMax,
+      north: bbox.latMax,
     }
 
-    // Parallelize the three external fetches — all are cached so cold fetch
-    // can take a few seconds, but each is independent.
+    // Parallel external fetches (all cached, so cold start can be 5-10s
+    // total but subsequent generations are instant)
     const [mapImageDataUrl, parcelResult, neighborsResult] = await Promise.all([
-      fetchMapImageBase64(lat, lon, zoom),
+      fetchCadastralMapBase64(lat, lon, SCALE_DENOMINATOR),
       fetchParcel({
         lat,
         lon,
         bounds: identifyBounds,
-        width: 800,
-        height: 500,
+        width: 1600,
+        height: 1000,
       }).catch((err) => {
         console.warn('[plan-de-situation] parcel fetch failed:', err)
         return { data: null, warning: 'parcel-error' as const }
       }),
-      fetchNearbyBuildings(lat, lon, 80).catch((err) => {
+      // Search a slightly wider radius than the visible bbox so we
+      // don't miss adjacent buildings whose centroid sits just outside
+      // the cadastral window but whose closest-edge to our parcel is
+      // within the adjacency threshold. 100m covers typical lot widths
+      // (the bbox is ~91m wide).
+      fetchNearbyBuildings(lat, lon, 100).catch((err) => {
         console.warn('[plan-de-situation] OSM fetch failed:', err)
-        return { data: [], warning: 'osm-error' as const }
+        return { data: [] as OsmBuilding[], warning: 'osm-error' as const }
       }),
     ])
 
-    // Unwrap the IdentifyResult — null parcel is fine, we just don't draw it.
     const parcelInfo = parcelResult.data
 
-    // Compute distances + anchor points from PAC location to each neighbor.
-    // Skip degenerate rings (< 2 vertices) — distancePointToPolygonEdge
-    // returns null in that case.
-    const neighbors = neighborsResult.data.flatMap((b) => {
+    // ─── Filter buildings to adjacent-parcel only ─────────────────────
+    // Two-step filter:
+    //   1. Drop buildings whose centroid is INSIDE the customer's parcel
+    //      (this is the customer's own building — same filter as v1.0)
+    //   2. Keep only buildings within ADJACENT_THRESHOLD_M of the
+    //      customer's parcel boundary (these are practically always on
+    //      a directly-adjacent parcel for Swiss residential layouts)
+    //
+    // Without the parcel polygon, we fall back to v1.0 behavior
+    // (centroid-bbox filter + show all in 100m). That's worse than
+    // adjacent-only but better than nothing.
+    const adjacentBuildings = parcelInfo
+      ? neighborsResult.data.filter((b) => {
+          // Centroid test — exclude customer's own building
+          const cx = b.ring.reduce((s, p) => s + p[0], 0) / b.ring.length
+          const cy = b.ring.reduce((s, p) => s + p[1], 0) / b.ring.length
+          if (isPointInRing({ lat: cy, lon: cx }, parcelInfo.ring)) {
+            return false
+          }
+          // Adjacency test — keep only buildings close to our boundary
+          const minDist = minDistanceBetweenRings(b.ring, parcelInfo.ring)
+          return minDist < ADJACENT_THRESHOLD_M
+        })
+      : neighborsResult.data
+
+    // Compute distance from PAC location + anchor point per kept building
+    const neighbors = adjacentBuildings.flatMap((b) => {
       const result = distancePointToPolygonEdge({ lat, lon }, b.ring)
       if (!result) return []
       return [
@@ -98,33 +148,10 @@ export const planDeSituation: DocumentTemplate = {
           ring: b.ring,
           address: b.address,
           distanceM: result.distanceMeters,
-          // Closest point on the building polygon — anchor for the
-          // distance line drawn from PAC location to building
           anchor: [result.closest.lon, result.closest.lat] as [number, number],
         },
       ]
     })
-
-    // Filter out the customer's own building if the parcel polygon
-    // contains the building's center — the rep doesn't care about
-    // "distance to my own building." Matches the same filter used in
-    // the live PAC map (see lib/osm-buildings.ts header comment).
-    const filteredNeighbors = parcelInfo
-      ? neighbors.filter((n) => {
-          // Centroid of the neighbor's ring
-          const cx = n.ring.reduce((s, p) => s + p[0], 0) / n.ring.length
-          const cy = n.ring.reduce((s, p) => s + p[1], 0) / n.ring.length
-          // If centroid lies inside the parcel, this is the customer's
-          // own building — exclude. (Imperfect for L-shaped parcels but
-          // good enough for v1; can refine with isPointInRing later.)
-          const within =
-            cx >= parcelInfo.bbox[0] &&
-            cx <= parcelInfo.bbox[2] &&
-            cy >= parcelInfo.bbox[1] &&
-            cy <= parcelInfo.bbox[3]
-          return !within
-        })
-      : neighbors
 
     const buffer = await renderToBuffer(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -134,9 +161,10 @@ export const planDeSituation: DocumentTemplate = {
         siteAddress: quote.siteAddress,
         mapImageDataUrl,
         pacLocation: { lat, lon },
-        mapZoom: zoom,
+        bbox,
+        scaleDenominator: SCALE_DENOMINATOR,
         parcelRing: parcelInfo?.ring ?? null,
-        neighbors: filteredNeighbors,
+        neighbors,
         generatedAt: new Date(),
       }) as any
     )

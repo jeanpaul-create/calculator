@@ -23,9 +23,21 @@ import { renderToBuffer } from '@react-pdf/renderer'
 import React from 'react'
 import type { DocumentTemplate } from '../types'
 import { fetchNearbyBuildings } from '@/lib/osm-buildings'
-import { distancePointToPolygonEdge } from '@/lib/geo'
+import { fetchParcel } from '@/lib/swisstopo-parcel'
+import {
+  distancePointToPolygonEdge,
+  minDistanceBetweenRings,
+  isPointInRing,
+} from '@/lib/geo'
 import { calculateNoiseAtReceiver, type NoiseAtReceiver } from '@/lib/noise'
 import { AttestationBruitPdf } from '@/components/pdf/AttestationBruitPdf'
+
+/** Same threshold as the plan-de-situation filler — buildings within
+ *  ~20m of the customer's parcel boundary are treated as "on an
+ *  adjacent parcel" for the noise-compliance evaluation. v1.0 used a
+ *  blanket 80m radius around the PAC location which brought in too many
+ *  distant buildings. */
+const ADJACENT_THRESHOLD_M = 20
 
 export const attestationBruit: DocumentTemplate = {
   slug: 'attestation-bruit',
@@ -69,27 +81,65 @@ export const attestationBruit: DocumentTemplate = {
         ? productAny.acousticPowerDb2C
         : null
 
-    // Fetch neighbors (same source as plan-de-situation, cached)
-    const neighborsResult = await fetchNearbyBuildings(lat, lon, 80).catch(
-      (err) => {
+    // Fetch neighbors + the customer's parcel (for the adjacency filter).
+    // Both cached — same shared cache as plan-de-situation, so a quote's
+    // first attestation/plan generation pays the OSM + Identify costs
+    // and subsequent ones are instant.
+    const [neighborsResult, parcelResult] = await Promise.all([
+      fetchNearbyBuildings(lat, lon, 100).catch((err) => {
         console.warn('[attestation-bruit] OSM fetch failed:', err)
         return { data: [] as const, warning: 'osm-error' as const }
-      }
-    )
+      }),
+      // Approximate bounds — only used by the Identify API for hit
+      // detection. 100m around the PAC location is plenty for the
+      // customer's parcel.
+      fetchParcel({
+        lat,
+        lon,
+        bounds: {
+          west: lon - 0.0007,
+          south: lat - 0.0004,
+          east: lon + 0.0007,
+          north: lat + 0.0004,
+        },
+        width: 1600,
+        height: 1000,
+      }).catch((err) => {
+        console.warn('[attestation-bruit] parcel fetch failed:', err)
+        return { data: null, warning: 'parcel-error' as const }
+      }),
+    ])
 
-    // Compute distance to each neighbor's nearest edge + noise level.
+    const parcelInfo = parcelResult.data
+
+    // Filter buildings to adjacent-parcel only (same logic as plan-de-
+    // situation). Without the customer's parcel polygon we can't run
+    // the adjacency check — fall back to using all neighbors within
+    // 100m sorted by distance (v1.0 behavior).
+    const adjacentBuildings = parcelInfo
+      ? neighborsResult.data.filter((b) => {
+          const cx = b.ring.reduce((s, p) => s + p[0], 0) / b.ring.length
+          const cy = b.ring.reduce((s, p) => s + p[1], 0) / b.ring.length
+          if (isPointInRing({ lat: cy, lon: cx }, parcelInfo.ring)) {
+            return false // customer's own building
+          }
+          const minDist = minDistanceBetweenRings(b.ring, parcelInfo.ring)
+          return minDist < ADJACENT_THRESHOLD_M
+        })
+      : neighborsResult.data
+
+    // Compute distance to each adjacent building + noise level.
     // If acousticPowerDbA is null, skip the noise calc — receivers
-    // array gets distance only, the noise levelDbA will not be set
-    // (we represent this by zeroing the noise threshold check —
-    // safer than fabricating numbers).
+    // get distance only, with NaN level + pretend-compliant flags so
+    // the table still renders. The "data incomplete" banner explains.
     const receivers: Array<{
       label: string
       distanceM: number
       noise: NoiseAtReceiver
     }> = []
 
-    for (let i = 0; i < neighborsResult.data.length; i++) {
-      const b = neighborsResult.data[i]
+    for (let i = 0; i < adjacentBuildings.length; i++) {
+      const b = adjacentBuildings[i]
       const dist = distancePointToPolygonEdge({ lat, lon }, b.ring)
       if (!dist) continue
       const label = b.address ?? `Bâtiment voisin ${i + 1}`
