@@ -21,6 +21,7 @@ type Category =
   | 'PAC_CONDUITE'
   | 'PAC_MONTAGE'
   | 'PAC_ADMIN'
+  | 'PAC_TANK'
 
 type Tab = 'pv' | 'pac' | 'options'
 
@@ -65,6 +66,7 @@ const CATEGORY_LABELS: Record<Category, string> = {
   PAC_CONDUITE: 'Conduite',
   PAC_MONTAGE: 'Montage',
   PAC_ADMIN: 'Administratif',
+  PAC_TANK: 'Ballons / Réservoirs',
 }
 
 const PV_CATEGORIES: Category[] = [
@@ -72,7 +74,7 @@ const PV_CATEGORIES: Category[] = [
 ]
 
 const PAC_CATEGORIES: Category[] = [
-  'PAC_MACHINE', 'PAC_ACCESSORY', 'PAC_ELECTRICITE', 'PAC_MACONNERIE',
+  'PAC_MACHINE', 'PAC_TANK', 'PAC_ACCESSORY', 'PAC_ELECTRICITE', 'PAC_MACONNERIE',
   'PAC_ISOLATION', 'PAC_CITERNE', 'PAC_CONDUITE', 'PAC_MONTAGE', 'PAC_ADMIN',
 ]
 

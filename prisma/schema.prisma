@@ -86,6 +86,7 @@ enum ProductCategory {
   PAC_CONDUITE     // piping (DN42, frigo, suppérieur)
   PAC_MONTAGE      // montage et mise en service (labor days)
   PAC_ADMIN        // démarche administrative, permits
+  PAC_TANK         // hot-water (DHW) tanks, heating buffer tanks, combined tanks
 }
 
 model Product {
@@ -115,6 +116,31 @@ model Product {
   /// R410A are HFC-stable and require the declaration. Null = unknown
   /// or not a PAC.
   refrigerantType String?
+  /// Manufacturer brand name ('Alpha Innotec', 'Buderus', 'Vaillant', etc.).
+  /// Free text — used for filtering catalog by supplier and rendering in
+  /// quote line items. Null for generic/legacy products.
+  manufacturer String?
+  /// Manufacturer model code ('Hybrox 11', 'SWCV 92H3', 'TPS 250', etc.).
+  /// Distinct from `name` which may include marketing text. Null = unknown.
+  modelCode String?
+  /// Nominal thermal output in kW at standard rating point (B0/W35 for
+  /// geothermal, A7/W35 for air-water). PAC_MACHINE only — used for
+  /// matching against required heating power from heat-load calc.
+  thermalKwNominal Float?
+  /// Coefficient of Performance at nominal rating point. PAC_MACHINE only.
+  /// Used for energy efficiency labelling and EN-VD-72 (part renouvelable).
+  copNominal Float?
+  /// Total tank capacity in liters. PAC_TANK only — for DHW tanks (e.g.
+  /// 300, 400L), buffer tanks (120L), and combined tanks (525L total).
+  tankCapacityL Int?
+  /// Tank type: 'dhw' (hot water only), 'buffer' (heating buffer only),
+  /// or 'combined' (both DHW + buffer in one unit, e.g. WWSP 404).
+  /// PAC_TANK only.
+  tankType String?
+  /// For combined tanks (tankType='combined'): buffer portion capacity
+  /// in liters; `tankCapacityL` then represents the total. Null for
+  /// pure DHW or pure buffer tanks.
+  bufferCapacityL Int?
   active      Boolean         @default(true)
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt

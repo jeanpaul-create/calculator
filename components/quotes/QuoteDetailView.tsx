@@ -29,6 +29,7 @@ type ScenarioCategory =
   | 'PANEL' | 'INVERTER' | 'BATTERY' | 'MOUNTING' | 'ACCESSORY' | 'EV_CHARGER'
   | 'PAC_MACHINE' | 'PAC_ACCESSORY' | 'PAC_ELECTRICITE' | 'PAC_MACONNERIE'
   | 'PAC_ISOLATION' | 'PAC_CITERNE' | 'PAC_CONDUITE' | 'PAC_MONTAGE' | 'PAC_ADMIN'
+  | 'PAC_TANK'
 
 export interface ScenarioVM {
   id: string
@@ -142,6 +143,7 @@ const CATEGORY_LABEL: Record<ScenarioCategory, string> = {
   PAC_CONDUITE: 'Conduite',
   PAC_MONTAGE: 'Montage',
   PAC_ADMIN: 'Administratif',
+  PAC_TANK: 'Ballon / Réservoir',
 }
 
 export default function QuoteDetailView({ quote, isAdmin }: QuoteDetailViewProps) {

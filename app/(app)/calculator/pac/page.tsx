@@ -60,6 +60,7 @@ export default async function PacCalculatorPage({
     | 'PAC_CONDUITE'
     | 'PAC_MONTAGE'
     | 'PAC_ADMIN'
+    | 'PAC_TANK'
 
   const pacProducts = products.map((p) => ({
     id: p.id,
