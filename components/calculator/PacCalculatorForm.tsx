@@ -32,6 +32,7 @@ interface PacProduct {
     | 'PAC_CONDUITE'
     | 'PAC_MONTAGE'
     | 'PAC_ADMIN'
+    | 'PAC_TANK'
   costRappen: number
   laborRappen: number | null
 }
@@ -53,6 +54,7 @@ interface PacCalculatorFormProps {
 
 const CATEGORY_ORDER = [
   'PAC_MACHINE',
+  'PAC_TANK',
   'PAC_ACCESSORY',
   'PAC_ELECTRICITE',
   'PAC_MACONNERIE',
@@ -73,6 +75,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   PAC_CONDUITE: 'Conduite',
   PAC_MONTAGE: 'Montage',
   PAC_ADMIN: 'Administratif',
+  PAC_TANK: 'Ballons / Réservoirs',
 }
 
 export default function PacCalculatorForm({
