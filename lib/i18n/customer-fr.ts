@@ -50,6 +50,11 @@ export const customerFr = {
     },
     // Fallback for legacy quotes with only one scenario (non-AI)
     fallbackToRecommande: 'Configuration recommandée pour votre projet',
+    // Per-card comparison facts (rendered only when ROI data exists)
+    facts: {
+      payback: (years: string) => `Rentabilisé en ${years} ans`,
+      annualSavings: (chf: string) => `≈ ${chf} CHF/an d’économies`,
+    },
   },
 
   // ─── Screen 3: Vos chiffres ─────────────────────────────────

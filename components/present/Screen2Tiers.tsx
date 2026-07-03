@@ -35,6 +35,8 @@ import type { PresentTier } from './PresentScreens'
 
 interface Props {
   tiers: PresentTier[]
+  /** Tier driving Screens 3+4 — this card gets the red frame. */
+  heroTierId: string | null
   strings: CustomerFr
 }
 
@@ -51,7 +53,7 @@ function formatChfCustomer(rappen: number): string {
   }).format(rappen / 100)
 }
 
-export default function Screen2Tiers({ tiers, strings }: Props) {
+export default function Screen2Tiers({ tiers, heroTierId, strings }: Props) {
   // Edge case: 0 tiers loaded — defensive, should not happen
   if (tiers.length === 0) {
     return (
@@ -106,7 +108,12 @@ export default function Screen2Tiers({ tiers, strings }: Props) {
         // Grid: portrait stacks 1 col, landscape 3 cols (md = 768px+)
         <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4 content-start">
           {portraitOrder.map((tier) => (
-            <TierCard key={tier.id} tier={tier} strings={strings} />
+            <TierCard
+              key={tier.id}
+              tier={tier}
+              isHero={heroTierId != null ? tier.id === heroTierId : tier.tier === 'recommande'}
+              strings={strings}
+            />
           ))}
         </div>
       )}
@@ -116,8 +123,17 @@ export default function Screen2Tiers({ tiers, strings }: Props) {
 
 // ─── Cards ────────────────────────────────────────────────────────────────
 
-function TierCard({ tier, strings }: { tier: PresentTier; strings: CustomerFr }) {
-  const isRecommended = tier.tier === 'recommande'
+function TierCard({
+  tier,
+  isHero,
+  strings,
+}: {
+  tier: PresentTier
+  /** Red-framed card — follows the rep's hero pick (default: recommandé). */
+  isHero: boolean
+  strings: CustomerFr
+}) {
+  const isRecommended = isHero
   const eyebrowLabel = tier.tier
     ? strings.screen2.eyebrow[tier.tier]
     : strings.screen2.eyebrow.recommande
@@ -160,9 +176,31 @@ function TierCard({ tier, strings }: { tier: PresentTier; strings: CustomerFr })
       <div className="text-2xl md:text-3xl font-bold text-gray-900 font-mono tabular-nums tracking-tight leading-none mb-4">
         {formatChfCustomer(tier.sellingPriceIncVat)}
       </div>
+      {/* Comparison facts — real numbers, no checkmark-list slop. Rendered
+          only when ROI data exists so legacy cards stay clean. */}
+      {(tier.paybackYears != null || tier.annualSavingsRappen != null) && (
+        <div className="text-xs text-gray-700 font-medium space-y-0.5 mb-3 font-mono tabular-nums">
+          {tier.paybackYears != null && (
+            <div>{strings.screen2.facts.payback(formatYears(tier.paybackYears))}</div>
+          )}
+          {tier.annualSavingsRappen != null && (
+            <div>
+              {strings.screen2.facts.annualSavings(
+                formatChfCustomer(tier.annualSavingsRappen)
+              )}
+            </div>
+          )}
+        </div>
+      )}
       <p className="text-xs text-gray-600 line-clamp-2 leading-relaxed">{tier.rationale}</p>
     </button>
   )
+}
+
+/** Payback display, consistent with Screen 3: one decimal unless integer. */
+function formatYears(years: number): string {
+  const rounded = Math.round(years * 10) / 10
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1)
 }
 
 function SingleScenarioFallback({

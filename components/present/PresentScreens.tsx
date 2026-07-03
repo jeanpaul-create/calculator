@@ -42,6 +42,9 @@ export type PresentTier = {
   installedKwp: number | null
   rationale: string
   itemsSummary: string
+  /** Comparison facts — null when the scenario lacks ROI data. */
+  paybackYears: number | null
+  annualSavingsRappen: number | null
 }
 
 export type PresentVM = {
@@ -64,6 +67,11 @@ export type PresentVM = {
    */
   mapImageDataUrl: string | null
   tiers: PresentTier[]
+  /**
+   * Id of the tier driving Screens 3+4 (rep pick or automatic). Screen 2
+   * frames this card in red so the whole deck tells one coherent story.
+   */
+  heroTierId: string | null
   hero: {
     paybackYears: number | null
     annualSavingsRappen: number | null
@@ -205,7 +213,7 @@ export default function PresentScreens({ vm }: { vm: PresentVM }) {
           />
         </ScreenContainer>
         <ScreenContainer ref={setScreenRef(1)}>
-          <Screen2Tiers tiers={vm.tiers} strings={customerFr} />
+          <Screen2Tiers tiers={vm.tiers} heroTierId={vm.heroTierId} strings={customerFr} />
         </ScreenContainer>
         <ScreenContainer ref={setScreenRef(2)}>
           <Screen3Numbers hero={vm.hero} strings={customerFr} />

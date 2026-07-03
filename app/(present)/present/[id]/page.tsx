@@ -126,6 +126,8 @@ function buildPresentVM(
     installedKwp: s.installedKwp,
     rationale: deriveRationale(s),
     itemsSummary: summarizeItems(s),
+    paybackYears: s.paybackYears ?? null,
+    annualSavingsRappen: s.annualSavingsRappen ?? null,
   }))
 
   // Hero pick: rep's explicit choice (quote.heroScenarioId) wins; stale ids
@@ -161,6 +163,7 @@ function buildPresentVM(
     },
     mapImageDataUrl,
     tiers,
+    heroTierId: heroScenario?.id ?? null,
     hero: heroPriced
       ? {
           paybackYears: heroPriced.paybackYears ?? null,
