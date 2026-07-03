@@ -63,6 +63,16 @@ export interface PricedScenario {
   /** null if ROI cannot be computed */
   annualSavingsRappen: number | null
   paybackYears: number | null
+  /**
+   * Total savings over the 25-year horizon (degradation + retail escalation
+   * applied — see calculateRoi). null if ROI cannot be computed.
+   */
+  savings25YearsRappen: number | null
+  /**
+   * Per-year savings series over the horizon (length 25). Drives the
+   * /present savings curve + "do nothing" comparison. null with the ROI.
+   */
+  yearlySavingsRappen: number[] | null
   // ROI split breakdown
   selfConsumptionRatePct: number | null
   selfConsumedKwh: number | null
@@ -285,6 +295,8 @@ export async function buildPricedScenarios(quote: FullQuote): Promise<PricedScen
 
     let annualSavingsRappen: number | null = null
     let paybackYears: number | null = null
+    let savings25YearsRappen: number | null = null
+    let yearlySavingsRappen: number[] | null = null
     let selfConsumedKwh: number | null = null
     let exportedKwh: number | null = null
     let selfConsumptionSavingsRappen: number | null = null
@@ -300,6 +312,8 @@ export async function buildPricedScenarios(quote: FullQuote): Promise<PricedScen
       })
       annualSavingsRappen = roi.annualSavingsRappen
       paybackYears = roi.paybackYears
+      savings25YearsRappen = roi.savings25YearsRappen
+      yearlySavingsRappen = roi.yearlySavingsRappen
       selfConsumedKwh = roi.selfConsumedKwh
       exportedKwh = roi.exportedKwh
       selfConsumptionSavingsRappen = roi.selfConsumptionSavingsRappen
@@ -356,6 +370,8 @@ export async function buildPricedScenarios(quote: FullQuote): Promise<PricedScen
       annualKwhYield,
       annualSavingsRappen,
       paybackYears,
+      savings25YearsRappen,
+      yearlySavingsRappen,
       selfConsumptionRatePct: selfConsumptionRate != null ? Math.round(selfConsumptionRate * 100) : null,
       selfConsumedKwh,
       exportedKwh,

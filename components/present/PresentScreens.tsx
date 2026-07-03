@@ -5,10 +5,10 @@
  *   ┌─ TopChrome ───────────────────────────────────────┐
  *   │  [logo]  Bonjour {first}        ← Retour à l'offre │
  *   ├────────────────────────────────────────────────────┤
- *   │  [Screen 1] [Screen 2] [Screen 3]  (scroll-snap)  │
- *   │     Your roof   Your tiers  Your numbers           │
+ *   │  [Screen 1] [Screen 2] [Screen 3] ([Screen 4])     │
+ *   │   Your roof   Your tiers  Your numbers  Do nothing │
  *   ├────────────────────────────────────────────────────┤
- *   │              ●   ○   ○                              │
+ *   │              ●   ○   ○   (○)                       │
  *   │  BottomChrome — screen indicator (tap to jump)     │
  *   └────────────────────────────────────────────────────┘
  *
@@ -16,7 +16,10 @@
  *   Active screen tracked via IntersectionObserver — updates indicator dot
  *   + announces via aria-live region (per design review issue 6.2).
  *
- *   For S3 the 3 screens are placeholders. S4 / S5 / S6 fill them in.
+ *   Screen 4 (« Et si vous ne faites rien ? ») renders only when the quote
+ *   carries consumption + tariff data (vm.doNothing != null) — the deck is
+ *   3 screens otherwise. All screen bookkeeping is index-based so both
+ *   configurations share one code path.
  */
 'use client'
 
@@ -26,6 +29,7 @@ import { customerFr } from '@/lib/i18n/customer-fr'
 import Screen1Roof from './Screen1Roof'
 import Screen2Tiers from './Screen2Tiers'
 import Screen3Numbers from './Screen3Numbers'
+import Screen4Compare from './Screen4Compare'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -64,7 +68,19 @@ export type PresentVM = {
     paybackYears: number | null
     annualSavingsRappen: number | null
     lifetimeSavingsRappen: number | null
+    /** Per-year savings series (length 25) — drives the Screen 3 bars. */
+    yearlySavingsRappen: number[] | null
     installedKwp: number | null
+  } | null
+  /**
+   * Screen 4 data — cumulative electricity cost without vs with the
+   * installation. null → Screen 4 is not rendered (3-screen deck).
+   */
+  doNothing: {
+    withoutCumulative: number[]
+    withCumulative: number[]
+    lifetimeAdvantageRappen: number
+    horizonYears: number
   } | null
   // NOTE: do NOT add `strings: CustomerFr` here — the i18n object contains
   // arrow functions (greeting, lifetimeSavings, payback, screenIndicator
@@ -73,17 +89,21 @@ export type PresentVM = {
   // only data; strings are resolved on the client.
 }
 
-const SCREEN_TITLES = ['screen1', 'screen2', 'screen3'] as const
-type ScreenKey = (typeof SCREEN_TITLES)[number]
-
 // ─── Component ─────────────────────────────────────────────────────────────
 
 export default function PresentScreens({ vm }: { vm: PresentVM }) {
+  const hasScreen4 = vm.doNothing != null
+  const screenCount = hasScreen4 ? 4 : 3
+  const screenTitles = [
+    customerFr.screen1.title,
+    customerFr.screen2.title,
+    customerFr.screen3.title,
+    ...(hasScreen4 ? [customerFr.screen4.title] : []),
+  ]
+
   const scrollerRef = useRef<HTMLDivElement>(null)
-  const screen1Ref = useRef<HTMLDivElement>(null)
-  const screen2Ref = useRef<HTMLDivElement>(null)
-  const screen3Ref = useRef<HTMLDivElement>(null)
-  const [activeScreen, setActiveScreen] = useState<0 | 1 | 2>(0)
+  const screenRefs = useRef<Array<HTMLDivElement | null>>([])
+  const [activeScreen, setActiveScreen] = useState(0)
   const [announce, setAnnounce] = useState('')
 
   // IntersectionObserver: when a screen becomes ≥80% visible in the scroller,
@@ -92,15 +112,13 @@ export default function PresentScreens({ vm }: { vm: PresentVM }) {
   useEffect(() => {
     const scroller = scrollerRef.current
     if (!scroller) return
-    const screens = [screen1Ref.current, screen2Ref.current, screen3Ref.current]
+    const screens = screenRefs.current.slice(0, screenCount)
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
           if (entry.isIntersecting && entry.intersectionRatio >= 0.8) {
             const index = screens.indexOf(entry.target as HTMLDivElement)
-            if (index !== -1 && (index === 0 || index === 1 || index === 2)) {
-              setActiveScreen(index as 0 | 1 | 2)
-            }
+            if (index !== -1) setActiveScreen(index)
           }
         }
       },
@@ -108,28 +126,27 @@ export default function PresentScreens({ vm }: { vm: PresentVM }) {
     )
     for (const s of screens) if (s) observer.observe(s)
     return () => observer.disconnect()
-  }, [])
+  }, [screenCount])
 
   // Announce screen change to screen readers (debounced 200ms).
-  // Format: "Écran 2 sur 3 : Vos options"
+  // Format: "Écran 2 sur 4 : Vos options"
   useEffect(() => {
-    const titles = [
-      customerFr.screen1.title,
-      customerFr.screen2.title,
-      customerFr.screen3.title,
-    ]
     const t = setTimeout(() => {
       setAnnounce(
-        customerFr.screenIndicator.announce(activeScreen + 1, 3, titles[activeScreen])
+        customerFr.screenIndicator.announce(
+          activeScreen + 1,
+          screenCount,
+          screenTitles[activeScreen]
+        )
       )
     }, 200)
     return () => clearTimeout(t)
-    // customerFr is a static module import, not a dep
-  }, [activeScreen])
+    // screenTitles derives from screenCount; customerFr is a static import
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeScreen, screenCount])
 
-  const scrollToScreen = useCallback((index: 0 | 1 | 2) => {
-    const refs = [screen1Ref, screen2Ref, screen3Ref]
-    const target = refs[index].current
+  const scrollToScreen = useCallback((index: number) => {
+    const target = screenRefs.current[index]
     if (target) {
       target.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' })
     }
@@ -138,6 +155,10 @@ export default function PresentScreens({ vm }: { vm: PresentVM }) {
   const greeting = vm.customerFirstName
     ? customerFr.greeting(vm.customerFirstName)
     : customerFr.greetingFallback
+
+  const setScreenRef = (index: number) => (el: HTMLDivElement | null) => {
+    screenRefs.current[index] = el
+  }
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
@@ -168,14 +189,14 @@ export default function PresentScreens({ vm }: { vm: PresentVM }) {
         </Link>
       </header>
 
-      {/* Main scroll-snap container — 3 screens horizontally */}
+      {/* Main scroll-snap container — 3 or 4 screens horizontally */}
       <main
         id="present-main"
         ref={scrollerRef}
         className="flex-1 overflow-x-auto overflow-y-hidden flex snap-x snap-mandatory"
         style={{ scrollSnapStop: 'always' }}
       >
-        <ScreenContainer ref={screen1Ref} keyName="screen1">
+        <ScreenContainer ref={setScreenRef(0)}>
           <Screen1Roof
             mapImageDataUrl={vm.mapImageDataUrl}
             hasMapPosition={vm.map.lat != null && vm.map.lon != null}
@@ -183,20 +204,25 @@ export default function PresentScreens({ vm }: { vm: PresentVM }) {
             strings={customerFr}
           />
         </ScreenContainer>
-        <ScreenContainer ref={screen2Ref} keyName="screen2">
+        <ScreenContainer ref={setScreenRef(1)}>
           <Screen2Tiers tiers={vm.tiers} strings={customerFr} />
         </ScreenContainer>
-        <ScreenContainer ref={screen3Ref} keyName="screen3">
+        <ScreenContainer ref={setScreenRef(2)}>
           <Screen3Numbers hero={vm.hero} strings={customerFr} />
         </ScreenContainer>
+        {hasScreen4 && (
+          <ScreenContainer ref={setScreenRef(3)}>
+            <Screen4Compare doNothing={vm.doNothing!} strings={customerFr} />
+          </ScreenContainer>
+        )}
       </main>
 
       {/* Bottom chrome — screen indicator (tap to jump) */}
       <nav
         className="flex items-center justify-center gap-2 px-6 py-4 border-t border-gray-100 bg-white"
-        aria-label={customerFr.screenIndicator.label(activeScreen + 1, 3)}
+        aria-label={customerFr.screenIndicator.label(activeScreen + 1, screenCount)}
       >
-        {([0, 1, 2] as const).map((i) => (
+        {Array.from({ length: screenCount }, (_, i) => (
           <button
             key={i}
             type="button"
@@ -217,18 +243,16 @@ export default function PresentScreens({ vm }: { vm: PresentVM }) {
 
 // ─── Screen container (sets snap-align + flex sizing) ──────────────────────
 
-const ScreenContainer = forwardRef<
-  HTMLDivElement,
-  { keyName: ScreenKey; children: React.ReactNode }
->(function ScreenContainer({ keyName: _keyName, children }, ref) {
-  return (
-    <section
-      ref={ref}
-      className="flex-shrink-0 w-full snap-start snap-always"
-      style={{ scrollSnapAlign: 'start' }}
-    >
-      <div className="h-full flex flex-col p-6">{children}</div>
-    </section>
-  )
-})
-
+const ScreenContainer = forwardRef<HTMLDivElement, { children: React.ReactNode }>(
+  function ScreenContainer({ children }, ref) {
+    return (
+      <section
+        ref={ref}
+        className="flex-shrink-0 w-full snap-start snap-always"
+        style={{ scrollSnapAlign: 'start' }}
+      >
+        <div className="h-full flex flex-col p-6">{children}</div>
+      </section>
+    )
+  }
+)

@@ -122,6 +122,19 @@ function RoiContent({
   // 25 bars, indices 1..25. Pre-payback: gray-100. At/post payback: red-500.
   const bars = Array.from({ length: 25 }, (_, i) => i + 1)
 
+  // Bar heights from the REAL cumulative savings series (degradation +
+  // electricity price escalation, from calculateRoi) when present; linear
+  // ramp fallback for legacy quotes without the series.
+  const series = hero.yearlySavingsRappen
+  const cumulative: number[] | null =
+    series && series.length > 0
+      ? series.reduce<number[]>((acc, v) => {
+          acc.push((acc[acc.length - 1] ?? 0) + v)
+          return acc
+        }, [])
+      : null
+  const cumulativeMax = cumulative ? cumulative[cumulative.length - 1] : null
+
   return (
     <div className="flex-1 flex flex-col items-center justify-between py-4">
       {/* ─── Hero number stack (top half) ─────────────────────────── */}
@@ -158,8 +171,11 @@ function RoiContent({
           aria-label={`Économies cumulées sur 25 ans, rentabilisé à l'année ${paybackBarIndex}`}
         >
           {bars.map((year) => {
-            // Linear ramp: bar height = (year / 25) of full height.
-            const heightPct = (year / 25) * 100
+            // Real cumulative curve when the series exists; linear fallback.
+            const heightPct =
+              cumulative && cumulativeMax
+                ? (cumulative[Math.min(year - 1, cumulative.length - 1)] / cumulativeMax) * 100
+                : (year / 25) * 100
             const isPostPayback = year >= paybackBarIndex
             return (
               <div

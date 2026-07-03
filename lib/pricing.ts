@@ -206,6 +206,17 @@ export function estimateSelfConsumptionRate(
  * Backward-compatible: when selfConsumptionRate and feedInRateRappenPerKwh are
  * omitted, defaults to the legacy behaviour (100% at retail rate).
  */
+/**
+ * Default long-term assumptions shared by calculateRoi and the /present
+ * "do nothing" comparison (both must use the same escalation so the curves
+ * cross exactly at the payback point).
+ */
+export const ROI_DEFAULTS = {
+  degradationBpsPerYear: 50,
+  escalationBpsPerYear: 200,
+  horizonYears: 25,
+} as const
+
 export function calculateRoi(input: RoiInput): RoiResult {
   const {
     annualKwhYield,
@@ -213,9 +224,9 @@ export function calculateRoi(input: RoiInput): RoiResult {
     feedInRateRappenPerKwh = 0,
     selfConsumptionRate = 1,
     investmentRappen,
-    degradationBpsPerYear = 50,
-    escalationBpsPerYear = 200,
-    horizonYears = 25,
+    degradationBpsPerYear = ROI_DEFAULTS.degradationBpsPerYear,
+    escalationBpsPerYear = ROI_DEFAULTS.escalationBpsPerYear,
+    horizonYears = ROI_DEFAULTS.horizonYears,
   } = input
 
   const selfConsumedKwh = Math.round(annualKwhYield * selfConsumptionRate)

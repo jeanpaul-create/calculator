@@ -63,6 +63,8 @@ const mockScenario: PricedScenario = {
   rateRappenPerKwh: 30,
   annualSavingsRappen: 174000,
   paybackYears: 9.2,
+  savings25YearsRappen: 174000 * 25,
+  yearlySavingsRappen: Array.from({ length: 25 }, () => 174000),
   pronovoSubsidyRappen: 158400,
   taxSavingsRappen: 297000,
   effectiveInvestmentRappen: 1149885,
@@ -129,6 +131,8 @@ describe('QuotePdf rendering', () => {
       annualKwhYield: null,
       annualSavingsRappen: null,
       paybackYears: null,
+      savings25YearsRappen: null,
+      yearlySavingsRappen: null,
       effectiveInvestmentRappen: null,
       paybackYearsWithSubsidy: null,
     }
