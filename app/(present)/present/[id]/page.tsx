@@ -128,9 +128,14 @@ function buildPresentVM(
     itemsSummary: summarizeItems(s),
   }))
 
-  // Find the Recommandé tier (or first tier as fallback) for the hero number
-  // computations on Screen 3
+  // Hero pick: rep's explicit choice (quote.heroScenarioId) wins; stale ids
+  // (scenario re-created on edit) fall through to the automatic pick
+  // (recommandé → premium → first).
+  const repPick = quote.heroScenarioId
+    ? tiers.find((t) => t.id === quote.heroScenarioId) ?? null
+    : null
   const heroScenario =
+    repPick ??
     tiers.find((t) => t.tier === 'recommande') ??
     tiers.find((t) => t.tier === 'premium') ??
     tiers[0] ??

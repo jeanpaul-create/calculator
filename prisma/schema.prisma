@@ -277,6 +277,11 @@ model Quote {
   //                rep see "viewed 3x" as a follow-up signal.
   firstViewedAt DateTime?
   viewCount     Int         @default(0)
+  /// Rep-chosen hero scenario for /present Screen 3/4 (« vos chiffres » +
+  /// « et si vous ne faites rien ? »). Null = automatic pick (recommandé →
+  /// premium → first). Points at a QuoteScenario id belonging to this quote;
+  /// stale ids (scenario re-created on edit) fall back to the automatic pick.
+  heroScenarioId String?
   /// Cantonal building registration number (No ECA in Vaud, EGID in
   /// federal RegBL). Rep-entered, required on cantonal permit forms.
   /// Null on legacy quotes and DRAFTs that haven't reached permit-pack
