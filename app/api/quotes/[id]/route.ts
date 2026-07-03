@@ -45,6 +45,9 @@ const SaveScenarioSchema = z.object({
   selfConsumptionRatePct: z.number().int().min(0).max(100).optional(),
   feedInRateRappenPerKwh: z.number().int().min(0).max(200).optional(),
   annualConsumptionKwh: z.number().int().min(0).max(1000000).optional(),
+  // PAC dimensioning + subsidy context (PAC scenarios only; ignored on PV)
+  thermalLoadKw: z.number().min(0.5).max(200).optional(),
+  pacType: z.enum(['air-eau', 'sol-eau']).optional(),
   // Rep-chosen discount (0-9999 basis points; saves with requiresApproval flag
   // when the resulting effective margin falls below min_margin_basis_pts)
   discountBasisPts: z.number().int().min(0).max(9999).optional(),
@@ -458,6 +461,9 @@ export async function PUT(req: NextRequest, { params }: Params) {
             quoteId: params.id,
             name: sib.tier === 'essentiel' ? 'Essentiel' : sib.tier === 'recommande' ? 'Recommandé' : 'Premium',
             scenarioType,
+            // PAC context is per-building, not per-tier — siblings share it
+            thermalLoadKw: scenarioType === 'PAC' ? data.thermalLoadKw ?? null : null,
+            pacType: scenarioType === 'PAC' ? data.pacType ?? null : null,
             marginBasisPts: sib.pricing.effectiveMarginBasisPts,
             vatPctBasisPts: vatBasisPts,
             rateRappenPerKwh,
@@ -495,6 +501,8 @@ export async function PUT(req: NextRequest, { params }: Params) {
           quoteId: params.id,
           name: data.name ?? (data.tier === 'essentiel' ? 'Essentiel' : data.tier === 'recommande' ? 'Recommandé' : data.tier === 'premium' ? 'Premium' : 'Scénario 1'),
           scenarioType,
+          thermalLoadKw: scenarioType === 'PAC' ? data.thermalLoadKw ?? null : null,
+          pacType: scenarioType === 'PAC' ? data.pacType ?? null : null,
           marginBasisPts: pricing.effectiveMarginBasisPts,
           vatPctBasisPts: vatBasisPts,
           rateRappenPerKwh,

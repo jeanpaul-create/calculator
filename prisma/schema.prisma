@@ -375,6 +375,10 @@ model QuoteScenario {
   /// for next-larger machine size).
   /// Null on PV scenarios and PAC scenarios pre-heat-load-calc.
   thermalLoadKw            Float?
+  /// PAC type for subsidy + permit context: 'air-eau' (aerothermal) or
+  /// 'sol-eau' (geothermal). Rep-selected in the PAC calculator. Null on
+  /// PV scenarios and legacy PAC scenarios.
+  pacType                  String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

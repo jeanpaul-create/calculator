@@ -266,6 +266,13 @@ export default function PacCalculatorForm({
 
   const buildScenarioPayload = () => ({
     scenarioType: 'PAC' as const,
+    // PAC dimensioning + subsidy context — persisted on the scenario so the
+    // /present deck and permit forms can reuse them.
+    thermalLoadKw: (() => {
+      const kw = parseFloat(thermalKwStr)
+      return Number.isFinite(kw) && kw > 0 ? kw : undefined
+    })(),
+    pacType,
     discountBasisPts,
     discountReason: discountBasisPts > 0 && discountReason.trim() ? discountReason.trim() : undefined,
     ...projectInfo,
