@@ -143,10 +143,20 @@ model CostOption {
 model SwissRate {
   id       String @id @default(cuid())
   canton   String // e.g. "ZH", "BE", "GE"
-  // ZIP prefix (first 2 digits) for fast lookup
+  // ZIP lookup key: full 4-digit NPA for municipality-level rows (seeded from
+  // prisma/zip_energy_2026.json), or 2-digit canton prefix for fallback rows.
   zipPrefix String
-  // Average electricity rate in Rappen per kWh (integer)
+  // Retail electricity rate (H4 profile) in centimes per kWh (integer)
   rateRappenPerKwh Int
+  /// Feed-in tariff (rétribution de l'injection) in ct/kWh, 2026 — from the
+  /// ElCom sunshine dataset (tariffEH4) of the ZIP's majority grid operator.
+  /// Null when the operator publishes no tariff. Decimals preserved (e.g. 14.038).
+  feedInRappenPerKwh Float?
+  /// Grid operator serving the majority of communes in this ZIP (e.g.
+  /// "Romande Energie SA"). Shown to the rep as provenance for the rates.
+  operatorName String?
+  /// Representative commune name for this ZIP (from the swisstopo PLZ register).
+  communeName String?
 
   @@unique([canton, zipPrefix])
   @@index([zipPrefix])
