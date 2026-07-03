@@ -355,6 +355,12 @@ model QuoteScenario {
   // True when discount drops effective margin below min_margin_basis_pts —
   // surfaces in admin queue for sign-off. False otherwise.
   requiresApproval         Boolean  @default(false)
+  /// Admin sign-off on a below-floor discount. Stamped by the approval
+  /// queue (/admin/approvals). Null while pending; requiresApproval stays
+  /// true as the historical flag.
+  discountApprovedAt       DateTime?
+  /// Admin (User.name or email) who approved the discount.
+  discountApprovedBy       String?
   // Customer-facing 4-line breakdown snapshotted at save time. Null on
   // pre-Phase-2 quotes — PDF falls back to single "Total HT" line in that
   // case. Sum (equipment + installation + services + margin) === sellingPriceExVatRappen.
