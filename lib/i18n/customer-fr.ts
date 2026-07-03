@@ -74,6 +74,16 @@ export const customerFr = {
       // Shown when annualSavingsRappen is null (pre-Phase-2 quote)
       noRoiData: 'Données ROI indisponibles, contactez votre conseiller',
     },
+    // PAC variant — the subsidy story (rendered instead of the PV ROI when
+    // the hero scenario is a heat pump with a verified cantonal subsidy)
+    pac: {
+      subsidyPrefix: 'Subvention cantonale',
+      subsidyContext: (canton: string, year: number) => `${canton} ${year} — déduite de votre investissement`,
+      netCostLabel: 'Coût net après subvention',
+      thermalLabel: (kw: string) => `Pompe à chaleur dimensionnée à ${kw} kW`,
+      caveat:
+        'Remplacement d’un chauffage mazout, gaz ou électrique fixe. Demande à déposer avant la signature — sous réserve d’acceptation par le canton.',
+    },
   },
 
   // ─── Screen 4: Et si vous ne faites rien ? ─────────────────

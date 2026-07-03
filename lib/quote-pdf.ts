@@ -100,6 +100,12 @@ export interface PricedScenario {
   tier: 'essentiel' | 'recommande' | 'premium' | null
   /** Display order: essentiel=0, recommande=1, premium=2 (canonical). */
   sortOrder: number
+  /** PV or PAC — drives which /present hero story renders (ROI vs subsidy). */
+  scenarioType: 'PV' | 'PAC'
+  /** PAC design heat load in kW (null on PV / legacy PAC scenarios). */
+  thermalLoadKw: number | null
+  /** 'air-eau' | 'sol-eau' (null on PV / legacy PAC scenarios). */
+  pacType: string | null
   items: Array<{ name: string; quantity: number; category: string }>
   options: Array<{ name: string }>
 }
@@ -386,6 +392,9 @@ export async function buildPricedScenarios(quote: FullQuote): Promise<PricedScen
       rateRappenPerKwh: rateRappenPerKwh ?? null,
       tier: (scenario.tier as 'essentiel' | 'recommande' | 'premium' | null) ?? null,
       sortOrder: scenario.sortOrder ?? 0,
+      scenarioType: (scenario.scenarioType as 'PV' | 'PAC') ?? 'PV',
+      thermalLoadKw: scenario.thermalLoadKw ?? null,
+      pacType: scenario.pacType ?? null,
       items: items.map(({ name, quantity, category }) => ({ name, quantity, category })),
       options,
     }

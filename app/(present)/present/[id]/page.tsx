@@ -31,6 +31,7 @@ import {
   type PricedScenario,
 } from '@/lib/quote-pdf'
 import { buildDoNothing } from '@/lib/present-do-nothing'
+import { calculateHeatPumpSubsidy } from '@/lib/subsidies'
 import PresentScreens, { type PresentVM, type PresentTier } from '@/components/present/PresentScreens'
 
 export const dynamic = 'force-dynamic'
@@ -180,6 +181,31 @@ function buildPresentVM(
         }
       : null,
     doNothing: heroPriced ? buildDoNothing(heroPriced) : null,
+    pacHero: heroPriced ? buildPacHero(quote, heroPriced) : null,
+  }
+}
+
+/**
+ * Screen 3 PAC variant data — the subsidy story. Computed only for PAC hero
+ * scenarios with a verified cantonal rule + persisted dimensioning inputs
+ * (pacType + thermalLoadKw from the PAC calculator). Null → Screen 3 falls
+ * back to its generic empty state.
+ */
+function buildPacHero(quote: FullQuote, s: PricedScenario): PresentVM['pacHero'] {
+  if (s.scenarioType !== 'PAC') return null
+  const canton = quote.customerCanton
+  const thermalKw = s.thermalLoadKw
+  const pacType = s.pacType === 'sol-eau' ? 'sol-eau' : 'air-eau'
+  if (!canton || !thermalKw) return null
+  const subsidy = calculateHeatPumpSubsidy(canton, pacType, thermalKw)
+  if (!subsidy) return null
+  return {
+    thermalKw,
+    pacType,
+    canton: subsidy.rule.canton,
+    subsidyYear: subsidy.rule.year,
+    subsidyRappen: subsidy.subsidyRappen,
+    netCostRappen: Math.max(0, s.sellingPriceIncVatRappen - subsidy.subsidyRappen),
   }
 }
 

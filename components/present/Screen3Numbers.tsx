@@ -47,6 +47,7 @@ import type { PresentVM } from './PresentScreens'
 
 interface Props {
   hero: PresentVM['hero']
+  pacHero: PresentVM['pacHero']
   strings: CustomerFr
 }
 
@@ -68,7 +69,7 @@ function formatPayback(years: number): string {
   return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1)
 }
 
-export default function Screen3Numbers({ hero, strings }: Props) {
+export default function Screen3Numbers({ hero, pacHero, strings }: Props) {
   // Empty state — pre-Phase-2 quote (no ROI data) or scenario lacked the
   // tariff data needed to compute payback. Per design review C1 — fall
   // back gracefully, don't show "—" or zeros.
@@ -89,10 +90,68 @@ export default function Screen3Numbers({ hero, strings }: Props) {
 
       {hasRoi ? (
         <RoiContent hero={hero} strings={strings} />
+      ) : pacHero != null ? (
+        <PacContent pacHero={pacHero} strings={strings} />
       ) : (
         <EmptyState message={strings.screen3.fallback.noRoiData} />
       )}
     </>
+  )
+}
+
+// ─── PAC content — the subsidy story ──────────────────────────────────────
+
+/**
+ * PAC hero: the dominant number is the cantonal subsidy (money the customer
+ * gets back), followed by the net cost after subsidy. Mirrors the PV layout
+ * discipline: one hero number, one supporting figure, one caveat line.
+ */
+function PacContent({
+  pacHero,
+  strings,
+}: {
+  pacHero: NonNullable<PresentVM['pacHero']>
+  strings: CustomerFr
+}) {
+  const kwDisplay = Number.isInteger(pacHero.thermalKw)
+    ? String(pacHero.thermalKw)
+    : pacHero.thermalKw.toFixed(1)
+
+  return (
+    <div className="flex-1 flex flex-col items-center justify-between py-4">
+      {/* ─── Hero number: the subsidy ─────────────────────────────── */}
+      <div className="flex flex-col items-center text-center pt-4">
+        <div className="text-sm text-gray-500 mb-2">{strings.screen3.pac.subsidyPrefix}</div>
+        <div
+          className="font-mono font-extrabold text-gray-900 leading-none tabular-nums"
+          style={{
+            fontSize: 'clamp(72px, 14vw, 112px)',
+            letterSpacing: '-0.04em',
+          }}
+        >
+          −{formatChf(pacHero.subsidyRappen)}
+        </div>
+        <div className="text-sm text-gray-500 mt-2">
+          {strings.screen3.pac.subsidyContext(pacHero.canton, pacHero.subsidyYear)}
+        </div>
+      </div>
+
+      {/* ─── Net cost after subsidy ───────────────────────────────── */}
+      <div className="text-center mt-8">
+        <div className="text-sm text-gray-500 mb-1">{strings.screen3.pac.netCostLabel}</div>
+        <div className="text-4xl font-bold text-gray-900 font-mono tabular-nums tracking-tight">
+          {formatChf(pacHero.netCostRappen)}
+        </div>
+        <div className="text-xs text-gray-500 mt-3">
+          {strings.screen3.pac.thermalLabel(kwDisplay)}
+        </div>
+      </div>
+
+      {/* ─── Caveat ───────────────────────────────────────────────── */}
+      <p className="text-[11px] leading-snug text-gray-400 max-w-md text-center mt-8">
+        {strings.screen3.pac.caveat}
+      </p>
+    </div>
   )
 }
 

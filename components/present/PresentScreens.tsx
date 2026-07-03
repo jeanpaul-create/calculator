@@ -81,6 +81,18 @@ export type PresentVM = {
     installedKwp: number | null
   } | null
   /**
+   * Screen 3 PAC variant — the subsidy story. Set only for PAC hero
+   * scenarios with a verified cantonal subsidy + persisted dimensioning.
+   */
+  pacHero: {
+    thermalKw: number
+    pacType: 'air-eau' | 'sol-eau'
+    canton: string
+    subsidyYear: number
+    subsidyRappen: number
+    netCostRappen: number
+  } | null
+  /**
    * Screen 4 data — cumulative electricity cost without vs with the
    * installation. null → Screen 4 is not rendered (3-screen deck).
    */
@@ -216,7 +228,7 @@ export default function PresentScreens({ vm }: { vm: PresentVM }) {
           <Screen2Tiers tiers={vm.tiers} heroTierId={vm.heroTierId} strings={customerFr} />
         </ScreenContainer>
         <ScreenContainer ref={setScreenRef(2)}>
-          <Screen3Numbers hero={vm.hero} strings={customerFr} />
+          <Screen3Numbers hero={vm.hero} pacHero={vm.pacHero} strings={customerFr} />
         </ScreenContainer>
         {hasScreen4 && (
           <ScreenContainer ref={setScreenRef(3)}>
