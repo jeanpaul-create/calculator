@@ -67,6 +67,21 @@ export interface RoiInput {
   selfConsumptionRate?: number
   /** Total investment (selling price inc. VAT) in Rappen */
   investmentRappen: number
+  /**
+   * Panel output degradation per year in basis points (default 50 = 0.5%/yr,
+   * the typical warranted rate for mono-PERC modules). Pass 0 for the legacy
+   * flat-output behaviour.
+   */
+  degradationBpsPerYear?: number
+  /**
+   * Retail electricity price escalation per year in basis points (default
+   * 200 = 2%/yr — conservative vs the 2021→2026 Swiss trajectory). Applied to
+   * the retail rate only; the feed-in tariff is kept flat (conservative, as
+   * injection tariffs have been trending down). Pass 0 for legacy behaviour.
+   */
+  escalationBpsPerYear?: number
+  /** Analysis horizon in years (default 25 — typical module warranty). */
+  horizonYears?: number
 }
 
 export interface RoiResult {
@@ -80,12 +95,21 @@ export interface RoiResult {
   selfConsumptionSavingsRappen: number
   /** Revenue from grid export (exportedKwh × feedInRate) */
   exportRevenueRappen: number
-  /** Total annual value = selfConsumptionSavings + exportRevenue */
+  /** Total annual value = selfConsumptionSavings + exportRevenue (year 1) */
   annualSavingsRappen: number
-  /** Simple payback period in years (to one decimal) */
+  /** Payback period in years (to one decimal), from the cumulative yearly series */
   paybackYears: number
-  /** Total value over 25 years in Rappen */
+  /**
+   * Total value over the analysis horizon (default 25 years) in Rappen,
+   * accounting for panel degradation and retail price escalation.
+   */
   savings25YearsRappen: number
+  /**
+   * Savings per year over the horizon (length = horizonYears). Year 0 equals
+   * annualSavingsRappen. Feeds the savings curve on /present and the
+   * "do nothing" comparison.
+   */
+  yearlySavingsRappen: number[]
 }
 
 /**
@@ -182,6 +206,17 @@ export function estimateSelfConsumptionRate(
  * Backward-compatible: when selfConsumptionRate and feedInRateRappenPerKwh are
  * omitted, defaults to the legacy behaviour (100% at retail rate).
  */
+/**
+ * Default long-term assumptions shared by calculateRoi and the /present
+ * "do nothing" comparison (both must use the same escalation so the curves
+ * cross exactly at the payback point).
+ */
+export const ROI_DEFAULTS = {
+  degradationBpsPerYear: 50,
+  escalationBpsPerYear: 200,
+  horizonYears: 25,
+} as const
+
 export function calculateRoi(input: RoiInput): RoiResult {
   const {
     annualKwhYield,
@@ -189,6 +224,9 @@ export function calculateRoi(input: RoiInput): RoiResult {
     feedInRateRappenPerKwh = 0,
     selfConsumptionRate = 1,
     investmentRappen,
+    degradationBpsPerYear = ROI_DEFAULTS.degradationBpsPerYear,
+    escalationBpsPerYear = ROI_DEFAULTS.escalationBpsPerYear,
+    horizonYears = ROI_DEFAULTS.horizonYears,
   } = input
 
   const selfConsumedKwh = Math.round(annualKwhYield * selfConsumptionRate)
@@ -198,12 +236,36 @@ export function calculateRoi(input: RoiInput): RoiResult {
   const exportRevenueRappen = Math.round(exportedKwh * feedInRateRappenPerKwh)
   const annualSavingsRappen = selfConsumptionSavingsRappen + exportRevenueRappen
 
-  const paybackYears =
-    annualSavingsRappen === 0
-      ? Infinity
-      : Math.round((investmentRappen / annualSavingsRappen) * 10) / 10
-
-  const savings25YearsRappen = annualSavingsRappen * 25
+  // Year-by-year series: production degrades, retail rate escalates, feed-in
+  // stays flat. Payback = first year the cumulative series covers the
+  // investment (linear interpolation within that year). With degradation and
+  // escalation at 0 this reduces exactly to the legacy investment/annual math.
+  const degF = 1 - degradationBpsPerYear / 10000
+  const escF = 1 + escalationBpsPerYear / 10000
+  const yearlySavingsRappen: number[] = []
+  let savingsHorizonRappen = 0
+  let cumulative = 0
+  let paybackYears = Infinity
+  // Extend past the horizon (to 50y) only to locate a late payback point.
+  const maxYears = Math.max(horizonYears, 50)
+  for (let y = 0; y < maxYears; y++) {
+    const yieldFactor = Math.pow(degF, y)
+    const selfY = annualKwhYield * selfConsumptionRate * yieldFactor
+    const expY = annualKwhYield * yieldFactor - selfY
+    const savingsY = Math.round(
+      selfY * rateRappenPerKwh * Math.pow(escF, y) + expY * feedInRateRappenPerKwh
+    )
+    if (y < horizonYears) {
+      yearlySavingsRappen.push(savingsY)
+      savingsHorizonRappen += savingsY
+    }
+    const before = cumulative
+    cumulative += savingsY
+    if (paybackYears === Infinity && savingsY > 0 && cumulative >= investmentRappen) {
+      paybackYears = Math.round((y + (investmentRappen - before) / savingsY) * 10) / 10
+    }
+    if (y >= horizonYears - 1 && paybackYears !== Infinity) break
+  }
 
   return {
     selfConsumedKwh,
@@ -213,7 +275,8 @@ export function calculateRoi(input: RoiInput): RoiResult {
     exportRevenueRappen,
     annualSavingsRappen,
     paybackYears,
-    savings25YearsRappen,
+    savings25YearsRappen: savingsHorizonRappen,
+    yearlySavingsRappen,
   }
 }
 

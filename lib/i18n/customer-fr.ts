@@ -71,6 +71,24 @@ export const customerFr = {
     },
   },
 
+  // ─── Screen 4: Et si vous ne faites rien ? ─────────────────
+  screen4: {
+    title: 'Et si vous ne faites rien ?',
+    legend: {
+      without: 'Sans installation',
+      with: 'Avec installation',
+    },
+    // Suffix under the hero advantage number (the number itself is rendered
+    // big, Screen-3 style).
+    advantageSuffix: 'CHF d’avantage sur 25 ans',
+    subCaption:
+      'Coût cumulé de votre électricité — au tarif actuel de votre commune, avec la hausse des prix.',
+    axis: {
+      year1: 'An 1',
+      year25: 'An 25',
+    },
+  },
+
   // ─── Bottom chrome (screen indicator) ──────────────────────
   screenIndicator: {
     label: (current: number, total: number) => `Écran ${current} sur ${total}`,

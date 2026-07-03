@@ -11,6 +11,7 @@ import {
   formatChf,
   formatPct,
 } from '@/lib/pricing'
+import { calculateHeatPumpSubsidy } from '@/lib/subsidies'
 import { useLanguage } from '@/context/LanguageContext'
 import { Card, EmptyState, SectionHeader } from '@/components/ui'
 import AddressSearch from './AddressSearch'
@@ -32,6 +33,7 @@ interface PacProduct {
     | 'PAC_CONDUITE'
     | 'PAC_MONTAGE'
     | 'PAC_ADMIN'
+    | 'PAC_TANK'
   costRappen: number
   laborRappen: number | null
 }
@@ -53,6 +55,7 @@ interface PacCalculatorFormProps {
 
 const CATEGORY_ORDER = [
   'PAC_MACHINE',
+  'PAC_TANK',
   'PAC_ACCESSORY',
   'PAC_ELECTRICITE',
   'PAC_MACONNERIE',
@@ -73,6 +76,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   PAC_CONDUITE: 'Conduite',
   PAC_MONTAGE: 'Montage',
   PAC_ADMIN: 'Administratif',
+  PAC_TANK: 'Ballons / Réservoirs',
 }
 
 export default function PacCalculatorForm({
@@ -115,13 +119,21 @@ export default function PacCalculatorForm({
    */
   const [pacPos, setPacPos] = useState<{ lat: number; lon: number } | null>(null)
   /**
-   * Site info auto-populated from the address ZIP — for PAC we mainly use the
-   * commune name (ElCom rate is informational, not used in PAC pricing).
+   * Site info auto-populated from the address ZIP — commune for display,
+   * canton for the cantonal heat-pump subsidy estimate.
    */
   const [siteInfo, setSiteInfo] = useState<{
     rateCtPerKwh: number | null
     communeName: string | null
+    canton: string | null
   } | null>(null)
+  /**
+   * Subsidy inputs — PAC type + design heat load. The kW value should match
+   * the heat-load calculation (suissetec) when one exists; it's editable here
+   * so the rep can show the subsidy live in the meeting before any save.
+   */
+  const [pacType, setPacType] = useState<'air-eau' | 'sol-eau'>('air-eau')
+  const [thermalKwStr, setThermalKwStr] = useState<string>('')
   const [fetchingSiteInfo, setFetchingSiteInfo] = useState(false)
   /** AI prompt dialog open state */
   const [aiOpen, setAiOpen] = useState(false)
@@ -409,6 +421,7 @@ export default function PacCalculatorForm({
                           setSiteInfo({
                             rateCtPerKwh: d.rateCtPerKwh,
                             communeName: d.communeName,
+                            canton: d.canton ?? null,
                           })
                       )
                       .catch(() => {})
@@ -444,6 +457,32 @@ export default function PacCalculatorForm({
                 value={projectInfo.customerPhone}
                 onChange={(e) => setProjectInfo((p) => ({ ...p, customerPhone: e.target.value }))}
               />
+            </div>
+            <div>
+              <label className="label">Type de PAC</label>
+              <select
+                className="input"
+                value={pacType}
+                onChange={(e) => setPacType(e.target.value as 'air-eau' | 'sol-eau')}
+              >
+                <option value="air-eau">Air-eau (aérothermique)</option>
+                <option value="sol-eau">Sol-eau (géothermique)</option>
+              </select>
+            </div>
+            <div>
+              <label className="label">Puissance thermique (kW)</label>
+              <input
+                type="number"
+                min="0"
+                step="0.5"
+                className="input"
+                placeholder="ex. 10.5"
+                value={thermalKwStr}
+                onChange={(e) => setThermalKwStr(e.target.value)}
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                Selon le calcul de charge thermique — sert à estimer la subvention cantonale.
+              </p>
             </div>
             <div className="sm:col-span-2">
               <label className="label">Notes</label>
@@ -719,6 +758,7 @@ export default function PacCalculatorForm({
       {/* Right: price summary */}
       <div className="w-full lg:w-72 lg:flex-shrink-0">
         {pricing ? (
+          <>
           <PacPriceSummaryCard
             pricing={pricing}
             vatBasisPts={vatBasisPts}
@@ -733,6 +773,13 @@ export default function PacCalculatorForm({
             onSave={quoteId ? handleSave : undefined}
             onSaveAsNew={!quoteId ? handleSaveAsNewQuote : undefined}
           />
+          <PacSubsidyCard
+            canton={siteInfo?.canton ?? null}
+            pacType={pacType}
+            thermalKwStr={thermalKwStr}
+            totalIncVatRappen={pricing.sellingPriceIncVatRappen}
+          />
+          </>
         ) : (
           <Card padding="none" className="sticky top-6">
             <EmptyState
@@ -748,6 +795,78 @@ export default function PacCalculatorForm({
             />
           </Card>
         )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Cantonal subsidy estimate card ───────────────────────────────────────────
+
+/**
+ * Shows the cantonal heat-pump replacement subsidy under the price summary.
+ * Amounts come from lib/subsidies.ts and are only displayed for cantons with
+ * a verified entry — other cantons get a neutral "check locally" hint so a
+ * customer never sees an unverified figure.
+ */
+function PacSubsidyCard({
+  canton,
+  pacType,
+  thermalKwStr,
+  totalIncVatRappen,
+}: {
+  canton: string | null
+  pacType: 'air-eau' | 'sol-eau'
+  thermalKwStr: string
+  totalIncVatRappen: number
+}) {
+  if (!canton) return null
+
+  const thermalKw = parseFloat(thermalKwStr)
+  const hasKw = Number.isFinite(thermalKw) && thermalKw > 0
+  const subsidy = hasKw ? calculateHeatPumpSubsidy(canton, pacType, thermalKw) : null
+
+  // Canton without a verified rule: neutral hint, no amount.
+  if (hasKw && !subsidy) {
+    return (
+      <div className="card mt-4 px-5 py-4 text-xs text-gray-500">
+        Subventions cantonales possibles ({canton}) — montant à vérifier auprès du
+        Programme Bâtiments du canton.
+      </div>
+    )
+  }
+
+  if (!subsidy) {
+    return (
+      <div className="card mt-4 px-5 py-4 text-xs text-gray-400">
+        Indiquez la puissance thermique (kW) pour estimer la subvention cantonale
+        {canton === 'VD' ? ' (VD 2026)' : ''}.
+      </div>
+    )
+  }
+
+  const netRappen = Math.max(0, totalIncVatRappen - subsidy.subsidyRappen)
+  return (
+    <div className="card mt-4 border-l-4 border-l-green-600">
+      <div className="px-5 py-4 space-y-2">
+        <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+          Subvention cantonale ({subsidy.rule.canton} {subsidy.rule.year})
+        </div>
+        <div className="flex justify-between text-sm">
+          <span className="text-gray-600">
+            PAC {pacType === 'sol-eau' ? 'sol-eau' : 'air-eau'} · {thermalKw} kW
+          </span>
+          <span className="tabular-nums font-mono font-semibold text-green-700">
+            − {formatChf(subsidy.subsidyRappen)}
+          </span>
+        </div>
+        <div className="border-t border-gray-100 pt-2 flex justify-between font-semibold text-sm">
+          <span>Coût net après subvention</span>
+          <span className="tabular-nums font-mono">{formatChf(netRappen)}</span>
+        </div>
+        <p className="text-[11px] leading-snug text-gray-400 pt-1">
+          Remplacement mazout/gaz/électrique fixe. Demande à déposer <strong>avant</strong> la
+          signature du contrat — sous réserve d&apos;acceptation par le canton.
+        </p>
       </div>
     </div>
   )
