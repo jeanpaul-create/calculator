@@ -21,6 +21,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/db'
+import { notifyRep } from '@/lib/notify-rep'
 import { enforceRateLimit } from '@/lib/rate-limit'
 
 const Schema = z.object({
@@ -100,6 +101,9 @@ export async function POST(
             },
       select: { status: true },
     })
+
+    // Tell the rep immediately — fire-and-forget, never blocks the customer.
+    void notifyRep(quote.id, action === 'accept' ? 'accepted' : 'declined')
 
     return NextResponse.json({ ok: true, status: updated.status })
   } catch (err) {

@@ -36,6 +36,7 @@
 import { cache } from 'react'
 import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/db'
+import { notifyRep } from '@/lib/notify-rep'
 import { formatChf, formatPct } from '@/lib/pricing'
 import PublicQuoteView, { type PublicQuoteVM } from '@/components/quotes/PublicQuoteView'
 
@@ -84,6 +85,7 @@ export default async function PublicQuotePage({ params }: Props) {
   // (ACCEPTED / DECLINED / EXPIRED) where re-opens are noise rather than
   // signal.
   if (quote.status === 'SENT') {
+    const isFirstView = quote.firstViewedAt == null
     prisma.quote
       .update({
         where: { id: quote.id },
@@ -93,6 +95,9 @@ export default async function PublicQuotePage({ params }: Props) {
         },
       })
       .catch((err) => console.error('[/q view tracking]', err))
+    // First open only — tell the rep while the lead is hot. Repeat views
+    // stay silent (they're visible as viewCount on the quote page).
+    if (isFirstView) void notifyRep(quote.id, 'viewed')
   }
 
   const firstScenario = quote.scenarios[0]
