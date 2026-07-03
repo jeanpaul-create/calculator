@@ -271,7 +271,11 @@ const ScreenContainer = forwardRef<HTMLDivElement, { children: React.ReactNode }
         className="flex-shrink-0 w-full snap-start snap-always"
         style={{ scrollSnapAlign: 'start' }}
       >
-        <div className="h-full flex flex-col p-6">{children}</div>
+        {/* overflow-y-auto: a screen taller than the viewport (e.g. Screen 2's
+            portrait card stack on a small tablet) scrolls vertically inside
+            its snap panel instead of being clipped by the horizontal
+            scroller's overflow-y-hidden. */}
+        <div className="h-full flex flex-col p-6 overflow-y-auto">{children}</div>
       </section>
     )
   }
