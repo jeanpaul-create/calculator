@@ -49,6 +49,8 @@ export default async function DashboardPage() {
       expiresAt: true,
       createdAt: true,
       updatedAt: true,
+      viewCount: true,
+      firstViewedAt: true,
       rep: { select: { name: true } },
       scenarios: {
         select: { sellingPriceIncVatRappen: true },
@@ -92,13 +94,23 @@ export default async function DashboardPage() {
     }
   }
 
+  // ── Hot leads: SENT, customer came back (≥2 views), still no response ──
+  // The first view triggers a rep email (notify-rep); a RETURN visit is the
+  // strongest buy signal we track — surface it above the stale follow-ups.
+  const hotLeads = quotes
+    .filter((q) => q.status === 'SENT' && q.viewCount >= 2)
+    .sort((a, b) => b.viewCount - a.viewCount)
+    .slice(0, 5)
+  const hotLeadIds = new Set(hotLeads.map((q) => q.id))
+
   // ── Follow-ups: SENT > 7 days ago, no acceptance ──
   const followUps = quotes
     .filter(
       (q) =>
         q.status === 'SENT' &&
         q.sentAt &&
-        now - q.sentAt.getTime() > 7 * 24 * 60 * 60 * 1000
+        now - q.sentAt.getTime() > 7 * 24 * 60 * 60 * 1000 &&
+        !hotLeadIds.has(q.id) // already shown above
     )
     .slice(0, 6)
 
@@ -199,8 +211,50 @@ export default async function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Left column: follow-ups + quick actions */}
+        {/* Left column: hot leads + follow-ups + quick actions */}
         <div className="lg:col-span-2 space-y-4">
+          {hotLeads.length > 0 && (
+            <Card>
+              <div className="flex items-baseline justify-between mb-4">
+                <h2 className="text-sm font-semibold text-gray-900">
+                  🔥 Leads chauds
+                </h2>
+                <span className="text-xs text-gray-400">
+                  Le client est revenu sur l&apos;offre — appelez maintenant
+                </span>
+              </div>
+              <div className="-mx-2">
+                {hotLeads.map((q) => {
+                  const total = q.scenarios[0]?.sellingPriceIncVatRappen ?? null
+                  return (
+                    <Link
+                      key={q.id}
+                      href={`/quotes/${q.id}`}
+                      className="flex items-center gap-3 px-2 py-2 hover:bg-gray-50 rounded transition-colors"
+                    >
+                      <span className="font-mono text-xs text-red-600 font-semibold tabular-nums w-24 truncate">
+                        {q.quoteNumber}
+                      </span>
+                      <span className="font-medium text-sm text-gray-900 flex-1 truncate">
+                        {q.customerName?.trim() || (
+                          <span className="text-gray-400 italic">Sans nom</span>
+                        )}
+                      </span>
+                      {total != null && (
+                        <span className="font-mono tabular-nums text-sm text-gray-700 hidden md:inline">
+                          {formatChf(total)}
+                        </span>
+                      )}
+                      <span className="text-[10px] font-semibold text-red-700 bg-red-50 border border-red-200 rounded px-1.5 py-0.5 tabular-nums">
+                        👁 {q.viewCount}×
+                      </span>
+                    </Link>
+                  )
+                })}
+              </div>
+            </Card>
+          )}
+
           <Card>
             <div className="flex items-baseline justify-between mb-4">
               <h2 className="text-sm font-semibold text-gray-900">
