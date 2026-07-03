@@ -96,6 +96,7 @@ export default async function QuoteDetailPage({ params }: Props) {
     customerZip: quote.customerZip,
     customerCanton: quote.customerCanton,
     siteAddress: quote.siteAddress,
+    heroScenarioId: quote.heroScenarioId,
     notes: quote.notes,
     createdAt: quote.createdAt.toISOString(),
     updatedAt: quote.updatedAt.toISOString(),

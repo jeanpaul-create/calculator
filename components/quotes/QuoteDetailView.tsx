@@ -69,6 +69,8 @@ export interface QuoteDetailVM {
   customerZip: string | null
   customerCanton: string | null
   siteAddress: string | null
+  /** Rep-chosen hero scenario for /present (null = automatic pick). */
+  heroScenarioId: string | null
   notes: string | null
   createdAt: string
   updatedAt: string
@@ -435,7 +437,63 @@ function OverviewTab({
   )
 }
 
+/**
+ * « Héros » toggle — marks the scenario /present uses for Screens 3+4.
+ * Optimistic: flips locally, then PATCHes; reverts on failure.
+ */
+function HeroToggle({
+  quoteId,
+  scenarioId,
+  isHero,
+  onChanged,
+}: {
+  quoteId: string
+  scenarioId: string
+  isHero: boolean
+  onChanged: (heroId: string | null) => void
+}) {
+  const [saving, setSaving] = useState(false)
+  const toggle = async () => {
+    const next = isHero ? null : scenarioId
+    onChanged(next)
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/quotes/${quoteId}/hero`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scenarioId: next }),
+      })
+      if (!res.ok) onChanged(isHero ? scenarioId : null) // revert
+    } catch {
+      onChanged(isHero ? scenarioId : null)
+    } finally {
+      setSaving(false)
+    }
+  }
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      disabled={saving}
+      title={
+        isHero
+          ? 'Scénario héros de la présentation (cliquer pour retirer)'
+          : 'Définir comme scénario héros de la présentation'
+      }
+      className={
+        isHero
+          ? 'text-[10px] font-bold px-2 py-0.5 rounded border border-amber-400 bg-amber-50 text-amber-700'
+          : 'text-[10px] font-medium px-2 py-0.5 rounded border border-gray-200 text-gray-400 hover:text-gray-600 hover:border-gray-300'
+      }
+    >
+      ★ Héros
+    </button>
+  )
+}
+
 function ScenariosTab({ quote }: { quote: QuoteDetailVM }) {
+  // Local mirror of the rep's hero pick — optimistic update on toggle.
+  const [heroId, setHeroId] = useState<string | null>(quote.heroScenarioId)
   if (quote.scenarios.length === 0) {
     return (
       <Card>
@@ -469,6 +527,14 @@ function ScenariosTab({ quote }: { quote: QuoteDetailVM }) {
               <span className="text-xs text-gray-500">
                 {s.scenarioType === 'PAC' ? 'PAC' : 'PV'}
               </span>
+              {quote.scenarios.length > 1 && (
+                <HeroToggle
+                  quoteId={quote.id}
+                  scenarioId={s.id}
+                  isHero={heroId === s.id}
+                  onChanged={setHeroId}
+                />
+              )}
             </div>
             {s.sellingPriceIncVatRappen != null && (
               <div className="text-right">
