@@ -134,18 +134,61 @@ describe('calculatePrice', () => {
 // ─── calculateRoi ─────────────────────────────────────────────────────────────
 
 describe('calculateRoi', () => {
-  it('calculates payback years correctly', () => {
+  it('calculates payback years correctly (legacy flat mode)', () => {
     // Investment: CHF 18,000 = 1,800,000 Rappen
     // Annual yield: 8,000 kWh @ 26 Rappen/kWh = 208,000 Rappen = CHF 2,080/year
-    // Payback = 1,800,000 / 208,000 = 8.65... → 8.7 years
+    // With degradation & escalation disabled, the cumulative-series payback
+    // reduces exactly to the legacy division: 1,800,000 / 208,000 → 8.7 years
     const result = calculateRoi({
       annualKwhYield: 8000,
       rateRappenPerKwh: 26,
       investmentRappen: 1800000,
+      degradationBpsPerYear: 0,
+      escalationBpsPerYear: 0,
     })
     expect(result.annualSavingsRappen).toBe(208000)
     expect(result.paybackYears).toBe(8.7)
     expect(result.savings25YearsRappen).toBe(208000 * 25)
+    expect(result.yearlySavingsRappen).toHaveLength(25)
+    expect(result.yearlySavingsRappen.every((s) => s === 208000)).toBe(true)
+  })
+
+  it('escalation shortens payback; series grows when escalation outpaces degradation', () => {
+    const flat = calculateRoi({
+      annualKwhYield: 8000,
+      rateRappenPerKwh: 26,
+      investmentRappen: 1800000,
+      degradationBpsPerYear: 0,
+      escalationBpsPerYear: 0,
+    })
+    const real = calculateRoi({
+      annualKwhYield: 8000,
+      rateRappenPerKwh: 26,
+      investmentRappen: 1800000,
+      // defaults: 0.5%/yr degradation, 2%/yr retail escalation
+    })
+    // Rising electricity prices make each avoided kWh worth more → faster payback
+    expect(real.paybackYears).toBeLessThan(flat.paybackYears)
+    // Year-1 savings identical in both modes
+    expect(real.annualSavingsRappen).toBe(flat.annualSavingsRappen)
+    expect(real.yearlySavingsRappen[0]).toBe(flat.annualSavingsRappen)
+    // Escalation (2%) outpaces degradation (0.5%) → series grows year over year
+    expect(real.yearlySavingsRappen[24]).toBeGreaterThan(real.yearlySavingsRappen[0])
+    expect(real.savings25YearsRappen).toBeGreaterThan(flat.savings25YearsRappen)
+  })
+
+  it('degradation alone reduces the series and lifetime total', () => {
+    const result = calculateRoi({
+      annualKwhYield: 10000,
+      rateRappenPerKwh: 25,
+      investmentRappen: 2000000,
+      degradationBpsPerYear: 50,
+      escalationBpsPerYear: 0,
+    })
+    // 0.5%/yr degradation: year-24 output = 0.995^24 ≈ 88.7% of year 0
+    expect(result.yearlySavingsRappen[24]).toBeLessThan(result.yearlySavingsRappen[0])
+    expect(result.savings25YearsRappen).toBeLessThan(250000 * 25)
+    expect(result.savings25YearsRappen).toBeGreaterThan(250000 * 25 * 0.85)
   })
 
   it('returns Infinity payback when annual savings is zero', () => {
@@ -172,6 +215,8 @@ describe('calculateRoi', () => {
       annualKwhYield: 10000,
       rateRappenPerKwh: 25,
       investmentRappen: 1333333,
+      degradationBpsPerYear: 0,
+      escalationBpsPerYear: 0,
     })
     // savings = 250000, payback = 1333333 / 250000 = 5.333 → 5.3
     expect(result.paybackYears).toBe(5.3)

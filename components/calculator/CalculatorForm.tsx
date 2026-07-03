@@ -75,6 +75,8 @@ export default function CalculatorForm({
   const [mapState, setMapState] = useState<{ lat: number; lon: number; zoom: number } | null>(null)
   const [siteInfo, setSiteInfo] = useState<{
     rateCtPerKwh: number | null
+    feedInCtPerKwh: number | null
+    operatorName: string | null
     communeName: string | null
     yieldKwhPerKwp: number | null
   } | null>(null)
@@ -451,11 +453,21 @@ export default function CalculatorForm({
                     if (commune) params.set('commune', commune)
                     fetch(`/api/site-info?${params}`)
                       .then(r => r.ok ? r.json() : null)
-                      .then(d => d && setSiteInfo({
-                        rateCtPerKwh: d.rateCtPerKwh,
-                        communeName: d.communeName,
-                        yieldKwhPerKwp: d.yieldKwhPerKwp,
-                      }))
+                      .then(d => {
+                        if (!d) return
+                        setSiteInfo({
+                          rateCtPerKwh: d.rateCtPerKwh,
+                          feedInCtPerKwh: d.feedInCtPerKwh,
+                          operatorName: d.operatorName,
+                          communeName: d.communeName,
+                          yieldKwhPerKwp: d.yieldKwhPerKwp,
+                        })
+                        // Prefill the feed-in tariff with the local operator's
+                        // published rate (rep can still edit it afterwards).
+                        if (typeof d.feedInCtPerKwh === 'number' && d.feedInCtPerKwh > 0) {
+                          setFeedInRateCtKwh(Math.round(d.feedInCtPerKwh * 10) / 10)
+                        }
+                      })
                       .catch(() => {})
                       .finally(() => setFetchingSiteInfo(false))
                   }
@@ -472,6 +484,12 @@ export default function CalculatorForm({
                       {siteInfo.communeName && <><strong>{siteInfo.communeName}</strong> · </>}
                       <span className="font-mono tabular-nums">{siteInfo.rateCtPerKwh.toFixed(2)} ct/kWh</span>
                       {' '}<span className="text-gray-400">(ElCom {new Date().getFullYear()})</span>
+                    </div>
+                  )}
+                  {siteInfo.feedInCtPerKwh != null && (
+                    <div className="text-gray-500">
+                      ↩ Reprise <span className="font-mono tabular-nums font-medium text-gray-700">{siteInfo.feedInCtPerKwh.toFixed(2)} ct/kWh</span>
+                      {siteInfo.operatorName && <span className="text-gray-400"> ({siteInfo.operatorName})</span>}
                     </div>
                   )}
                   {siteInfo.yieldKwhPerKwp != null && (

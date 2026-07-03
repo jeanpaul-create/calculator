@@ -98,7 +98,7 @@ const out: ZipEnergyRow[] = []
 let noOperator = 0
 let noFeedIn = 0
 
-for (const [zip, entries] of [...plzMap.entries()].sort()) {
+for (const [zip, entries] of Array.from(plzMap.entries()).sort()) {
   // Majority canton + commune (most rows in the CSV for this ZIP)
   const canton = entries[0].canton
   const commune = entries[0].commune
@@ -112,7 +112,7 @@ for (const [zip, entries] of [...plzMap.entries()].sort()) {
   }
   let operatorId: number | null = null
   if (counts.size > 0) {
-    operatorId = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0][0]
+    operatorId = Array.from(counts.entries()).sort((a, b) => b[1] - a[1] || a[0] - b[0])[0][0]
   } else {
     noOperator++
   }
