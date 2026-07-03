@@ -39,6 +39,7 @@ const mockQuote: FullQuote = {
   updatedAt: new Date('2026-03-19'),
   rep: { name: 'Alice Müller', email: 'alice@ionenergy.ch' },
   heroScenarioId: null,
+  expiryWarnedAt: null,
   scenarios: [],
 }
 

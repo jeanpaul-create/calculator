@@ -277,6 +277,10 @@ model Quote {
   //                rep see "viewed 3x" as a follow-up signal.
   firstViewedAt DateTime?
   viewCount     Int         @default(0)
+  /// Stamped when the customer expiry-warning email was sent (daily cron,
+  /// quotes expiring in ≤3 days). Prevents duplicate warnings. Null =
+  /// not warned (or quote never approached expiry while SENT).
+  expiryWarnedAt DateTime?
   /// Rep-chosen hero scenario for /present Screen 3/4 (« vos chiffres » +
   /// « et si vous ne faites rien ? »). Null = automatic pick (recommandé →
   /// premium → first). Points at a QuoteScenario id belonging to this quote;
