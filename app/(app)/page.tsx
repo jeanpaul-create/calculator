@@ -51,6 +51,7 @@ export default async function DashboardPage() {
       updatedAt: true,
       viewCount: true,
       firstViewedAt: true,
+      followUpAt: true,
       rep: { select: { name: true } },
       scenarios: {
         select: { sellingPriceIncVatRappen: true },
@@ -103,16 +104,23 @@ export default async function DashboardPage() {
     .slice(0, 5)
   const hotLeadIds = new Set(hotLeads.map((q) => q.id))
 
-  // ── Follow-ups: SENT > 7 days ago, no acceptance ──
-  const followUps = quotes
-    .filter(
-      (q) =>
-        q.status === 'SENT' &&
-        q.sentAt &&
-        now - q.sentAt.getTime() > 7 * 24 * 60 * 60 * 1000 &&
-        !hotLeadIds.has(q.id) // already shown above
-    )
-    .slice(0, 6)
+  // ── Follow-ups: rep-set reminders due first, then SENT > 7 days ──
+  const reminderDue = quotes.filter(
+    (q) =>
+      q.status === 'SENT' &&
+      q.followUpAt != null &&
+      q.followUpAt.getTime() <= now &&
+      !hotLeadIds.has(q.id)
+  )
+  const staleNoReminder = quotes.filter(
+    (q) =>
+      q.status === 'SENT' &&
+      q.followUpAt == null &&
+      q.sentAt &&
+      now - q.sentAt.getTime() > 7 * 24 * 60 * 60 * 1000 &&
+      !hotLeadIds.has(q.id)
+  )
+  const followUps = [...reminderDue, ...staleNoReminder].slice(0, 6)
 
   // ── Recent activity (last 8 events across quotes) ──
   const activityItems: ActivityItem[] = quotes

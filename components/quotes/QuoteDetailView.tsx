@@ -426,6 +426,7 @@ function OverviewTab({
             </p>
           </Card>
         )}
+        <FollowUpCard quoteId={quote.id} initialIso={quote.followUpAt} />
         <Card>
           <h3 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-3">
             Dernière activité
@@ -434,6 +435,75 @@ function OverviewTab({
         </Card>
       </div>
     </div>
+  )
+}
+
+/**
+ * Follow-up reminder — writes Quote.followUpAt via PATCH /follow-up. Due
+ * reminders surface at the top of the dashboard « Relances à faire ».
+ */
+function FollowUpCard({ quoteId, initialIso }: { quoteId: string; initialIso: string | null }) {
+  const [dateStr, setDateStr] = useState<string>(initialIso ? initialIso.slice(0, 10) : '')
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  const save = async (value: string | null) => {
+    setSaving(true)
+    setSaved(false)
+    try {
+      const res = await fetch(`/api/quotes/${quoteId}/follow-up`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ followUpAt: value }),
+      })
+      if (res.ok) setSaved(true)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const isOverdue = dateStr !== '' && new Date(`${dateStr}T23:59:59`) < new Date()
+
+  return (
+    <Card>
+      <h3 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2">
+        Rappel de suivi
+      </h3>
+      <div className="flex items-center gap-2">
+        <input
+          type="date"
+          className="input text-sm flex-1"
+          value={dateStr}
+          onChange={(e) => {
+            const v = e.target.value
+            setDateStr(v)
+            void save(v || null)
+          }}
+        />
+        {dateStr && (
+          <button
+            type="button"
+            className="text-xs text-gray-400 hover:text-gray-600 px-1"
+            title="Supprimer le rappel"
+            onClick={() => {
+              setDateStr('')
+              void save(null)
+            }}
+          >
+            ✕
+          </button>
+        )}
+      </div>
+      <p className="text-[11px] mt-2 leading-snug text-gray-400">
+        {saving
+          ? 'Enregistrement…'
+          : isOverdue
+            ? 'Rappel échu — visible en tête des relances du tableau de bord.'
+            : saved
+              ? 'Enregistré — apparaîtra dans les relances à cette date.'
+              : 'À la date choisie, cette offre remonte dans « Relances à faire ».'}
+      </p>
+    </Card>
   )
 }
 
