@@ -16,28 +16,26 @@ async function fetchRateFromDb(
   feedInCtPerKwh: number | null
   operatorName: string | null
   communeName: string
+  canton: string | null
 } | null> {
   try {
+    const select = {
+      rateRappenPerKwh: true,
+      feedInRappenPerKwh: true,
+      operatorName: true,
+      communeName: true,
+      canton: true,
+    } as const
     // Try exact 4-digit zip first (municipality-specific rate + feed-in)
     let row = await prisma.swissRate.findFirst({
       where: { zipPrefix: zip },
-      select: {
-        rateRappenPerKwh: true,
-        feedInRappenPerKwh: true,
-        operatorName: true,
-        communeName: true,
-      },
+      select,
     })
     // Fall back to 2-digit canton prefix (retail only)
     if (!row) {
       row = await prisma.swissRate.findFirst({
         where: { zipPrefix: zip.slice(0, 2) },
-        select: {
-          rateRappenPerKwh: true,
-          feedInRappenPerKwh: true,
-          operatorName: true,
-          communeName: true,
-        },
+        select,
       })
     }
     if (!row) return null
@@ -46,6 +44,7 @@ async function fetchRateFromDb(
       feedInCtPerKwh: row.feedInRappenPerKwh,
       operatorName: row.operatorName,
       communeName: commune ?? row.communeName ?? '',
+      canton: row.canton,
     }
   } catch {
     return null
@@ -92,6 +91,7 @@ export async function GET(req: NextRequest) {
     feedInCtPerKwh: rate?.feedInCtPerKwh ?? null,
     operatorName: rate?.operatorName ?? null,
     communeName: rate?.communeName ?? null,
+    canton: rate?.canton ?? null,
     yieldKwhPerKwp: pvgis,
   })
 }
