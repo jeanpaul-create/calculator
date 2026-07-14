@@ -396,11 +396,13 @@ export default function PacCalculatorForm({
       setIsDirty(false)
       draft.clear()
       onSaved?.(quoteId)
+      // Land on the quote page — where Envoyer / Démo client / documents live.
+      router.push(`/quotes/${quoteId}`)
     } finally {
       setIsSaving(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quoteId, pricing, selectedProducts, onSaved])
+  }, [quoteId, pricing, selectedProducts, onSaved, router])
 
   const handleSaveAsNewQuote = useCallback(async () => {
     if (!pricing) return
@@ -446,7 +448,8 @@ export default function PacCalculatorForm({
       draft.clear()
       setSavedQuoteNumber(newQuote.quoteNumber)
       onSaved?.(newQuote.id)
-      router.push(`/calculator/pac?quoteId=${newQuote.id}`)
+      // Land on the quote page — where Envoyer / Démo client / documents live.
+      router.push(`/quotes/${newQuote.id}`)
     } finally {
       setIsSaving(false)
     }

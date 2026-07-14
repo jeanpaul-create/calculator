@@ -459,11 +459,14 @@ export default function CalculatorForm({
       setIsDirty(false)
       draft.clear()
       onSaved?.(quoteId)
+      // Land on the quote page — where Envoyer / Démo client / documents
+      // live. Saving used to dead-end on the calculator with a banner.
+      router.push(`/quotes/${quoteId}`)
     } finally {
       setIsSaving(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quoteId, pricing, selectedProducts, selectedOptions, onSaved])
+  }, [quoteId, pricing, selectedProducts, selectedOptions, onSaved, router])
 
   // Create a new quote and save the scenario to it
   const handleSaveAsNewQuote = useCallback(async () => {
@@ -510,8 +513,9 @@ export default function CalculatorForm({
       draft.clear()
       setSavedQuoteNumber(newQuote.quoteNumber)
       onSaved?.(newQuote.id)
-      // Refresh to redirect to calculator with the new quoteId
-      router.push(`/calculator?quoteId=${newQuote.id}`)
+      // Land on the quote page — where Envoyer / Démo client / documents
+      // live. Saving used to dead-end back on the calculator.
+      router.push(`/quotes/${newQuote.id}`)
     } finally {
       setIsSaving(false)
     }
