@@ -10,6 +10,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   StatusPill,
@@ -265,6 +266,7 @@ export default function QuoteDetailView({ quote, isAdmin }: QuoteDetailViewProps
           >
             Modifier
           </Link>
+          <DuplicateButton quoteId={quote.id} />
           <div className="ml-auto">
             <QuoteStatusActions
               quoteId={quote.id}
@@ -289,6 +291,40 @@ export default function QuoteDetailView({ quote, isAdmin }: QuoteDetailViewProps
         </Card>
       )}
     </div>
+  )
+}
+
+/**
+ * « Dupliquer » — copies the quote (scenarios, items, snapshots) into a
+ * fresh DRAFT owned by the caller and navigates to it. Covers the two
+ * highest-frequency re-quote flows: revision after a decline, and
+ * same-install-different-house.
+ */
+function DuplicateButton({ quoteId }: { quoteId: string }) {
+  const router = useRouter()
+  const [busy, setBusy] = useState(false)
+  const duplicate = async () => {
+    setBusy(true)
+    try {
+      const res = await fetch(`/api/quotes/${quoteId}/duplicate`, { method: 'POST' })
+      if (res.ok) {
+        const d = await res.json()
+        router.push(`/quotes/${d.id}`)
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <button
+      type="button"
+      onClick={duplicate}
+      disabled={busy}
+      className="btn-secondary text-xs px-3 py-1.5"
+      title="Créer une copie (brouillon) de cette offre"
+    >
+      {busy ? '…' : '⧉ Dupliquer'}
+    </button>
   )
 }
 

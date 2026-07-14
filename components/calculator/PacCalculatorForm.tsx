@@ -12,6 +12,7 @@ import {
   formatPct,
 } from '@/lib/pricing'
 import { calculateHeatPumpSubsidy } from '@/lib/subsidies'
+import { useFormDraft, draftAgeLabel } from '@/lib/use-form-draft'
 import { useLanguage } from '@/context/LanguageContext'
 import { Card, EmptyState, SectionHeader } from '@/components/ui'
 import AddressSearch from './AddressSearch'
@@ -194,6 +195,43 @@ export default function PacCalculatorForm({
   const [aiTier, setAiTier] = useState<'essentiel' | 'recommande' | 'premium' | null>(null)
   const [aiSiblings, setAiSiblings] = useState<AiSibling[] | null>(null)
 
+  // ── Draft autosave + unload guard (mirrors CalculatorForm) ────────────────
+  const draftSnapshot = {
+    projectInfo,
+    customerZip,
+    mapState,
+    discountBasisPts,
+    discountReason,
+    pacType,
+    thermalKwStr,
+    items: selectedProducts.map((sp) => ({ productId: sp.product.id, quantity: sp.quantity })),
+    aiTier,
+    aiSiblings,
+  }
+  const draft = useFormDraft(`calc-draft:pac:${quoteId ?? 'new'}`, draftSnapshot)
+
+  const restoreDraft = () => {
+    if (!draft.pending) return
+    const d = draft.pending.data
+    setProjectInfo(d.projectInfo)
+    setCustomerZip(d.customerZip)
+    setMapState(d.mapState)
+    setDiscountBasisPts(d.discountBasisPts)
+    setDiscountReason(d.discountReason)
+    setPacType(d.pacType)
+    setThermalKwStr(d.thermalKwStr)
+    setSelectedProducts(
+      d.items.flatMap((it) => {
+        const product = products.find((p) => p.id === it.productId)
+        return product ? [{ product, quantity: it.quantity }] : []
+      })
+    )
+    setAiTier(d.aiTier)
+    setAiSiblings(d.aiSiblings)
+    setIsDirty(true)
+    draft.dismissPending()
+  }
+
   /**
    * Apply an AI-proposed draft. Replaces selected products with the AI's
    * proposal and fills empty customer fields. Doesn't touch fields the rep
@@ -356,6 +394,7 @@ export default function PacCalculatorForm({
         return
       }
       setIsDirty(false)
+      draft.clear()
       onSaved?.(quoteId)
     } finally {
       setIsSaving(false)
@@ -404,6 +443,7 @@ export default function PacCalculatorForm({
       }
 
       setIsDirty(false)
+      draft.clear()
       setSavedQuoteNumber(newQuote.quoteNumber)
       onSaved?.(newQuote.id)
       router.push(`/calculator/pac?quoteId=${newQuote.id}`)
@@ -414,6 +454,24 @@ export default function PacCalculatorForm({
   }, [pricing, selectedProducts, onSaved, router])
 
   return (
+    <>
+      {draft.pending && (
+        <div className="mb-4 flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <span className="flex-1">
+            Brouillon non enregistré trouvé ({draftAgeLabel(draft.pending.at)}).
+          </span>
+          <button type="button" onClick={restoreDraft} className="btn-primary text-xs px-3 py-1.5">
+            Restaurer
+          </button>
+          <button
+            type="button"
+            onClick={draft.dismissPending}
+            className="text-xs text-amber-700 hover:text-amber-900 px-1"
+          >
+            Ignorer
+          </button>
+        </div>
+      )}
     <div className="flex flex-col lg:flex-row gap-6">
       <AiPromptDialog
         scenarioType="PAC"
@@ -855,6 +913,7 @@ export default function PacCalculatorForm({
         )}
       </div>
     </div>
+    </>
   )
 }
 

@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { calculateIonPrice, calculateRoi, estimateAnnualYield, estimateSelfConsumptionRate, sumInstalledKwp, calculatePronovoSubsidy, estimateTaxSavings, applyDiscount, IonPricingCoefficients, RoofType, RoofSlope } from '@/lib/pricing'
 import PriceSummaryCard from './PriceSummaryCard'
+import { useFormDraft, draftAgeLabel } from '@/lib/use-form-draft'
 import { useLanguage } from '@/context/LanguageContext'
 import AddressSearch from './AddressSearch'
 import AiPromptDialog, { type AiProposedDraft, type AiSibling } from './AiPromptDialog'
@@ -160,6 +161,51 @@ export default function CalculatorForm({
    */
   const [aiTier, setAiTier] = useState<'essentiel' | 'recommande' | 'premium' | null>(null)
   const [aiSiblings, setAiSiblings] = useState<AiSibling[] | null>(null)
+
+  // ── Draft autosave + unload guard ─────────────────────────────────────────
+  // Everything the rep can type/pick, serialized. Restored via the banner
+  // below; cleared on successful save.
+  const draftSnapshot = {
+    projectInfo,
+    customerZip,
+    roofType,
+    roofSlope,
+    annualConsumptionKwh,
+    feedInRateCtKwh,
+    mapState,
+    discountBasisPts,
+    discountReason,
+    items: selectedProducts.map((sp) => ({ productId: sp.product.id, quantity: sp.quantity })),
+    optionIds: Array.from(selectedOptions),
+    aiTier,
+    aiSiblings,
+  }
+  const draft = useFormDraft(`calc-draft:pv:${quoteId ?? 'new'}`, draftSnapshot)
+
+  const restoreDraft = () => {
+    if (!draft.pending) return
+    const d = draft.pending.data
+    setProjectInfo(d.projectInfo)
+    setCustomerZip(d.customerZip)
+    setRoofType(d.roofType)
+    setRoofSlope(d.roofSlope)
+    setAnnualConsumptionKwh(d.annualConsumptionKwh)
+    setFeedInRateCtKwh(d.feedInRateCtKwh)
+    setMapState(d.mapState)
+    setDiscountBasisPts(d.discountBasisPts)
+    setDiscountReason(d.discountReason)
+    setSelectedProducts(
+      d.items.flatMap((it) => {
+        const product = products.find((p) => p.id === it.productId)
+        return product ? [{ product, quantity: it.quantity }] : []
+      })
+    )
+    setSelectedOptions(new Set(d.optionIds))
+    setAiTier(d.aiTier)
+    setAiSiblings(d.aiSiblings)
+    setIsDirty(true)
+    draft.dismissPending()
+  }
 
   /**
    * Apply an AI-proposed draft to the form. Replaces selected products with
@@ -411,6 +457,7 @@ export default function CalculatorForm({
         return
       }
       setIsDirty(false)
+      draft.clear()
       onSaved?.(quoteId)
     } finally {
       setIsSaving(false)
@@ -460,6 +507,7 @@ export default function CalculatorForm({
       }
 
       setIsDirty(false)
+      draft.clear()
       setSavedQuoteNumber(newQuote.quoteNumber)
       onSaved?.(newQuote.id)
       // Refresh to redirect to calculator with the new quoteId
@@ -471,6 +519,24 @@ export default function CalculatorForm({
   }, [pricing, selectedProducts, selectedOptions, onSaved, router])
 
   return (
+    <>
+      {draft.pending && (
+        <div className="mb-4 flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <span className="flex-1">
+            Brouillon non enregistré trouvé ({draftAgeLabel(draft.pending.at)}).
+          </span>
+          <button type="button" onClick={restoreDraft} className="btn-primary text-xs px-3 py-1.5">
+            Restaurer
+          </button>
+          <button
+            type="button"
+            onClick={draft.dismissPending}
+            className="text-xs text-amber-700 hover:text-amber-900 px-1"
+          >
+            Ignorer
+          </button>
+        </div>
+      )}
     <div className="flex flex-col lg:flex-row gap-6">
       <AiPromptDialog
         scenarioType="PV"
@@ -873,5 +939,6 @@ export default function CalculatorForm({
         )}
       </div>
     </div>
+    </>
   )
 }
