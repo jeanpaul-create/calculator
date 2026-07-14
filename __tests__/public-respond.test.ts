@@ -71,25 +71,27 @@ describe('POST /api/public/quotes/[id]/respond — happy paths', () => {
     mockUpdate.mockResolvedValue({ status: 'ACCEPTED' })
 
     const res = await POST(
-      buildRequest({ action: 'accept' }),
+      buildRequest({ action: 'accept', signedName: 'Jean Dupont' }),
       { params: { id: 'tok_abc' } }
     )
 
     expect(res.status).toBe(200)
     const json = await res.json()
     expect(json).toEqual({ ok: true, status: 'ACCEPTED' })
-    // Quote was looked up by shareToken (not id)
+    // Quote was looked up by shareToken (not id), scenarios included so the
+    // chosen configuration can be validated against this quote
     expect(mockFindUnique).toHaveBeenCalledWith({
       where: { shareToken: 'tok_abc' },
-      select: { id: true, status: true, expiresAt: true },
+      select: { id: true, status: true, expiresAt: true, scenarios: { select: { id: true } } },
     })
-    // Update was called with ACCEPTED + acceptedAt timestamp
+    // Update was called with ACCEPTED + acceptedAt + signature-simple trail
     expect(mockUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'quote_id_1' },
         data: expect.objectContaining({
           status: 'ACCEPTED',
           acceptedAt: expect.any(Date),
+          acceptedByName: 'Jean Dupont',
         }),
       })
     )
@@ -147,7 +149,7 @@ describe('POST /api/public/quotes/[id]/respond — privacy + state machine', () 
     mockFindUnique.mockResolvedValue(null)
 
     const res = await POST(
-      buildRequest({ action: 'accept' }),
+      buildRequest({ action: 'accept', signedName: 'Jean Dupont' }),
       { params: { id: 'GHOST_TOKEN' } }
     )
 
@@ -165,7 +167,7 @@ describe('POST /api/public/quotes/[id]/respond — privacy + state machine', () 
     })
 
     const res = await POST(
-      buildRequest({ action: 'accept' }),
+      buildRequest({ action: 'accept', signedName: 'Jean Dupont' }),
       { params: { id: 'tok_abc' } }
     )
 
@@ -181,7 +183,7 @@ describe('POST /api/public/quotes/[id]/respond — privacy + state machine', () 
     })
 
     const res = await POST(
-      buildRequest({ action: 'accept' }),
+      buildRequest({ action: 'accept', signedName: 'Jean Dupont' }),
       { params: { id: 'tok_abc' } }
     )
 
@@ -199,7 +201,7 @@ describe('POST /api/public/quotes/[id]/respond — privacy + state machine', () 
     })
 
     const res = await POST(
-      buildRequest({ action: 'accept' }),
+      buildRequest({ action: 'accept', signedName: 'Jean Dupont' }),
       { params: { id: 'tok_abc' } }
     )
 
@@ -216,7 +218,7 @@ describe('POST /api/public/quotes/[id]/respond — privacy + state machine', () 
     })
 
     const res = await POST(
-      buildRequest({ action: 'accept' }),
+      buildRequest({ action: 'accept', signedName: 'Jean Dupont' }),
       { params: { id: 'tok_abc' } }
     )
 
@@ -231,7 +233,7 @@ describe('POST /api/public/quotes/[id]/respond — privacy + state machine', () 
     })
 
     const res = await POST(
-      buildRequest({ action: 'accept' }),
+      buildRequest({ action: 'accept', signedName: 'Jean Dupont' }),
       { params: { id: 'tok_abc' } }
     )
 
@@ -273,7 +275,7 @@ describe('POST /api/public/quotes/[id]/respond — rate limit', () => {
     })
 
     const res = await POST(
-      buildRequest({ action: 'accept' }),
+      buildRequest({ action: 'accept', signedName: 'Jean Dupont' }),
       { params: { id: 'tok_abc' } }
     )
 
@@ -292,7 +294,7 @@ describe('POST /api/public/quotes/[id]/respond — rate limit', () => {
     })
     mockUpdate.mockResolvedValue({ status: 'ACCEPTED' })
 
-    await POST(buildRequest({ action: 'accept' }), { params: { id: 'tok_xyz' } })
+    await POST(buildRequest({ action: 'accept', signedName: 'Jean Dupont' }), { params: { id: 'tok_xyz' } })
 
     expect(mockEnforceRateLimit).toHaveBeenCalledWith(
       expect.objectContaining({

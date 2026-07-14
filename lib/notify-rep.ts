@@ -88,3 +88,65 @@ export async function notifyRep(quoteId: string, event: RepNotifyEvent): Promise
     console.error('[notify-rep]', event, err)
   }
 }
+
+/**
+ * Customer confirmation after online acceptance — the customer used to get
+ * NOTHING after clicking « Accepter ». Includes the accepted configuration
+ * (tier + price) and what happens next. Fire-and-forget, same guards as
+ * notifyRep.
+ */
+export async function sendCustomerAcceptConfirmation(quoteId: string): Promise<void> {
+  try {
+    const apiKey = process.env.RESEND_API_KEY
+    const from = process.env.RESEND_FROM_EMAIL
+    if (!apiKey || !from) return
+
+    const quote = await prisma.quote.findUnique({
+      where: { id: quoteId },
+      select: {
+        quoteNumber: true,
+        customerName: true,
+        customerEmail: true,
+        acceptedScenarioId: true,
+        acceptedByName: true,
+        rep: { select: { name: true } },
+        scenarios: { select: { id: true, name: true, tier: true, sellingPriceIncVatRappen: true } },
+      },
+    })
+    if (!quote?.customerEmail) return
+
+    const accepted =
+      quote.scenarios.find((s) => s.id === quote.acceptedScenarioId) ?? quote.scenarios[0] ?? null
+    const priceChf = accepted?.sellingPriceIncVatRappen != null
+      ? new Intl.NumberFormat('de-CH').format(accepted.sellingPriceIncVatRappen / 100) + ' CHF TTC'
+      : null
+
+    const resend = new Resend(apiKey)
+    await resend.emails.send({
+      from,
+      to: quote.customerEmail,
+      subject: `Confirmation — offre ${quote.quoteNumber} acceptée`,
+      html: `
+        <div style="font-family: -apple-system, Segoe UI, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px;">
+          <p style="font-size: 15px; color: #111827; line-height: 1.5;">
+            Bonjour${quote.customerName ? ` ${quote.customerName}` : ''},
+          </p>
+          <p style="font-size: 15px; color: #111827; line-height: 1.5;">
+            Nous confirmons l’acceptation de votre offre <strong>${quote.quoteNumber}</strong>${
+              accepted ? ` — configuration <strong>${accepted.name}</strong>${priceChf ? ` (${priceChf})` : ''}` : ''
+            }${quote.acceptedByName ? `, signée par ${quote.acceptedByName}` : ''}.
+          </p>
+          <p style="font-size: 15px; color: #111827; line-height: 1.5;">
+            Prochaine étape : ${quote.rep?.name ?? 'votre conseiller'} vous contacte sous peu pour
+            planifier la visite technique et la signature du contrat de pose.
+          </p>
+          <p style="font-size: 12px; color: #9ca3af; margin-top: 28px;">
+            I.ON Energy Services — merci de votre confiance.
+          </p>
+        </div>
+      `,
+    })
+  } catch (err) {
+    console.error('[customer-accept-confirmation]', err)
+  }
+}

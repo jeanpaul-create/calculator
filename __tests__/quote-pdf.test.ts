@@ -40,6 +40,10 @@ const mockQuote: FullQuote = {
   rep: { name: 'Alice Müller', email: 'alice@ionenergy.ch' },
   heroScenarioId: null,
   expiryWarnedAt: null,
+  acceptedScenarioId: null,
+  acceptedByName: null,
+  acceptedIp: null,
+  acceptedUserAgent: null,
   scenarios: [],
 }
 

@@ -100,11 +100,29 @@ export default async function PublicQuotePage({ params }: Props) {
     if (isFirstView) void notifyRep(quote.id, 'viewed')
   }
 
-  const firstScenario = quote.scenarios[0]
   const now = Date.now()
   const isExpired =
     quote.status === 'EXPIRED' ||
     (quote.expiresAt && quote.expiresAt.getTime() < now && quote.status === 'SENT')
+
+  // Canonical tier order (essentiel → recommandé → premium), untiered last.
+  // The customer PICKS one of these at accept time — the tier anchoring the
+  // rep built in /present used to evaporate here (only scenarios[0] showed).
+  const TIER_ORDER: Record<string, number> = { essentiel: 0, recommande: 1, premium: 2 }
+  const sorted = [...quote.scenarios].sort(
+    (a, b) =>
+      (TIER_ORDER[a.tier ?? ''] ?? 9) - (TIER_ORDER[b.tier ?? ''] ?? 9) ||
+      (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+  )
+  // Pre-selected card: rep's hero pick, else recommandé → premium → first.
+  const heroScenarioId =
+    (quote.heroScenarioId && sorted.some((s) => s.id === quote.heroScenarioId)
+      ? quote.heroScenarioId
+      : null) ??
+    sorted.find((s) => s.tier === 'recommande')?.id ??
+    sorted.find((s) => s.tier === 'premium')?.id ??
+    sorted[0]?.id ??
+    null
 
   const vm: PublicQuoteVM = {
     id: quote.id,
@@ -121,31 +139,31 @@ export default async function PublicQuotePage({ params }: Props) {
     declinedAt: quote.declinedAt?.toISOString() ?? null,
     isExpired: !!isExpired,
     canRespond: quote.status === 'SENT' && !isExpired,
-    scenario: firstScenario
-      ? {
-          name: firstScenario.name,
-          scenarioType: firstScenario.scenarioType,
-          sellingPriceExVat: firstScenario.sellingPriceExVatRappen
-            ? formatChf(firstScenario.sellingPriceExVatRappen)
-            : null,
-          sellingPriceIncVat: firstScenario.sellingPriceIncVatRappen
-            ? formatChf(firstScenario.sellingPriceIncVatRappen)
-            : null,
-          vatRate: formatPct(firstScenario.vatPctBasisPts),
-          vatAmount:
-            firstScenario.sellingPriceExVatRappen && firstScenario.sellingPriceIncVatRappen
-              ? formatChf(
-                  firstScenario.sellingPriceIncVatRappen - firstScenario.sellingPriceExVatRappen
-                )
-              : null,
-          items: firstScenario.items.map((it) => ({
-            name: it.product.name,
-            quantity: it.quantity,
-            category: it.product.category,
-          })),
-          options: firstScenario.options.map((o) => ({ name: o.option.name })),
-        }
-      : null,
+    heroScenarioId,
+    acceptedScenarioId: quote.acceptedScenarioId,
+    scenarios: sorted.map((s) => ({
+      id: s.id,
+      tier: (s.tier as 'essentiel' | 'recommande' | 'premium' | null) ?? null,
+      name: s.name,
+      scenarioType: s.scenarioType,
+      sellingPriceExVat: s.sellingPriceExVatRappen
+        ? formatChf(s.sellingPriceExVatRappen)
+        : null,
+      sellingPriceIncVat: s.sellingPriceIncVatRappen
+        ? formatChf(s.sellingPriceIncVatRappen)
+        : null,
+      vatRate: formatPct(s.vatPctBasisPts),
+      vatAmount:
+        s.sellingPriceExVatRappen && s.sellingPriceIncVatRappen
+          ? formatChf(s.sellingPriceIncVatRappen - s.sellingPriceExVatRappen)
+          : null,
+      items: s.items.map((it) => ({
+        name: it.product.name,
+        quantity: it.quantity,
+        category: it.product.category,
+      })),
+      options: s.options.map((o) => ({ name: o.option.name })),
+    })),
   }
 
   return <PublicQuoteView quote={vm} />

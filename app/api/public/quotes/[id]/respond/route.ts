@@ -21,12 +21,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/db'
-import { notifyRep } from '@/lib/notify-rep'
+import { notifyRep, sendCustomerAcceptConfirmation } from '@/lib/notify-rep'
 import { enforceRateLimit } from '@/lib/rate-limit'
 
 const Schema = z.object({
   action: z.enum(['accept', 'decline']),
   reason: z.string().max(500).optional(),
+  /** Configuration the customer chose (tier picker on /q). Must belong to
+   *  this quote. Optional for legacy clients — falls back to unrecorded. */
+  scenarioId: z.string().min(1).optional(),
+  /** Signature simple: full name typed to accept. Required on accept. */
+  signedName: z.string().min(3).max(120).optional(),
 })
 
 const PER_QUOTE_LIMIT = 10
@@ -55,11 +60,18 @@ export async function POST(
     }
 
     const body = await req.json()
-    const { action, reason } = Schema.parse(body)
+    const { action, reason, scenarioId, signedName } = Schema.parse(body)
+
+    if (action === 'accept' && (!signedName || signedName.trim().length < 3)) {
+      return NextResponse.json(
+        { error: 'Veuillez saisir votre nom complet pour accepter l’offre.' },
+        { status: 422 }
+      )
+    }
 
     const quote = await prisma.quote.findUnique({
       where: { shareToken: token },
-      select: { id: true, status: true, expiresAt: true },
+      select: { id: true, status: true, expiresAt: true, scenarios: { select: { id: true } } },
     })
 
     if (!quote || quote.status === 'DRAFT') {
@@ -87,12 +99,31 @@ export async function POST(
       )
     }
 
+    // The chosen configuration must belong to THIS quote (ignore stale ids).
+    const validScenarioId =
+      scenarioId && quote.scenarios.some((s) => s.id === scenarioId) ? scenarioId : null
+
+    // Signature-simple audit trail: who accepted, from where, with what.
+    const ip =
+      req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+      req.headers.get('x-real-ip') ??
+      null
+    const userAgent = req.headers.get('user-agent')?.slice(0, 300) ?? null
+
     const now = new Date()
     const updated = await prisma.quote.update({
       where: { id: quote.id },
       data:
         action === 'accept'
-          ? { status: 'ACCEPTED', acceptedAt: now, updatedAt: now }
+          ? {
+              status: 'ACCEPTED',
+              acceptedAt: now,
+              acceptedScenarioId: validScenarioId,
+              acceptedByName: signedName!.trim(),
+              acceptedIp: ip,
+              acceptedUserAgent: userAgent,
+              updatedAt: now,
+            }
           : {
               status: 'DECLINED',
               declinedAt: now,
@@ -104,6 +135,8 @@ export async function POST(
 
     // Tell the rep immediately — fire-and-forget, never blocks the customer.
     void notifyRep(quote.id, action === 'accept' ? 'accepted' : 'declined')
+    // …and confirm to the customer (accept only) with the chosen config.
+    if (action === 'accept') void sendCustomerAcceptConfirmation(quote.id)
 
     return NextResponse.json({ ok: true, status: updated.status })
   } catch (err) {

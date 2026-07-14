@@ -1,22 +1,38 @@
-/**
- * PublicQuoteView — what the customer sees when they open a /q/{id} link.
- *
- * Two modes:
- *   - canRespond: Accept / Decline buttons live, customer can act
- *   - read-only: Already accepted / declined / expired
- *
- * Stateless w.r.t. the quote (server-rendered VM); accepting/declining hits
- * the public response API which redirects back to this same URL.
- */
 'use client'
+
+/**
+ * PublicQuoteView — what the customer sees at /q/[shareToken].
+ *
+ * Wave B upgrade: the customer now CHOOSES their configuration at accept
+ * time. All tiers (Essentiel / Recommandé / Premium) render as selectable
+ * cards with the rep's hero pick pre-selected — the anchoring built in
+ * /present no longer evaporates at the decision point. Accepting requires
+ * typing a full name (signature simple; recorded with IP + user-agent
+ * server-side) and records acceptedScenarioId.
+ *
+ * Data NOT shown here: rep identity, costs, margins, discounts, notes.
+ */
 
 import { useState } from 'react'
 import { cn } from '@/lib/cn'
 
+export interface PublicScenarioVM {
+  id: string
+  tier: 'essentiel' | 'recommande' | 'premium' | null
+  name: string
+  scenarioType: string
+  sellingPriceExVat: string | null
+  sellingPriceIncVat: string | null
+  vatRate: string
+  vatAmount: string | null
+  items: { name: string; quantity: number; category: string }[]
+  options: { name: string }[]
+}
+
 export interface PublicQuoteVM {
   /**
    * Internal Quote.id — used for the customer-facing copy header only.
-   * NEVER passed to public APIs — those keys on `shareToken`.
+   * NEVER passed to public APIs — those key on `shareToken`.
    */
   id: string
   /**
@@ -34,16 +50,12 @@ export interface PublicQuoteVM {
   declinedAt: string | null
   isExpired: boolean
   canRespond: boolean
-  scenario: {
-    name: string
-    scenarioType: string
-    sellingPriceExVat: string | null
-    sellingPriceIncVat: string | null
-    vatRate: string
-    vatAmount: string | null
-    items: { name: string; quantity: number; category: string }[]
-    options: { name: string }[]
-  } | null
+  /** Pre-selected card: rep's hero pick (or automatic fallback). */
+  heroScenarioId: string | null
+  /** Set once the customer accepted a specific configuration. */
+  acceptedScenarioId: string | null
+  /** Canonical order: essentiel → recommandé → premium → untiered. */
+  scenarios: PublicScenarioVM[]
 }
 
 const CATEGORY_FR: Record<string, string> = {
@@ -62,6 +74,13 @@ const CATEGORY_FR: Record<string, string> = {
   PAC_CONDUITE: 'Conduite',
   PAC_MONTAGE: 'Montage',
   PAC_ADMIN: 'Administratif',
+  PAC_TANK: 'Ballon / Réservoir',
+}
+
+const TIER_LABEL: Record<string, string> = {
+  essentiel: 'ESSENTIEL',
+  recommande: 'RECOMMANDÉ',
+  premium: 'PREMIUM',
 }
 
 function formatDate(iso: string | null) {
@@ -75,10 +94,24 @@ function formatDate(iso: string | null) {
 
 export default function PublicQuoteView({ quote }: { quote: PublicQuoteVM }) {
   const [decliningOpen, setDecliningOpen] = useState(false)
+  const [acceptOpen, setAcceptOpen] = useState(false)
+  const [signedName, setSignedName] = useState('')
   const [declineReason, setDeclineReason] = useState('')
   const [pending, setPending] = useState<'accept' | 'decline' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [responded, setResponded] = useState<'accepted' | 'declined' | null>(null)
+
+  // Selected configuration: the accepted one (terminal states), else the
+  // rep's hero pick, else the first scenario.
+  const [selectedId, setSelectedId] = useState<string | null>(
+    quote.acceptedScenarioId ?? quote.heroScenarioId ?? quote.scenarios[0]?.id ?? null
+  )
+  const selected =
+    quote.scenarios.find((s) => s.id === selectedId) ?? quote.scenarios[0] ?? null
+
+  const acceptedView = quote.status === 'ACCEPTED' || responded === 'accepted'
+  const declinedView = quote.status === 'DECLINED' || responded === 'declined'
+  const showPicker = quote.scenarios.length > 1 && quote.canRespond && responded === null
 
   async function respond(action: 'accept' | 'decline') {
     setPending(action)
@@ -89,6 +122,8 @@ export default function PublicQuoteView({ quote }: { quote: PublicQuoteVM }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action,
+          scenarioId: selected?.id,
+          signedName: action === 'accept' ? signedName.trim() : undefined,
           reason: action === 'decline' ? declineReason.trim() || undefined : undefined,
         }),
       })
@@ -104,9 +139,6 @@ export default function PublicQuoteView({ quote }: { quote: PublicQuoteVM }) {
       setPending(null)
     }
   }
-
-  const acceptedView = quote.status === 'ACCEPTED' || responded === 'accepted'
-  const declinedView = quote.status === 'DECLINED' || responded === 'declined'
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
@@ -160,40 +192,83 @@ export default function PublicQuoteView({ quote }: { quote: PublicQuoteVM }) {
           )}
         </div>
 
-        {/* Total */}
-        {quote.scenario?.sellingPriceIncVat && (
+        {/* Configuration picker — the tier choice, hero pre-selected */}
+        {showPicker && (
+          <div className="mb-4">
+            <h2 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2 px-1">
+              Choisissez votre configuration
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {quote.scenarios.map((s) => {
+                const isSelected = s.id === selected?.id
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setSelectedId(s.id)}
+                    aria-pressed={isSelected}
+                    className={cn(
+                      'text-left p-3 rounded-lg border bg-white transition-colors',
+                      isSelected
+                        ? 'border-[1.5px] border-red-500 ring-1 ring-red-100'
+                        : 'border-gray-200 hover:border-gray-300'
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        'text-[10px] font-bold uppercase tracking-wider mb-1',
+                        isSelected ? 'text-red-600' : 'text-gray-500'
+                      )}
+                    >
+                      {s.tier ? TIER_LABEL[s.tier] : s.name}
+                    </div>
+                    {s.sellingPriceIncVat && (
+                      <div className="text-base font-semibold text-gray-900 font-mono tabular-nums">
+                        {s.sellingPriceIncVat}
+                      </div>
+                    )}
+                    <div className="text-[11px] text-gray-500 mt-0.5">TTC</div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Total (selected configuration) */}
+        {selected?.sellingPriceIncVat && (
           <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6 mb-4">
             <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">
-              Total TTC
+              Total TTC{selected.tier ? ` — ${TIER_LABEL[selected.tier]}` : ''}
             </div>
             <div className="text-4xl font-semibold text-red-600 tabular-nums font-mono leading-tight">
-              {quote.scenario.sellingPriceIncVat}
+              {selected.sellingPriceIncVat}
             </div>
             <div className="text-xs text-gray-500 mt-2 space-y-0.5">
-              {quote.scenario.sellingPriceExVat && (
+              {selected.sellingPriceExVat && (
                 <div>
-                  Prix HT&nbsp;: <span className="font-mono tabular-nums">{quote.scenario.sellingPriceExVat}</span>
+                  Prix HT&nbsp;: <span className="font-mono tabular-nums">{selected.sellingPriceExVat}</span>
                 </div>
               )}
-              {quote.scenario.vatAmount && (
+              {selected.vatAmount && (
                 <div>
-                  TVA ({quote.scenario.vatRate})&nbsp;:{' '}
-                  <span className="font-mono tabular-nums">{quote.scenario.vatAmount}</span>
+                  TVA ({selected.vatRate})&nbsp;:{' '}
+                  <span className="font-mono tabular-nums">{selected.vatAmount}</span>
                 </div>
               )}
             </div>
           </div>
         )}
 
-        {/* Scenario / items */}
-        {quote.scenario && (
+        {/* Scenario / items (selected configuration) */}
+        {selected && (
           <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6 mb-4">
-            <h2 className="text-sm font-semibold text-gray-900 mb-1">{quote.scenario.name}</h2>
+            <h2 className="text-sm font-semibold text-gray-900 mb-1">{selected.name}</h2>
             <p className="text-xs text-gray-500 mb-4">
-              {quote.scenario.scenarioType === 'PAC' ? 'Pompe à chaleur' : 'Installation photovoltaïque'}
+              {selected.scenarioType === 'PAC' ? 'Pompe à chaleur' : 'Installation photovoltaïque'}
             </p>
             <div className="space-y-1.5">
-              {quote.scenario.items.map((item, i) => (
+              {selected.items.map((item, i) => (
                 <div key={i} className="flex items-center gap-3 py-1 text-sm">
                   <span className="font-mono text-red-600 font-semibold tabular-nums w-8 text-right">
                     {item.quantity}×
@@ -204,7 +279,7 @@ export default function PublicQuoteView({ quote }: { quote: PublicQuoteVM }) {
                   </span>
                 </div>
               ))}
-              {quote.scenario.options.map((opt, i) => (
+              {selected.options.map((opt, i) => (
                 <div key={i} className="flex items-center gap-3 py-1 text-sm">
                   <span className="font-mono text-red-600 font-semibold tabular-nums w-8 text-right">
                     1×
@@ -224,6 +299,7 @@ export default function PublicQuoteView({ quote }: { quote: PublicQuoteVM }) {
             <h2 className="text-base font-semibold text-green-900 mb-1">Offre acceptée</h2>
             <p className="text-sm text-green-800">
               Merci ! Votre conseiller vous contactera pour la suite.
+              Une confirmation vous a été envoyée par e-mail.
             </p>
             {quote.acceptedAt && (
               <p className="text-xs text-green-700 mt-2 tabular-nums">
@@ -252,15 +328,51 @@ export default function PublicQuoteView({ quote }: { quote: PublicQuoteVM }) {
           </div>
         ) : quote.canRespond ? (
           <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
-            {!decliningOpen ? (
+            {acceptOpen ? (
+              <>
+                <h2 className="text-sm font-semibold text-gray-900 mb-2">
+                  Accepter l&apos;offre{selected?.tier ? ` — ${TIER_LABEL[selected.tier]}` : ''}
+                </h2>
+                <p className="text-xs text-gray-500 mb-3">
+                  Saisissez votre nom complet pour confirmer votre accord.
+                  Cette confirmation vaut acceptation de l&apos;offre
+                  {selected?.sellingPriceIncVat ? ` (${selected.sellingPriceIncVat} TTC)` : ''}.
+                </p>
+                <input
+                  type="text"
+                  value={signedName}
+                  onChange={(e) => setSignedName(e.target.value)}
+                  placeholder="Prénom et nom"
+                  autoComplete="name"
+                  className="w-full text-sm border border-gray-300 rounded p-2.5 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500"
+                />
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={() => respond('accept')}
+                    disabled={pending !== null || signedName.trim().length < 3}
+                    className="btn-primary text-sm px-4 py-2.5 flex-1 disabled:opacity-50"
+                  >
+                    {pending === 'accept' ? 'Enregistrement…' : '✓ Confirmer et accepter'}
+                  </button>
+                  <button
+                    onClick={() => setAcceptOpen(false)}
+                    disabled={pending !== null}
+                    className="text-sm text-gray-500 hover:text-gray-700 px-3"
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </>
+            ) : !decliningOpen ? (
               <>
                 <h2 className="text-sm font-semibold text-gray-900 mb-3">Votre réponse</h2>
                 <button
-                  onClick={() => respond('accept')}
+                  onClick={() => setAcceptOpen(true)}
                   disabled={pending !== null}
                   className="btn-primary w-full text-base py-3 mb-2 disabled:opacity-50"
                 >
-                  {pending === 'accept' ? 'Enregistrement…' : '✓ Accepter cette offre'}
+                  ✓ Accepter cette offre
+                  {selected?.sellingPriceIncVat ? ` — ${selected.sellingPriceIncVat}` : ''}
                 </button>
                 <button
                   onClick={() => setDecliningOpen(true)}

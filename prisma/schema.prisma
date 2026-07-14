@@ -264,6 +264,16 @@ model Quote {
   acceptedAt    DateTime?
   declinedAt    DateTime?
   declineReason String?     @db.Text
+  /// Scenario the customer actually chose at accept time (« Essentiel » vs
+  /// « Recommandé » vs « Premium » on /q). Null on pre-tier-choice
+  /// acceptances and declines.
+  acceptedScenarioId String?
+  /// Signature simple: full name typed by the customer to accept, plus the
+  /// request IP and user-agent — a basic audit trail of who accepted from
+  /// where. (Qualified e-signature via a provider is a future step.)
+  acceptedByName     String?
+  acceptedIp         String?
+  acceptedUserAgent  String?
   // Public share URL token. Generated on first SENT transition (or backfilled
   // from `id` for legacy quotes during migration). Decoupled from `id` so the
   // rep can revoke a leaked link without rebuilding the quote: set to null or
