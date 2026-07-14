@@ -16,6 +16,7 @@ import { useFormDraft, draftAgeLabel } from '@/lib/use-form-draft'
 import { useLanguage } from '@/context/LanguageContext'
 import { Card, EmptyState, SectionHeader } from '@/components/ui'
 import AddressSearch from './AddressSearch'
+import CustomerSearch from './CustomerSearch'
 import AiPromptDialog, { type AiProposedDraft, type AiSibling } from './AiPromptDialog'
 
 // SiteMap uses Leaflet (DOM-only) — load client-side only
@@ -505,12 +506,19 @@ export default function PacCalculatorForm({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="label">Client</label>
-              <input
-                type="text"
-                className="input"
-                placeholder="Nom du client"
+              <CustomerSearch
                 value={projectInfo.customerName}
-                onChange={(e) => setProjectInfo((p) => ({ ...p, customerName: e.target.value }))}
+                onChange={(v) => setProjectInfo((p) => ({ ...p, customerName: v }))}
+                onPick={(c) => {
+                  setProjectInfo((p) => ({
+                    ...p,
+                    customerName: c.name,
+                    customerEmail: c.email ?? p.customerEmail,
+                    customerPhone: c.phone ?? p.customerPhone,
+                  }))
+                  if (c.zip) setCustomerZip(c.zip)
+                  setIsDirty(true)
+                }}
               />
             </div>
             <div>
