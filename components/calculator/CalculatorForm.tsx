@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
-import { calculateIonPrice, calculateRoi, estimateAnnualYield, estimateSelfConsumptionRate, sumInstalledKwp, calculatePronovoSubsidy, estimateTaxSavings, applyDiscount, IonPricingCoefficients, RoofType, RoofSlope } from '@/lib/pricing'
+import { calculateIonPrice, calculateRoi, estimateAnnualYield, estimateSelfConsumptionRate, sumInstalledKwp, calculatePronovoSubsidy, estimateTaxSavings, applyDiscount, formatChf, IonPricingCoefficients, RoofType, RoofSlope } from '@/lib/pricing'
 import PriceSummaryCard from './PriceSummaryCard'
 import { useFormDraft, draftAgeLabel } from '@/lib/use-form-draft'
 import { useLanguage } from '@/context/LanguageContext'
@@ -954,6 +954,28 @@ export default function CalculatorForm({
         )}
       </div>
     </div>
+    {/* Mobile sticky bar — below lg the price card (and its save button)
+        sits under ~6 cards of form; keep the total + save in thumb reach. */}
+    {pricing && (
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-30 border-t border-gray-200 bg-white/95 backdrop-blur px-4 py-3 flex items-center gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="text-lg font-bold font-mono tabular-nums text-gray-900 leading-none truncate">
+            {formatChf(pricing.sellingPriceIncVatRappen)}
+          </div>
+          <div className="text-[10px] text-gray-500 uppercase tracking-wider">Total TTC</div>
+        </div>
+        <button
+          type="button"
+          onClick={quoteId ? handleSave : handleSaveAsNewQuote}
+          disabled={isSaving}
+          className="btn-primary text-sm px-5 py-2.5"
+        >
+          {isSaving ? '…' : 'Enregistrer'}
+        </button>
+      </div>
+    )}
+    {/* Spacer so the fixed bar never covers the last card on mobile */}
+    {pricing && <div className="h-16 lg:hidden" aria-hidden="true" />}
     </>
   )
 }

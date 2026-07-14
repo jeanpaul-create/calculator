@@ -924,6 +924,26 @@ export default function PacCalculatorForm({
         )}
       </div>
     </div>
+    {/* Mobile sticky bar — total + save in thumb reach (mirrors CalculatorForm). */}
+    {pricing && (
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-30 border-t border-gray-200 bg-white/95 backdrop-blur px-4 py-3 flex items-center gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="text-lg font-bold font-mono tabular-nums text-gray-900 leading-none truncate">
+            {formatChf(pricing.sellingPriceIncVatRappen)}
+          </div>
+          <div className="text-[10px] text-gray-500 uppercase tracking-wider">Total TTC</div>
+        </div>
+        <button
+          type="button"
+          onClick={quoteId ? handleSave : handleSaveAsNewQuote}
+          disabled={isSaving}
+          className="btn-primary text-sm px-5 py-2.5"
+        >
+          {isSaving ? '…' : 'Enregistrer'}
+        </button>
+      </div>
+    )}
+    {pricing && <div className="h-16 lg:hidden" aria-hidden="true" />}
     </>
   )
 }
