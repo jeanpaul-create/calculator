@@ -568,18 +568,28 @@ export async function PUT(req: NextRequest, { params }: Params) {
         customerId = result.id
       }
 
+      // DATA-PRESERVATION GUARD: only overwrite quote-level fields the payload
+      // actually provides (non-empty). The calculator forms spread their
+      // projectInfo state — before edit-mode prefill existed, that state was
+      // empty strings, and this update used to blank customer info and NULL
+      // the map position on every re-save. Empty/undefined now means "leave
+      // unchanged"; clearing a field intentionally needs a dedicated flow.
+      const keep = (s: string | undefined) => {
+        const t = s?.trim()
+        return t ? t : undefined
+      }
       await prisma.quote.update({
         where: { id: params.id },
         data: {
           ...(customerId ? { customerId } : {}),
-          customerName: data.customerName,
-          customerEmail: data.customerEmail || null,
-          customerPhone: data.customerPhone,
-          siteAddress: data.siteAddress,
-          notes: data.notes,
-          mapLat: data.mapLat ?? null,
-          mapLon: data.mapLon ?? null,
-          mapZoom: data.mapZoom ?? null,
+          ...(keep(data.customerName) ? { customerName: keep(data.customerName) } : {}),
+          ...(keep(data.customerEmail) ? { customerEmail: keep(data.customerEmail) } : {}),
+          ...(keep(data.customerPhone) ? { customerPhone: keep(data.customerPhone) } : {}),
+          ...(keep(data.siteAddress) ? { siteAddress: keep(data.siteAddress) } : {}),
+          ...(keep(data.notes) ? { notes: keep(data.notes) } : {}),
+          ...(data.mapLat != null ? { mapLat: data.mapLat } : {}),
+          ...(data.mapLon != null ? { mapLon: data.mapLon } : {}),
+          ...(data.mapZoom != null ? { mapZoom: data.mapZoom } : {}),
           updatedAt: new Date(),
         },
       })

@@ -32,6 +32,34 @@ interface SelectedProduct {
   quantity: number
 }
 
+/**
+ * Snapshot of an existing quote used to prefill the form in edit mode
+ * (?quoteId=). Built server-side by the calculator page from the quote +
+ * its first matching scenario. Before this existed, « Modifier » opened a
+ * blank form and a hasty save destroyed the previous configuration.
+ */
+export interface CalculatorInitial {
+  customerName: string
+  customerEmail: string
+  customerPhone: string
+  siteAddress: string
+  notes: string
+  customerZip: string
+  roofType: RoofType | null
+  roofSlope: RoofSlope | null
+  annualConsumptionKwh: number | null
+  feedInRateCtKwh: number | null
+  rateCtPerKwh: number | null
+  yieldKwhPerKwp: number | null
+  mapLat: number | null
+  mapLon: number | null
+  mapZoom: number | null
+  discountBasisPts: number
+  discountReason: string
+  items: Array<{ productId: string; quantity: number }>
+  optionIds: string[]
+}
+
 interface CalculatorFormProps {
   products: Product[]
   costOptions: CostOption[]
@@ -40,6 +68,8 @@ interface CalculatorFormProps {
   minMarginBasisPts: number
   ionCoefficients: IonPricingCoefficients
   quoteId?: string
+  /** Edit-mode prefill (present only when quoteId matches an existing quote). */
+  initial?: CalculatorInitial | null
   onSaved?: (quoteId: string) => void
 }
 
@@ -50,40 +80,76 @@ export default function CalculatorForm({
   minMarginBasisPts,
   ionCoefficients,
   quoteId,
+  initial,
   onSaved,
 }: CalculatorFormProps) {
   const { t } = useLanguage()
   const router = useRouter()
-  const [selectedProducts, setSelectedProducts] = useState<SelectedProduct[]>([])
-  const [selectedOptions, setSelectedOptions] = useState<Set<string>>(new Set())
+  const [selectedProducts, setSelectedProducts] = useState<SelectedProduct[]>(() =>
+    initial
+      ? initial.items.flatMap((it) => {
+          // Catalog products can be deactivated since the quote was saved —
+          // skip silently (same safety net as applyAiDraft).
+          const product = products.find((p) => p.id === it.productId)
+          return product ? [{ product, quantity: it.quantity }] : []
+        })
+      : []
+  )
+  const [selectedOptions, setSelectedOptions] = useState<Set<string>>(
+    () => new Set(initial?.optionIds ?? [])
+  )
   const [isDirty, setIsDirty] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [savedQuoteNumber, setSavedQuoteNumber] = useState<string | null>(null)
   const [projectInfo, setProjectInfo] = useState({
-    customerName: '',
-    customerEmail: '',
-    customerPhone: '',
-    siteAddress: '',
-    notes: '',
+    customerName: initial?.customerName ?? '',
+    customerEmail: initial?.customerEmail ?? '',
+    customerPhone: initial?.customerPhone ?? '',
+    siteAddress: initial?.siteAddress ?? '',
+    notes: initial?.notes ?? '',
   })
-  const [roofType, setRoofType] = useState<RoofType>('tuile')
-  const [roofSlope, setRoofSlope] = useState<RoofSlope>('simple')
-  const [annualConsumptionKwh, setAnnualConsumptionKwh] = useState<string>('')
+  const [roofType, setRoofType] = useState<RoofType>(initial?.roofType ?? 'tuile')
+  const [roofSlope, setRoofSlope] = useState<RoofSlope>(initial?.roofSlope ?? 'simple')
+  /** 4-digit NPA from the address autocomplete — persisted on the quote so
+   *  customer dedupe (name+zip), the list NPA column, and canton resolution
+   *  work. Previously dropped after the site-info fetch. */
+  const [customerZip, setCustomerZip] = useState<string>(initial?.customerZip ?? '')
+  const [annualConsumptionKwh, setAnnualConsumptionKwh] = useState<string>(
+    initial?.annualConsumptionKwh != null ? String(initial.annualConsumptionKwh) : ''
+  )
   /** Feed-in tariff in ct/kWh — editable, default Swiss average */
-  const [feedInRateCtKwh, setFeedInRateCtKwh] = useState<number>(8)
-  const [mapState, setMapState] = useState<{ lat: number; lon: number; zoom: number } | null>(null)
+  const [feedInRateCtKwh, setFeedInRateCtKwh] = useState<number>(
+    initial?.feedInRateCtKwh ?? 8
+  )
+  const [mapState, setMapState] = useState<{ lat: number; lon: number; zoom: number } | null>(
+    initial?.mapLat != null && initial?.mapLon != null
+      ? { lat: initial.mapLat, lon: initial.mapLon, zoom: initial.mapZoom ?? 17 }
+      : null
+  )
   const [siteInfo, setSiteInfo] = useState<{
     rateCtPerKwh: number | null
     feedInCtPerKwh: number | null
     operatorName: string | null
     communeName: string | null
     yieldKwhPerKwp: number | null
-  } | null>(null)
+  } | null>(
+    // Edit mode: restore the stored tariff + yield so pricing/ROI display
+    // matches the saved scenario without re-picking the address.
+    initial && (initial.rateCtPerKwh != null || initial.yieldKwhPerKwp != null)
+      ? {
+          rateCtPerKwh: initial.rateCtPerKwh,
+          feedInCtPerKwh: initial.feedInRateCtKwh,
+          operatorName: null,
+          communeName: null,
+          yieldKwhPerKwp: initial.yieldKwhPerKwp,
+        }
+      : null
+  )
   const [fetchingSiteInfo, setFetchingSiteInfo] = useState(false)
   /** Rep-chosen discount on the engine-computed price (basis points; 500 = 5%). */
-  const [discountBasisPts, setDiscountBasisPts] = useState<number>(0)
-  const [discountReason, setDiscountReason] = useState<string>('')
+  const [discountBasisPts, setDiscountBasisPts] = useState<number>(initial?.discountBasisPts ?? 0)
+  const [discountReason, setDiscountReason] = useState<string>(initial?.discountReason ?? '')
   /** AI prompt dialog open state */
   const [aiOpen, setAiOpen] = useState(false)
   /**
@@ -366,6 +432,7 @@ export default function CalculatorForm({
           customerName: projectInfo.customerName || undefined,
           customerEmail: projectInfo.customerEmail || undefined,
           customerPhone: projectInfo.customerPhone || undefined,
+          customerZip: customerZip || undefined,
           siteAddress: projectInfo.siteAddress || undefined,
           notes: projectInfo.notes || undefined,
           mapLat: mapState?.lat,
@@ -446,6 +513,7 @@ export default function CalculatorForm({
                 onSelect={(address, lat, lon, zip, commune) => {
                   setProjectInfo(p => ({...p, siteAddress: address}))
                   setMapState(prev => ({ lat, lon, zoom: prev?.zoom ?? 17 }))
+                  if (zip) setCustomerZip(zip)
                   if (zip) {
                     setSiteInfo(null)
                     setFetchingSiteInfo(true)

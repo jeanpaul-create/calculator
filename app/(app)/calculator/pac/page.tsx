@@ -1,11 +1,53 @@
 import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/db'
 import { auth } from '@/lib/auth'
-import PacCalculatorForm from '@/components/calculator/PacCalculatorForm'
+import PacCalculatorForm, { type PacCalculatorInitial } from '@/components/calculator/PacCalculatorForm'
 import { buildPacCoefficientsFromSettings, PAC_SETTING_KEYS } from '@/lib/pricing'
 import { PageHeader } from '@/components/ui'
 
 export const metadata = { title: 'Calculateur PAC' }
+
+/**
+ * Edit-mode prefill: load the quote + its first PAC scenario and map it to
+ * the form's initial state. Returns null for unknown ids or quotes the rep
+ * doesn't own — the form then behaves as a fresh quote.
+ */
+async function loadInitial(
+  quoteId: string,
+  userId: string,
+  isAdmin: boolean
+): Promise<PacCalculatorInitial | null> {
+  const quote = await prisma.quote.findUnique({
+    where: { id: quoteId },
+    include: {
+      scenarios: {
+        orderBy: { sortOrder: 'asc' },
+        include: { items: true },
+      },
+    },
+  })
+  if (!quote) return null
+  if (!isAdmin && quote.repId !== userId) return null
+
+  const s = quote.scenarios.find((sc) => sc.scenarioType === 'PAC') ?? null
+  return {
+    customerName: quote.customerName ?? '',
+    customerEmail: quote.customerEmail ?? '',
+    customerPhone: quote.customerPhone ?? '',
+    siteAddress: quote.siteAddress ?? '',
+    notes: quote.notes ?? '',
+    customerZip: quote.customerZip ?? '',
+    customerCanton: quote.customerCanton ?? null,
+    mapLat: quote.mapLat,
+    mapLon: quote.mapLon,
+    mapZoom: quote.mapZoom,
+    discountBasisPts: s?.discountBasisPts ?? 0,
+    discountReason: s?.discountReason ?? '',
+    pacType: s?.pacType === 'sol-eau' ? 'sol-eau' : 'air-eau',
+    thermalKw: s?.thermalLoadKw ?? null,
+    items: (s?.items ?? []).map((it) => ({ productId: it.productId, quantity: it.quantity })),
+  }
+}
 
 export default async function PacCalculatorPage({
   searchParams,
@@ -70,6 +112,10 @@ export default async function PacCalculatorPage({
     laborRappen: p.laborRappen,
   }))
 
+  const initial = searchParams.quoteId
+    ? await loadInitial(searchParams.quoteId, session.user.id, session.user.role === 'ADMIN')
+    : null
+
   return (
     <div className="p-6 max-w-6xl">
       <PageHeader
@@ -82,7 +128,8 @@ export default async function PacCalculatorPage({
         vatBasisPts={vatBasisPts}
         minMarginBasisPts={minMarginBasisPts}
         pacCoefficients={pacCoefficients}
-        quoteId={searchParams.quoteId}
+        quoteId={initial ? searchParams.quoteId : undefined}
+        initial={initial}
       />
     </div>
   )

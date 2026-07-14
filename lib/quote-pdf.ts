@@ -339,8 +339,23 @@ export async function buildPricedScenarios(quote: FullQuote): Promise<PricedScen
         0,
         sellingPriceIncVatRappen - (pronovoSubsidyRappen ?? 0) - taxSavingsRappen
       )
-      if (annualSavingsRappen > 0) {
-        paybackYearsWithSubsidy = Math.round((effectiveInvestmentRappen / annualSavingsRappen) * 10) / 10
+      // Same engine + same escalated yearly series as the headline payback —
+      // only the investment differs. A flat division here used to print a
+      // payback pair computed with two different maths on the same PDF page.
+      if (annualKwhYield && rateRappenPerKwh && selfConsumptionRate != null) {
+        if (effectiveInvestmentRappen === 0) {
+          paybackYearsWithSubsidy = 0
+        } else {
+          const subsidizedRoi = calculateRoi({
+            annualKwhYield,
+            rateRappenPerKwh,
+            feedInRateRappenPerKwh: storedFeedInRate ?? 8,
+            selfConsumptionRate,
+            investmentRappen: effectiveInvestmentRappen,
+          })
+          paybackYearsWithSubsidy =
+            subsidizedRoi.paybackYears === Infinity ? null : subsidizedRoi.paybackYears
+        }
       }
     }
 

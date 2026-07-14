@@ -43,6 +43,28 @@ interface SelectedProduct {
   quantity: number
 }
 
+/**
+ * Snapshot of an existing quote used to prefill the form in edit mode
+ * (?quoteId=). Built server-side by the PAC calculator page.
+ */
+export interface PacCalculatorInitial {
+  customerName: string
+  customerEmail: string
+  customerPhone: string
+  siteAddress: string
+  notes: string
+  customerZip: string
+  customerCanton: string | null
+  mapLat: number | null
+  mapLon: number | null
+  mapZoom: number | null
+  discountBasisPts: number
+  discountReason: string
+  pacType: 'air-eau' | 'sol-eau'
+  thermalKw: number | null
+  items: Array<{ productId: string; quantity: number }>
+}
+
 interface PacCalculatorFormProps {
   products: PacProduct[]
   vatBasisPts: number
@@ -50,6 +72,8 @@ interface PacCalculatorFormProps {
   minMarginBasisPts: number
   pacCoefficients: PacPricingCoefficients
   quoteId?: string
+  /** Edit-mode prefill (present only when quoteId matches an existing quote). */
+  initial?: PacCalculatorInitial | null
   onSaved?: (quoteId: string) => void
 }
 
@@ -85,32 +109,46 @@ export default function PacCalculatorForm({
   minMarginBasisPts,
   pacCoefficients,
   quoteId,
+  initial,
   onSaved,
 }: PacCalculatorFormProps) {
   const { t } = useLanguage()
   const router = useRouter()
 
-  const [selectedProducts, setSelectedProducts] = useState<SelectedProduct[]>([])
+  const [selectedProducts, setSelectedProducts] = useState<SelectedProduct[]>(() =>
+    initial
+      ? initial.items.flatMap((it) => {
+          // Deactivated catalog products are skipped silently (same safety
+          // net as applyAiDraft).
+          const product = products.find((p) => p.id === it.productId)
+          return product ? [{ product, quantity: it.quantity }] : []
+        })
+      : []
+  )
   const [isDirty, setIsDirty] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [savedQuoteNumber, setSavedQuoteNumber] = useState<string | null>(null)
   const [projectInfo, setProjectInfo] = useState({
-    customerName: '',
-    customerEmail: '',
-    customerPhone: '',
-    siteAddress: '',
-    notes: '',
+    customerName: initial?.customerName ?? '',
+    customerEmail: initial?.customerEmail ?? '',
+    customerPhone: initial?.customerPhone ?? '',
+    siteAddress: initial?.siteAddress ?? '',
+    notes: initial?.notes ?? '',
   })
   /** Rep-chosen discount on the engine-computed PAC price (basis points). */
-  const [discountBasisPts, setDiscountBasisPts] = useState<number>(0)
-  const [discountReason, setDiscountReason] = useState<string>('')
+  const [discountBasisPts, setDiscountBasisPts] = useState<number>(initial?.discountBasisPts ?? 0)
+  const [discountReason, setDiscountReason] = useState<string>(initial?.discountReason ?? '')
   /**
    * Aerial site map state — set when the rep picks an address from the
    * autocomplete; user can then drag the marker to fine-tune. Persisted on
    * scenario save so the PDF can render the map. (Same shape as PV form.)
    */
-  const [mapState, setMapState] = useState<{ lat: number; lon: number; zoom: number } | null>(null)
+  const [mapState, setMapState] = useState<{ lat: number; lon: number; zoom: number } | null>(
+    initial?.mapLat != null && initial?.mapLon != null
+      ? { lat: initial.mapLat, lon: initial.mapLon, zoom: initial.mapZoom ?? 17 }
+      : null
+  )
   /**
    * PAC unit position (lat/lon) — separate from the site marker. When null,
    * the SiteMap defaults the marker ~5m east of the site marker. Stored
@@ -126,14 +164,25 @@ export default function PacCalculatorForm({
     rateCtPerKwh: number | null
     communeName: string | null
     canton: string | null
-  } | null>(null)
+  } | null>(
+    // Edit mode: restore the canton so the subsidy card works without
+    // re-picking the address.
+    initial?.customerCanton
+      ? { rateCtPerKwh: null, communeName: null, canton: initial.customerCanton }
+      : null
+  )
   /**
    * Subsidy inputs — PAC type + design heat load. The kW value should match
    * the heat-load calculation (suissetec) when one exists; it's editable here
    * so the rep can show the subsidy live in the meeting before any save.
    */
-  const [pacType, setPacType] = useState<'air-eau' | 'sol-eau'>('air-eau')
-  const [thermalKwStr, setThermalKwStr] = useState<string>('')
+  const [pacType, setPacType] = useState<'air-eau' | 'sol-eau'>(initial?.pacType ?? 'air-eau')
+  const [thermalKwStr, setThermalKwStr] = useState<string>(
+    initial?.thermalKw != null ? String(initial.thermalKw) : ''
+  )
+  /** 4-digit NPA from the address autocomplete — persisted on the quote
+   *  (customer dedupe, NPA column, canton). Previously dropped. */
+  const [customerZip, setCustomerZip] = useState<string>(initial?.customerZip ?? '')
   const [fetchingSiteInfo, setFetchingSiteInfo] = useState(false)
   /** AI prompt dialog open state */
   const [aiOpen, setAiOpen] = useState(false)
@@ -327,6 +376,7 @@ export default function PacCalculatorForm({
           customerName: projectInfo.customerName || undefined,
           customerEmail: projectInfo.customerEmail || undefined,
           customerPhone: projectInfo.customerPhone || undefined,
+          customerZip: customerZip || undefined,
           siteAddress: projectInfo.siteAddress || undefined,
           notes: projectInfo.notes || undefined,
           mapLat: mapState?.lat,
@@ -411,6 +461,7 @@ export default function PacCalculatorForm({
                   setProjectInfo((p) => ({ ...p, siteAddress: address }))
                   setMapState((prev) => ({ lat, lon, zoom: prev?.zoom ?? 17 }))
                   setIsDirty(true)
+                  if (zip) setCustomerZip(zip)
                   if (zip) {
                     setSiteInfo(null)
                     setFetchingSiteInfo(true)

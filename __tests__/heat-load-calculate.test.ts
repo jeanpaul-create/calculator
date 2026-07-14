@@ -207,3 +207,24 @@ describe('lookup-table integrity', () => {
     expect(new Set(genKeys).size).toBe(genKeys.length)
   })
 })
+
+// ─── Climate data integrity ───────────────────────────────────────────────
+//
+// Regression net for the St. Gallen / Schaffhausen / Scuol / Sion incident:
+// the 2012–2020 year blocks were rotated one station off during extraction,
+// which made yearly DJC physically inconsistent with each station's own
+// long-term average (e.g. Schaffhausen showed ~4580/yr against an avg of
+// 3443 — impossible). Invariant: 2012–2020 were warm years, so every
+// station's yearly mean must sit BELOW its long-term average, within a
+// plausible band.
+describe('climate data integrity', () => {
+  it('every station: mean(djcByYear) is 75–105% of djcLongTermAvg', () => {
+    for (const s of CLIMATE_STATIONS) {
+      const years = Object.values(s.djcByYear)
+      const mean = years.reduce((a, b) => a + b, 0) / years.length
+      const ratio = mean / s.djcLongTermAvg
+      expect(ratio, `${s.name}: yearly mean ${Math.round(mean)} vs avg ${s.djcLongTermAvg}`).toBeGreaterThan(0.75)
+      expect(ratio, `${s.name}: yearly mean ${Math.round(mean)} vs avg ${s.djcLongTermAvg}`).toBeLessThan(1.05)
+    }
+  })
+})

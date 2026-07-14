@@ -1,11 +1,57 @@
 import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/db'
 import { auth } from '@/lib/auth'
-import CalculatorForm from '@/components/calculator/CalculatorForm'
-import { buildIonCoefficientsFromSettings } from '@/lib/pricing'
+import CalculatorForm, { type CalculatorInitial } from '@/components/calculator/CalculatorForm'
+import { buildIonCoefficientsFromSettings, type RoofType, type RoofSlope } from '@/lib/pricing'
 import { PageHeader } from '@/components/ui'
 
 export const metadata = { title: 'Calculateur' }
+
+/**
+ * Edit-mode prefill: load the quote + its first PV scenario and map it to
+ * the form's initial state. Returns null for unknown ids or quotes the rep
+ * doesn't own (admin sees all) — the form then behaves as a fresh quote.
+ */
+async function loadInitial(
+  quoteId: string,
+  userId: string,
+  isAdmin: boolean
+): Promise<CalculatorInitial | null> {
+  const quote = await prisma.quote.findUnique({
+    where: { id: quoteId },
+    include: {
+      scenarios: {
+        orderBy: { sortOrder: 'asc' },
+        include: { items: true, options: true },
+      },
+    },
+  })
+  if (!quote) return null
+  if (!isAdmin && quote.repId !== userId) return null
+
+  const s = quote.scenarios.find((sc) => sc.scenarioType === 'PV') ?? null
+  return {
+    customerName: quote.customerName ?? '',
+    customerEmail: quote.customerEmail ?? '',
+    customerPhone: quote.customerPhone ?? '',
+    siteAddress: quote.siteAddress ?? '',
+    notes: quote.notes ?? '',
+    customerZip: quote.customerZip ?? '',
+    roofType: (s?.roofType as RoofType | null) ?? null,
+    roofSlope: (s?.roofSlope as RoofSlope | null) ?? null,
+    annualConsumptionKwh: s?.annualConsumptionKwh ?? null,
+    feedInRateCtKwh: s?.feedInRateRappenPerKwh ?? null,
+    rateCtPerKwh: s?.rateRappenPerKwh ?? null,
+    yieldKwhPerKwp: s?.yieldKwhPerKwp ?? null,
+    mapLat: quote.mapLat,
+    mapLon: quote.mapLon,
+    mapZoom: quote.mapZoom,
+    discountBasisPts: s?.discountBasisPts ?? 0,
+    discountReason: s?.discountReason ?? '',
+    items: (s?.items ?? []).map((it) => ({ productId: it.productId, quantity: it.quantity })),
+    optionIds: (s?.options ?? []).map((o) => o.optionId),
+  }
+}
 
 export default async function CalculatorPage({
   searchParams,
@@ -66,6 +112,10 @@ export default async function CalculatorPage({
 
   const ionCoefficients = buildIonCoefficientsFromSettings(settingsMap, vatBasisPts)
 
+  const initial = searchParams.quoteId
+    ? await loadInitial(searchParams.quoteId, session.user.id, session.user.role === 'ADMIN')
+    : null
+
   return (
     <div className="p-6 max-w-6xl">
       <PageHeader
@@ -80,7 +130,8 @@ export default async function CalculatorPage({
         vatBasisPts={vatBasisPts}
         minMarginBasisPts={minMarginBasisPts}
         ionCoefficients={ionCoefficients}
-        quoteId={searchParams.quoteId}
+        quoteId={initial ? searchParams.quoteId : undefined}
+        initial={initial}
       />
     </div>
   )
