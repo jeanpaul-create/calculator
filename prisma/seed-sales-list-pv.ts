@@ -132,6 +132,17 @@ async function main() {
     }
   }
 
+  // The sales list defines the ONLY two panels reps may quote (user decision
+  // 2026-07-14: « use only 2 panels »). Everything else in PANEL goes
+  // inactive — non-destructive, existing quotes keep their cost snapshots.
+  // Other categories (incl. the whole Huawei line) are deliberately untouched.
+  const currentPanels = ROWS.filter((r) => r.category === 'PANEL').map((r) => r.name)
+  const retired = await prisma.product.updateMany({
+    where: { category: 'PANEL', name: { notIn: currentPanels }, active: true },
+    data: { active: false },
+  })
+  if (retired.count > 0) console.log(`− ${retired.count} anciens panneaux désactivés`)
+
   // Align inverter labor with the workbook: « Main-d'œuvre Électricité 90 »
   // (the setting carried 180 — every PV quote overpriced by 90 CHF/onduleur
   // vs the Excel reference).
