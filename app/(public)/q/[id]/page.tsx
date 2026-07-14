@@ -37,7 +37,7 @@ import { cache } from 'react'
 import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/db'
 import { notifyRep } from '@/lib/notify-rep'
-import { formatChf, formatPct } from '@/lib/pricing'
+import { estimateMonthlyPayment, formatChf, formatPct } from '@/lib/pricing'
 import PublicQuoteView, { type PublicQuoteVM } from '@/components/quotes/PublicQuoteView'
 
 export const dynamic = 'force-dynamic'
@@ -157,6 +157,11 @@ export default async function PublicQuotePage({ params }: Props) {
         s.sellingPriceExVatRappen && s.sellingPriceIncVatRappen
           ? formatChf(s.sellingPriceIncVatRappen - s.sellingPriceExVatRappen)
           : null,
+      // « soit ≈ CHF 180/mois » — indicative mortgage-increase framing
+      // (2% / 20 ans, footnoted in the view)
+      monthlyChf: s.sellingPriceIncVatRappen
+        ? formatChf(estimateMonthlyPayment(s.sellingPriceIncVatRappen))
+        : null,
       items: s.items.map((it) => ({
         name: it.product.name,
         quantity: it.quantity,

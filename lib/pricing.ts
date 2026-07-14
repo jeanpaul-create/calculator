@@ -324,6 +324,30 @@ export function calculatePronovoSubsidy(installedKwp: number): number {
 }
 
 /**
+ * Monthly-payment framing for the offer price — « soit ≈ CHF 180/mois via
+ * augmentation hypothécaire ». Standard annuity at a conservative Swiss
+ * mortgage-increase rate. Purely indicative (footnoted as such wherever
+ * displayed); reframes a CHF 45k ticket against the customer's current
+ * energy bill.
+ *
+ * @param totalRappen - Amount financed (inc. VAT)
+ * @param annualRateBps - Annual interest, basis points (default 200 = 2%)
+ * @param years - Amortization horizon (default 20)
+ * @returns Monthly payment in Rappen (rounded)
+ */
+export function estimateMonthlyPayment(
+  totalRappen: number,
+  annualRateBps = 200,
+  years = 20
+): number {
+  if (totalRappen <= 0 || years <= 0) return 0
+  const n = years * 12
+  const r = annualRateBps / 10000 / 12
+  if (r === 0) return Math.round(totalRappen / n)
+  return Math.round((totalRappen * r) / (1 - Math.pow(1 + r, -n)))
+}
+
+/**
  * Estimate tax savings from deducting PV installation costs.
  *
  * In Switzerland, PV investments are deductible as property maintenance costs

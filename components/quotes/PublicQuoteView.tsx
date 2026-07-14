@@ -25,6 +25,8 @@ export interface PublicScenarioVM {
   sellingPriceIncVat: string | null
   vatRate: string
   vatAmount: string | null
+  /** Indicative monthly payment (mortgage-increase framing, 2%/20y). */
+  monthlyChf: string | null
   items: { name: string; quantity: number; category: string }[]
   options: { name: string }[]
 }
@@ -244,6 +246,12 @@ export default function PublicQuoteView({ quote }: { quote: PublicQuoteVM }) {
             <div className="text-4xl font-semibold text-red-600 tabular-nums font-mono leading-tight">
               {selected.sellingPriceIncVat}
             </div>
+            {selected.monthlyChf && (
+              <div className="text-sm text-gray-700 mt-1.5">
+                soit ≈ <span className="font-semibold font-mono tabular-nums">{selected.monthlyChf}/mois</span>
+                <span className="text-xs text-gray-400"> via augmentation hypothécaire*</span>
+              </div>
+            )}
             <div className="text-xs text-gray-500 mt-2 space-y-0.5">
               {selected.sellingPriceExVat && (
                 <div>
@@ -428,6 +436,9 @@ export default function PublicQuoteView({ quote }: { quote: PublicQuoteVM }) {
         <p className="text-center text-[10px] text-gray-400 mt-6 tracking-wide">
           Cette offre est confidentielle et destinée à son destinataire.
           Pour toute question, contactez votre conseiller I.ON.
+          <br />
+          *Mensualité indicative : augmentation hypothécaire à 2% sur 20 ans —
+          hors frais bancaires, sous réserve d&apos;acceptation par votre banque.
         </p>
       </div>
     </div>

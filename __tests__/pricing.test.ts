@@ -15,6 +15,7 @@ import {
   calculateIonPrice,
   calculatePronovoSubsidy,
   estimateTaxSavings,
+  estimateMonthlyPayment,
   buildIonCoefficientsFromSettings,
   DEFAULT_ION_COEFFICIENTS,
   calculatePacPrice,
@@ -942,5 +943,26 @@ describe('getCustomerVisibleLines (margin distributed proportionally)', () => {
     const v = getCustomerVisibleLines(allMargin)
     // No crash; returns input as-is
     expect(v.equipmentRappen).toBe(0)
+  })
+})
+
+// ─── estimateMonthlyPayment ───────────────────────────────────────────────
+
+describe('estimateMonthlyPayment', () => {
+  it('computes a standard annuity (2% / 20 ans)', () => {
+    // CHF 45'000 at 2%/20y → ≈ CHF 227.65/month
+    const m = estimateMonthlyPayment(4_500_000)
+    expect(m).toBeGreaterThan(22_000)
+    expect(m).toBeLessThan(23_500)
+  })
+
+  it('zero rate falls back to linear division', () => {
+    expect(estimateMonthlyPayment(2_400_000, 0, 20)).toBe(10_000)
+  })
+
+  it('guards degenerate inputs', () => {
+    expect(estimateMonthlyPayment(0)).toBe(0)
+    expect(estimateMonthlyPayment(-100)).toBe(0)
+    expect(estimateMonthlyPayment(100000, 200, 0)).toBe(0)
   })
 })
