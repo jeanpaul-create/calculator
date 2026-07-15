@@ -450,9 +450,15 @@ export async function PUT(req: NextRequest, { params }: Params) {
     // back to 0 for legacy non-AI scenarios (existing default).
     const primarySortOrder = data.tier ? TIER_SORT_ORDER[data.tier] : 0
 
-    // Atomically replace all scenarios (delete old + create primary + N siblings)
+    // Atomically replace the scenarios OF THE TYPE BEING SAVED (delete old +
+    // create primary + N siblings). Scoped by scenarioType so a quote can
+    // hold PV and PAC together — saving from the PAC calculator no longer
+    // wipes the PV tiers and vice versa (combined offers are the business
+    // model; the unscoped delete made them structurally impossible).
     const scenario = await prisma.$transaction(async (tx) => {
-      await tx.quoteScenario.deleteMany({ where: { quoteId: params.id } })
+      await tx.quoteScenario.deleteMany({
+        where: { quoteId: params.id, scenarioType },
+      })
       // Create siblings first (no return needed); primary is created last and
       // returned. Ordering doesn't matter for correctness — all in one tx.
       for (const sib of siblings) {

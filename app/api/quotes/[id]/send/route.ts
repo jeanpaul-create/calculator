@@ -64,9 +64,15 @@ export async function POST(_req: NextRequest, { params }: Params) {
 
     const customerName = quote.customerName ?? 'Client'
 
-    // Detect scenario type for friendlier subject lines.
-    const isPac = quote.scenarios[0]?.scenarioType === 'PAC'
-    const offerLabel = isPac ? 'pompe à chaleur' : 'photovoltaïque'
+    // Detect scenario types for friendlier copy — a quote can hold PV + PAC.
+    const hasPac = quote.scenarios.some((s) => s.scenarioType === 'PAC')
+    const hasPv = quote.scenarios.some((s) => s.scenarioType === 'PV')
+    const offerLabel =
+      hasPv && hasPac
+        ? 'photovoltaïque + pompe à chaleur'
+        : hasPac
+          ? 'pompe à chaleur'
+          : 'photovoltaïque'
     const subject = `Votre offre I.ON Energy — ${quote.quoteNumber}`
 
     // Resolve the canonical app URL for the public quote link.

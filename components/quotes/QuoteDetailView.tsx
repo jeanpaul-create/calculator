@@ -266,6 +266,29 @@ export default function QuoteDetailView({ quote, isAdmin }: QuoteDetailViewProps
           >
             Modifier
           </Link>
+          {/* Combined offers: a quote can hold PV + PAC. When only one type
+              is present, offer to add the other — the calculator prefills
+              customer/site and appends without touching existing scenarios. */}
+          {quote.scenarios.length > 0 &&
+            !quote.scenarios.some((s) => s.scenarioType === 'PAC') && (
+              <Link
+                href={`/calculator/pac?quoteId=${quote.id}`}
+                className="btn-secondary text-xs px-3 py-1.5"
+                title="Ajouter une pompe à chaleur à cette offre"
+              >
+                + PAC
+              </Link>
+            )}
+          {quote.scenarios.length > 0 &&
+            !quote.scenarios.some((s) => s.scenarioType === 'PV') && (
+              <Link
+                href={`/calculator?quoteId=${quote.id}`}
+                className="btn-secondary text-xs px-3 py-1.5"
+                title="Ajouter une installation photovoltaïque à cette offre"
+              >
+                + PV
+              </Link>
+            )}
           <DuplicateButton quoteId={quote.id} />
           <div className="ml-auto">
             <QuoteStatusActions
